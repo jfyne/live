@@ -27,8 +27,8 @@ type View struct {
 	// emitter is a channel to send messages back to the server.
 	emitter chan SocketMessage
 
-	// handleEvent called to handle an incoming event.
-	handleEvent EventHandler
+	// eventHandlers the map of event handlers.
+	eventHandlers map[Event]EventHandler
 
 	Mount  MountHandler
 	Render RenderHandler
@@ -40,10 +40,10 @@ func NewView(path string, files []string, configs ...ViewConfig) (*View, error) 
 		return nil, fmt.Errorf("could not create view: %w", err)
 	}
 	v := &View{
-		t:           t,
-		path:        path,
-		emitter:     make(chan SocketMessage),
-		handleEvent: func(e Event, c *Socket) {},
+		t:             t,
+		path:          path,
+		emitter:       make(chan SocketMessage),
+		eventHandlers: make(map[Event]EventHandler),
 		Mount: func(ctx context.Context, params map[string]string, c *Socket, connected bool) error {
 			return nil
 		},
@@ -65,4 +65,21 @@ func NewView(path string, files []string, configs ...ViewConfig) (*View, error) 
 	return v, nil
 }
 
-func (v *View) 
+// HandleEvent handles an event.
+func (v *View) HandleEvent(e Event, handler EventHandler) {
+	v.eventHandlers[e] = handler
+}
+
+// handleEvent route an event to the correct handler.
+func (v View) handleEvent(e Event, sock *Socket, msg SocketMessage) error {
+	handler, ok := v.eventHandlers[e]
+	if !ok {
+		return fmt.Errorf("no event handler for %s: %w", e, ErrNoEventHandler)
+	}
+
+	if err := handler(sock, msg); err != nil {
+		return fmt.Errorf("view event handler error [%s]: %w", e, err)
+	}
+
+	return nil
+}

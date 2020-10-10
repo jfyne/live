@@ -6,22 +6,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
+	"path"
 	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
+	"github.com/jfyne/live/internal/embed"
 	"golang.org/x/net/html"
 	"golang.org/x/time/rate"
 	"nhooyr.io/websocket"
 )
+
+type viewSockets struct {
+	view    *View
+	sockets map[*Socket]struct{}
+}
 
 // Server enables broadcasting to a set of subscribers.
 type Server struct {
@@ -44,20 +51,24 @@ type Server struct {
 	// serveMux routes the various endpoints to the appropriate handler.
 	serveMux mux.Router
 
-	// views the views that this server knows about.
-	views map[string]*View
-
 	// session store
 	store      sessions.Store
 	sessionKey string
 
+	// All of our current sockets.
 	socketsMu sync.Mutex
 	sockets   map[*Socket]struct{}
+
+	// All of our current views and their sockets.
+	viewsMu sync.Mutex
+	views   map[string]*viewSockets
 }
 
 // NewServer constructs a Server with the defaults.
 func NewServer(sessionKey string, secret []byte) *Server {
-	log.Println(sessionKey, string(secret))
+	// Get live javascript template.
+	liveJS := template.Must(template.New("live.js").Parse(string(embed.Get("/live.js"))))
+
 	s := &Server{
 		subscriberMessageBuffer: 16,
 		logf:                    log.Printf,
@@ -65,16 +76,43 @@ func NewServer(sessionKey string, secret []byte) *Server {
 		publishLimiter:          rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
 		store:                   sessions.NewCookieStore(secret),
 		sessionKey:              sessionKey,
-		views:                   map[string]*View{},
+		views:                   make(map[string]*viewSockets),
 	}
 	s.serveMux.HandleFunc("/live.js", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "web/live.js")
+		if err := liveJS.Execute(w, nil); err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+		}
 	})
-	s.serveMux.HandleFunc("/socket", s.socketHandler)
 
 	return s
 }
 
+// Add registers a view with the server.
+func (s *Server) Add(view *View) {
+	// Register the view
+	s.views[view.path] = &viewSockets{
+		view:    view,
+		sockets: make(map[*Socket]struct{}),
+	}
+
+	// Handle regular http requests.
+	s.serveMux.HandleFunc(view.path, s.viewHTTP(view))
+
+	// Handle socket connections for the view.
+	s.serveMux.HandleFunc("/"+path.Join("socket", view.path), s.viewWS(view))
+
+	go func(v *View) {
+		for {
+			select {
+			case m := <-v.emitter:
+				log.Println(m)
+			}
+		}
+	}(view)
+}
+
+// ServeHTTP.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.serveMux.ServeHTTP(w, r)
 }
@@ -88,14 +126,14 @@ func (s *Server) getSession(r *http.Request) (Session, error) {
 
 	v, ok := session.Values[SessionKey]
 	if !ok {
-		log.Println("failed to find existing conn")
+		log.Println("failed to find existing session")
 		// Create new connection.
 		ns := NewSession()
 		sess = ns
 	}
 	sess, ok = v.(Session)
 	if !ok {
-		log.Println("failed to assert conn type")
+		log.Println("failed to assert session type")
 		// Create new connection and set.
 		ns := NewSession()
 		sess = ns
@@ -112,11 +150,8 @@ func (s *Server) saveSession(w http.ResponseWriter, r *http.Request, session Ses
 	return c.Save(r, w)
 }
 
-func (s *Server) Add(view *View) {
-	// Register the view
-	s.views[view.path] = view
-
-	s.serveMux.HandleFunc(view.path, func(w http.ResponseWriter, r *http.Request) {
+func (s *Server) viewHTTP(view *View) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
 
 		// Get session.
@@ -128,33 +163,18 @@ func (s *Server) Add(view *View) {
 			return
 		}
 
-		// Get connection.
-		conn := NewSocket(session)
+		// Get socket.
+		sock := NewSocket(session)
 
-		// Mount view.
-		if err := view.Mount(r.Context(), params, conn, false); err != nil {
-			s.logf("mount err: %w", err)
+		if err := sock.HandleView(r.Context(), view, params); err != nil {
+			s.logf("socket handle view err: %w", err)
 			w.WriteHeader(500)
-			return
-		}
-
-		// Render view.
-		output, err := view.Render(r.Context(), view.t, conn)
-		if err != nil {
-			log.Println(err)
-			s.logf("err: %w", err)
-			w.WriteHeader(500)
-			return
-		}
-		node, err := html.Parse(output)
-		if err != nil {
-			s.logf("err: %w", err)
-			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
 			return
 		}
 
 		var rendered bytes.Buffer
-		html.Render(&rendered, node)
+		html.Render(&rendered, sock.currentRender)
 
 		if err := s.saveSession(w, r, session); err != nil {
 			s.logf("session save err: %w", err)
@@ -165,51 +185,52 @@ func (s *Server) Add(view *View) {
 
 		w.WriteHeader(200)
 		io.Copy(w, &rendered)
-	})
+	}
+}
 
-	go func(v *View) {
-		for {
-			select {
-			case m := <-v.emitter:
-				log.Println(m)
-			}
+func (s *Server) viewWS(view *View) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		params := mux.Vars(r)
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			s.logf("%v", err)
+			return
 		}
-	}(view)
-}
+		defer c.Close(websocket.StatusInternalError, "")
 
-// socketHandler accepts the WebSocket connection and then subscribes
-// it to all future messages.
-func (s *Server) socketHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := websocket.Accept(w, r, nil)
-	if err != nil {
-		s.logf("%v", err)
-		return
-	}
-	defer c.Close(websocket.StatusInternalError, "")
-
-	session, err := s.getSession(r)
-	err = s.socket(r.Context(), r.URL, session, c)
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-	if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
-		websocket.CloseStatus(err) == websocket.StatusGoingAway {
-		return
-	}
-	if err != nil {
-		s.logf("%v", err)
-		return
+		// Get the session from the http request.
+		session, err := s.getSession(r)
+		err = s.viewSocket(r.Context(), view, params, session, c)
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
+			websocket.CloseStatus(err) == websocket.StatusGoingAway {
+			return
+		}
+		if err != nil {
+			s.logf("%v", err)
+			return
+		}
 	}
 }
 
-func (s *Server) socket(ctx context.Context, url *url.URL, session Session, c *websocket.Conn) error {
-	con := NewSocket(session)
-	con.AssignWS(c)
-	s.addSocket(con)
-	defer s.deleteSocket(con)
+func (s *Server) viewSocket(ctx context.Context, view *View, params map[string]string, session Session, c *websocket.Conn) error {
+	// Get the sessions socket and register it with the server.
+	sock := NewSocket(session)
+	sock.AssignWS(c)
+	s.addSocket(sock)
+	defer s.deleteSocket(sock)
+	s.addViewSocket(view.path, sock)
+	defer s.deleteViewSocket(view.path, sock)
 
-	s.logf("%s connected on %s", session.ID, url.Path)
+	s.logf("%s connected to %s", session.ID, view.path)
 
+	if err := sock.HandleView(ctx, view, params); err != nil {
+		return fmt.Errorf("socket handle error: %w", err)
+	}
+
+	// Handle events coming from the websocket connection.
 	readError := make(chan error)
 	go func() {
 		for {
@@ -225,9 +246,13 @@ func (s *Server) socket(ctx context.Context, url *url.URL, session Session, c *w
 					readError <- err
 					break
 				}
-				switch m.T {
-				case EventListen:
-					log.Println("listen event", m)
+				if err := view.handleEvent(m.T, sock, m); err != nil {
+					if !errors.Is(err, ErrNoEventHandler) {
+						readError <- err
+						break
+					} else {
+						s.logf("%s", err)
+					}
 				}
 			case websocket.MessageBinary:
 				log.Println("binary messages unhandled")
@@ -236,15 +261,16 @@ func (s *Server) socket(ctx context.Context, url *url.URL, session Session, c *w
 		close(readError)
 	}()
 
+	// Send events to the websocket connection.
 	for {
 		select {
 		case err := <-readError:
 			if err != nil {
+				writeTimeout(ctx, time.Second*5, c, SocketMessage{T: EventError, Data: err.Error()})
 				return fmt.Errorf("read error: %w", err)
 			}
-		case msg := <-con.msgs:
-			err := writeTimeout(ctx, time.Second*5, c, msg)
-			if err != nil {
+		case msg := <-sock.msgs:
+			if err := writeTimeout(ctx, time.Second*5, c, msg); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -267,18 +293,45 @@ func (s *Server) broadcast(msg SocketMessage) {
 	}
 }
 
-// addSocket registers a connection.
+// addSocket registers a socket with the server.
 func (s *Server) addSocket(c *Socket) {
 	s.socketsMu.Lock()
+	defer s.socketsMu.Unlock()
+
 	s.sockets[c] = struct{}{}
-	s.socketsMu.Unlock()
 }
 
-// deleteSocket deletes the given connection.
+// addViewSocket  registers a socket with a view on the server.
+func (s *Server) addViewSocket(view string, c *Socket) {
+	s.viewsMu.Lock()
+	defer s.viewsMu.Unlock()
+
+	_, ok := s.views[view]
+	if !ok {
+		s.logf("no such view to add socket: %s", view)
+		return
+	}
+	s.views[view].sockets[c] = struct{}{}
+}
+
+// deleteSocket deletes the given socket from the server.
 func (s *Server) deleteSocket(c *Socket) {
 	s.socketsMu.Lock()
 	delete(s.sockets, c)
 	s.socketsMu.Unlock()
+}
+
+// deleteViewSocket deletes the given socket from the view.
+func (s *Server) deleteViewSocket(view string, c *Socket) {
+	s.viewsMu.Lock()
+	defer s.viewsMu.Unlock()
+
+	_, ok := s.views[view]
+	if !ok {
+		s.logf("no such view to delete socket: %s", view)
+		return
+	}
+	delete(s.views[view].sockets, c)
 }
 
 func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn, msg SocketMessage) error {

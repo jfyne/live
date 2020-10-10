@@ -4,9 +4,11 @@ package live
 type Event string
 
 // EventHandler a function to handle events.
-type EventHandler func(Event, *Socket)
+type EventHandler func(*Socket, SocketMessage) error
 
 // Live events.
 const (
-	EventListen = "listen"
+	EventError = "err"
+	EventPing  = "ping"
+	EventPatch = "patch"
 )

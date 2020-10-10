@@ -1,6 +1,12 @@
 package live
 
-import "nhooyr.io/websocket"
+import (
+	"context"
+	"fmt"
+
+	"golang.org/x/net/html"
+	"nhooyr.io/websocket"
+)
 
 const (
 	MaxMessageBufferSize = 16
@@ -8,11 +14,45 @@ const (
 
 // Socket describes a socket from the outside.
 type Socket struct {
-	Session Session
-	Data    interface{}
+	Session       Session
+	currentRender *html.Node
+	Data          interface{}
 
 	msgs      chan SocketMessage
 	closeSlow func()
+}
+
+// HandleView takes a view and runs a mount and render.
+func (s *Socket) HandleView(ctx context.Context, view *View, params map[string]string) error {
+	// Mount view.
+	if err := view.Mount(ctx, params, s, false); err != nil {
+		return fmt.Errorf("mount error: %w", err)
+	}
+
+	// Render view.
+	output, err := view.Render(ctx, view.t, s)
+	if err != nil {
+		return fmt.Errorf("render error: %w", err)
+	}
+	node, err := html.Parse(output)
+	if err != nil {
+		return fmt.Errorf("html parse error: %w", err)
+	}
+
+	// Get diff
+	if s.currentRender != nil {
+		patches := DiffTrees(s.currentRender, node)
+		for _, p := range patches {
+			msg := SocketMessage{
+				T:    EventPatch,
+				Data: p,
+			}
+			s.msgs <- msg
+		}
+	}
+	s.currentRender = node
+
+	return nil
 }
 
 // SocketMessage messages that are sent and received by the

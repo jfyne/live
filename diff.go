@@ -1,20 +1,48 @@
 package live
 
 import (
+	"bytes"
+	"fmt"
 	"log"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 )
 
-// Patch describes how to modify a dom.
+// Patch a location in the frontend dom.
 type Patch struct {
+	Path []int
+	HTML string
+}
+
+// Diff compare two node states and return patches.
+func Diff(current, proposed *html.Node) ([]Patch, error) {
+	patches := diffTrees(current, proposed)
+	output := make([]Patch, len(patches))
+
+	for idx, p := range patches {
+		var buf bytes.Buffer
+		if err := html.Render(&buf, p.Node); err != nil {
+			return nil, fmt.Errorf("failed to render patch: %w", err)
+		}
+
+		output[idx] = Patch{
+			Path: p.Path,
+			HTML: buf.String(),
+		}
+	}
+
+	return output, nil
+}
+
+// patch describes how to modify a dom.
+type patch struct {
 	Path []int
 	Node *html.Node
 }
 
-// DiffTrees compares two html Nodes and outputs patches.
-func DiffTrees(current, proposed *html.Node) []Patch {
+// diffTrees compares two html Nodes and outputs patches.
+func diffTrees(current, proposed *html.Node) []patch {
 	return compareNodes(current, proposed, []int{0})
 }
 
@@ -23,15 +51,15 @@ func nextSiblingPath(path []int) []int {
 	return path
 }
 
-func compareNodes(current, proposed *html.Node, path []int) []Patch {
-	patches := []Patch{}
+func compareNodes(current, proposed *html.Node, path []int) []patch {
+	patches := []patch{}
 
 	// Same so no patch.
 	if current == nil && proposed == nil {
 		return patches
 	}
 	// If proposed is something, and current is not patch.
-	proposedPatch := Patch{Path: path, Node: proposed}
+	proposedPatch := patch{Path: path, Node: proposed}
 	if current == nil && proposed != nil {
 		log.Println("patch applied", "complete")
 		return append(patches, proposedPatch)

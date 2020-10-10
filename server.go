@@ -25,11 +25,6 @@ import (
 	"nhooyr.io/websocket"
 )
 
-type viewSockets struct {
-	view    *View
-	sockets map[*Socket]struct{}
-}
-
 // Server enables broadcasting to a set of subscribers.
 type Server struct {
 	// subscriberMessageBuffer controls the max number
@@ -61,7 +56,7 @@ type Server struct {
 
 	// All of our current views and their sockets.
 	viewsMu sync.Mutex
-	views   map[string]*viewSockets
+	views   map[*View]map[*Socket]struct{}
 }
 
 // NewServer constructs a Server with the defaults.
@@ -76,7 +71,7 @@ func NewServer(sessionKey string, secret []byte) *Server {
 		publishLimiter:          rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
 		store:                   sessions.NewCookieStore(secret),
 		sessionKey:              sessionKey,
-		views:                   make(map[string]*viewSockets),
+		views:                   make(map[*View]map[*Socket]struct{}),
 	}
 	s.serveMux.HandleFunc("/live.js", func(w http.ResponseWriter, r *http.Request) {
 		if err := liveJS.Execute(w, nil); err != nil {
@@ -91,10 +86,7 @@ func NewServer(sessionKey string, secret []byte) *Server {
 // Add registers a view with the server.
 func (s *Server) Add(view *View) {
 	// Register the view
-	s.views[view.path] = &viewSockets{
-		view:    view,
-		sockets: make(map[*Socket]struct{}),
-	}
+	s.views[view] = make(map[*Socket]struct{})
 
 	// Handle regular http requests.
 	s.serveMux.HandleFunc(view.path, s.viewHTTP(view))
@@ -106,7 +98,15 @@ func (s *Server) Add(view *View) {
 		for {
 			select {
 			case m := <-v.emitter:
-				log.Println(m)
+				if m.S == nil {
+					log.Println("viewBroadcast", m.Msg)
+					s.viewBroadcast(view, m.Msg)
+				} else {
+					log.Println("Add: view.handleEvent", m.Msg)
+					if err := view.handleEvent(m.Msg.T, m.S, m.Msg); err != nil {
+						s.logf("server event error: %s", err)
+					}
+				}
 			}
 		}
 	}(view)
@@ -166,7 +166,7 @@ func (s *Server) viewHTTP(view *View) http.HandlerFunc {
 		// Get socket.
 		sock := NewSocket(session)
 
-		if err := sock.HandleView(r.Context(), view, params); err != nil {
+		if err := sock.handleView(r.Context(), view, params); err != nil {
 			s.logf("socket handle view err: %w", err)
 			w.WriteHeader(500)
 			w.Write([]byte(err.Error()))
@@ -221,12 +221,12 @@ func (s *Server) viewSocket(ctx context.Context, view *View, params map[string]s
 	sock.AssignWS(c)
 	s.addSocket(sock)
 	defer s.deleteSocket(sock)
-	s.addViewSocket(view.path, sock)
-	defer s.deleteViewSocket(view.path, sock)
+	s.addViewSocket(view, sock)
+	defer s.deleteViewSocket(view, sock)
 
 	s.logf("%s connected to %s", session.ID, view.path)
 
-	if err := sock.HandleView(ctx, view, params); err != nil {
+	if err := sock.handleView(ctx, view, params); err != nil {
 		return fmt.Errorf("socket handle error: %w", err)
 	}
 
@@ -253,6 +253,9 @@ func (s *Server) viewSocket(ctx context.Context, view *View, params map[string]s
 					} else {
 						s.logf("%s", err)
 					}
+				}
+				if err := sock.handleView(ctx, view, params); err != nil {
+					readError <- fmt.Errorf("socket handle error: %w", err)
 				}
 			case websocket.MessageBinary:
 				log.Println("binary messages unhandled")
@@ -293,6 +296,19 @@ func (s *Server) broadcast(msg SocketMessage) {
 	}
 }
 
+func (s *Server) viewBroadcast(view *View, msg SocketMessage) {
+	s.viewsMu.Lock()
+	defer s.viewsMu.Unlock()
+
+	ctx := context.Background()
+	s.publishLimiter.Wait(ctx)
+
+	for sock := range s.views[view] {
+		view.handleEvent(msg.T, sock, msg)
+		sock.handleView(ctx, view, map[string]string{})
+	}
+}
+
 // addSocket registers a socket with the server.
 func (s *Server) addSocket(c *Socket) {
 	s.socketsMu.Lock()
@@ -302,7 +318,7 @@ func (s *Server) addSocket(c *Socket) {
 }
 
 // addViewSocket  registers a socket with a view on the server.
-func (s *Server) addViewSocket(view string, c *Socket) {
+func (s *Server) addViewSocket(view *View, c *Socket) {
 	s.viewsMu.Lock()
 	defer s.viewsMu.Unlock()
 
@@ -311,7 +327,7 @@ func (s *Server) addViewSocket(view string, c *Socket) {
 		s.logf("no such view to add socket: %s", view)
 		return
 	}
-	s.views[view].sockets[c] = struct{}{}
+	s.views[view][c] = struct{}{}
 }
 
 // deleteSocket deletes the given socket from the server.
@@ -322,7 +338,7 @@ func (s *Server) deleteSocket(c *Socket) {
 }
 
 // deleteViewSocket deletes the given socket from the view.
-func (s *Server) deleteViewSocket(view string, c *Socket) {
+func (s *Server) deleteViewSocket(view *View, c *Socket) {
 	s.viewsMu.Lock()
 	defer s.viewsMu.Unlock()
 
@@ -331,7 +347,7 @@ func (s *Server) deleteViewSocket(view string, c *Socket) {
 		s.logf("no such view to delete socket: %s", view)
 		return
 	}
-	delete(s.views[view].sockets, c)
+	delete(s.views[view], c)
 }
 
 func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn, msg SocketMessage) error {
@@ -340,7 +356,7 @@ func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn,
 
 	data, err := json.Marshal(&msg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed writeTimeout: %w", err)
 	}
 
 	return c.Write(ctx, websocket.MessageText, data)

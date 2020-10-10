@@ -17,6 +17,12 @@ type RenderHandler func(ctx context.Context, t *template.Template, c *Socket) (i
 // ViewOption applies config to a view.
 type ViewConfig func(v *View) error
 
+// ViewEvent an event sent by the view to the server.
+type ViewEvent struct {
+	S   *Socket
+	Msg SocketMessage
+}
+
 // View to be handled by the server.
 type View struct {
 	// The path that this view lives at. Essentially the
@@ -25,7 +31,7 @@ type View struct {
 	t    *template.Template
 
 	// emitter is a channel to send messages back to the server.
-	emitter chan SocketMessage
+	emitter chan ViewEvent
 
 	// eventHandlers the map of event handlers.
 	eventHandlers map[Event]EventHandler
@@ -34,6 +40,7 @@ type View struct {
 	Render RenderHandler
 }
 
+// NewView creates a new live view.
 func NewView(path string, files []string, configs ...ViewConfig) (*View, error) {
 	t, err := template.ParseFiles(files...)
 	if err != nil {
@@ -42,7 +49,7 @@ func NewView(path string, files []string, configs ...ViewConfig) (*View, error) 
 	v := &View{
 		t:             t,
 		path:          path,
-		emitter:       make(chan SocketMessage),
+		emitter:       make(chan ViewEvent),
 		eventHandlers: make(map[Event]EventHandler),
 		Mount: func(ctx context.Context, params map[string]string, c *Socket, connected bool) error {
 			return nil
@@ -82,4 +89,12 @@ func (v View) handleEvent(e Event, sock *Socket, msg SocketMessage) error {
 	}
 
 	return nil
+}
+
+// Emit emits an event to the server.
+func (v View) Emit(sock *Socket, msg SocketMessage) {
+	v.emitter <- ViewEvent{
+		S:   sock,
+		Msg: msg,
+	}
 }

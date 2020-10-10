@@ -3,6 +3,7 @@ package live
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"golang.org/x/net/html"
 	"nhooyr.io/websocket"
@@ -14,16 +15,18 @@ const (
 
 // Socket describes a socket from the outside.
 type Socket struct {
-	Session       Session
-	currentRender *html.Node
-	Data          interface{}
+	Session Session
+	Data    interface{}
 
-	msgs      chan SocketMessage
-	closeSlow func()
+	currentRender *html.Node
+	msgs          chan SocketMessage
+	closeSlow     func()
 }
 
-// HandleView takes a view and runs a mount and render.
-func (s *Socket) HandleView(ctx context.Context, view *View, params map[string]string) error {
+// handleView takes a view and runs a mount and render.
+func (s *Socket) handleView(ctx context.Context, view *View, params map[string]string) error {
+	log.Println("socket.handleView")
+
 	// Mount view.
 	if err := view.Mount(ctx, params, s, false); err != nil {
 		return fmt.Errorf("mount error: %w", err)
@@ -41,7 +44,10 @@ func (s *Socket) HandleView(ctx context.Context, view *View, params map[string]s
 
 	// Get diff
 	if s.currentRender != nil {
-		patches := DiffTrees(s.currentRender, node)
+		patches, err := Diff(s.currentRender, node)
+		if err != nil {
+			return fmt.Errorf("diff error: %w", err)
+		}
 		for _, p := range patches {
 			msg := SocketMessage{
 				T:    EventPatch,

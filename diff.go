@@ -3,7 +3,6 @@ package live
 import (
 	"bytes"
 	"fmt"
-	"log"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
@@ -43,34 +42,52 @@ type patch struct {
 
 // diffTrees compares two html Nodes and outputs patches.
 func diffTrees(current, proposed *html.Node) []patch {
-	return compareNodes(current, proposed, []int{0})
+	return compareNodes(current, proposed, 0, []int{})
 }
 
-func nextSiblingPath(path []int) []int {
-	path[len(path)-1] = path[len(path)-1] + 1
-	return path
-}
-
-func compareNodes(current, proposed *html.Node, path []int) []patch {
+func compareNodes(current, proposed *html.Node, currentIndex int, path []int) []patch {
 	patches := []patch{}
 
 	// Same so no patch.
 	if current == nil && proposed == nil {
 		return patches
 	}
+
+	// Decide what to do based on node type
+	if current.Type == proposed.Type {
+		switch proposed.Type {
+		case html.ElementNode, html.TextNode:
+			break
+		case html.DoctypeNode:
+			return append(patches, compareNodes(current.NextSibling, proposed.NextSibling, (currentIndex), path)...)
+		case html.DocumentNode:
+			return append(patches, compareNodes(current.FirstChild, proposed.FirstChild, 0, path)...)
+		default:
+			return patches
+		}
+	}
+
 	// If proposed is something, and current is not patch.
 	proposedPatch := patch{Path: path, Node: proposed}
+	if proposed.Type == html.TextNode {
+		proposedPatch.Node = proposed.Parent
+	}
 	if current == nil && proposed != nil {
-		log.Println("patch applied", "complete")
+		proposedPatch.Path = append(path, currentIndex)
 		return append(patches, proposedPatch)
 	}
 
-	// Check siblings.
-	patches = append(patches, compareNodes(current.NextSibling, proposed.NextSibling, nextSiblingPath(path))...)
+	nextIndex := currentIndex
+	if proposed.Type == html.ElementNode {
+		nextIndex = currentIndex + 1
+	}
+
+	patches = append(patches, compareNodes(current.NextSibling, proposed.NextSibling, nextIndex, path)...)
+
+	proposedPatch.Path = append(path, currentIndex)
 
 	// Quick attr check.
 	if len(current.Attr) != len(proposed.Attr) {
-		log.Println("patch applied", "len attr")
 		return append(patches, proposedPatch)
 	}
 	// Deep attr check
@@ -85,19 +102,16 @@ func compareNodes(current, proposed *html.Node, path []int) []patch {
 		if found {
 			continue
 		}
-		log.Println("patch applied", "attr")
 		return append(patches, proposedPatch)
 	}
 	// Data check
 	if current.Data != proposed.Data {
-		log.Println("patch applied", "data")
 		return append(patches, proposedPatch)
 	}
 	// Type check
 	if current.Type != proposed.Type {
-		log.Println("patch applied", "type")
 		return append(patches, proposedPatch)
 	}
 
-	return append(patches, compareNodes(current.FirstChild, proposed.FirstChild, append(path, 0))...)
+	return append(patches, compareNodes(current.FirstChild, proposed.FirstChild, 0, append(path, currentIndex))...)
 }

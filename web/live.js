@@ -7,6 +7,29 @@ function newEvent(type, data) {
   });
 }
 
+function handlePatch(e) {
+    e.Path.shift();
+    // This gives us the html element.
+    var walkElement = document.querySelectorAll(":scope > *");
+    var targetElement = null;
+    e.Path.map(idx => {
+        var currentIDX = 0;
+        walkElement.forEach(n => {
+            if (currentIDX == idx) {
+                var proposed = n.querySelectorAll(":scope > *");
+                if (proposed.length !== 0) {
+                    walkElement = proposed;
+                } else {
+                    targetElement = n;
+                }
+            }
+            currentIDX++;
+        })
+    });
+
+    targetElement.outerHTML = e.HTML;
+}
+
 function dial() {
   conn = new WebSocket(`ws://${location.host}/socket${location.pathname}`);
 
@@ -30,7 +53,26 @@ function dial() {
       console.error("unexpected message type", typeof ev.data);
       return;
     }
-    console.log(ev.data);
+    e = JSON.parse(ev.data);
+    switch(e.t) {
+        case "patch":
+            handlePatch(e.d);
+            break;
+        default:
+            console.log(e);
+    }
   });
 }
-dial();
+
+function attachClickHandlers() {
+    document.querySelectorAll("*[live-click]").forEach((element) => {
+        element.addEventListener("click", e => {
+            conn.send(newEvent(element.getAttribute("live-click")));
+        });
+    });
+}
+
+document.addEventListener("DOMContentLoaded", _ => {
+    dial();
+    attachClickHandlers();
+});

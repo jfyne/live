@@ -99,7 +99,6 @@ func (s *Server) Add(view *View) {
 			select {
 			case m := <-v.emitter:
 				if m.S == nil {
-					log.Println("viewBroadcast", m.Msg)
 					s.viewBroadcast(view, m.Msg)
 				} else {
 					log.Println("Add: view.handleEvent", m.Msg)

@@ -8,8 +8,6 @@ function newEvent(type, data) {
 }
 
 function handlePatch(e) {
-    e.Path.shift();
-    // This gives us the html element.
     var walkElement = document.querySelectorAll(":scope > *");
     var targetElement = null;
     e.Path.map(idx => {
@@ -26,7 +24,6 @@ function handlePatch(e) {
             currentIDX++;
         })
     });
-
     targetElement.outerHTML = e.HTML;
 }
 

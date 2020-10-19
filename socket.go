@@ -22,13 +22,16 @@ type Socket struct {
 	closeSlow     func()
 }
 
-// handleView takes a view and runs a mount and render.
-func (s *Socket) handleView(ctx context.Context, view *View, params map[string]string) error {
+func (s *Socket) mount(ctx context.Context, view *View, params map[string]string, connected bool) error {
 	// Mount view.
-	if err := view.Mount(ctx, params, s, false); err != nil {
+	if err := view.Mount(ctx, view, params, s, connected); err != nil {
 		return fmt.Errorf("mount error: %w", err)
 	}
+	return nil
+}
 
+// handleView takes a view and runs a mount and render.
+func (s *Socket) handleView(ctx context.Context, view *View, params map[string]string) error {
 	// Render view.
 	output, err := view.Render(ctx, view.t, s)
 	if err != nil {

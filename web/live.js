@@ -63,7 +63,7 @@ function dial() {
 
 function attachClickHandlers() {
     document.querySelectorAll("*[live-click]").forEach((element) => {
-        element.addEventListener("click", e => {
+        element.addEventListener("click", _ => {
             conn.send(newEvent(element.getAttribute("live-click")));
         });
     });

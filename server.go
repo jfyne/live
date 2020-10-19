@@ -50,10 +50,6 @@ type Server struct {
 	store      sessions.Store
 	sessionKey string
 
-	// All of our current sockets.
-	socketsMu sync.Mutex
-	sockets   map[*Socket]struct{}
-
 	// All of our current views and their sockets.
 	viewsMu sync.Mutex
 	views   map[*View]map[*Socket]struct{}
@@ -67,7 +63,6 @@ func NewServer(sessionKey string, secret []byte) *Server {
 	s := &Server{
 		subscriberMessageBuffer: 16,
 		logf:                    log.Printf,
-		sockets:                 make(map[*Socket]struct{}),
 		publishLimiter:          rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
 		store:                   sessions.NewCookieStore(secret),
 		sessionKey:              sessionKey,
@@ -98,14 +93,17 @@ func (s *Server) Add(view *View) {
 		for {
 			select {
 			case m := <-v.emitter:
-				if m.S == nil {
-					s.viewBroadcast(view, m.Msg)
-				} else {
-					log.Println("Add: view.handleEvent", m.Msg)
-					if err := view.handleEvent(m.Msg.T, m.S, m.Msg); err != nil {
+				go func(ve ViewEvent) {
+					if !s.hasViewSocket(view, ve.S) {
+						return
+					}
+					if err := view.handleSelf(ve.Msg.T, ve.S, ve.Msg); err != nil {
 						s.logf("server event error: %s", err)
 					}
-				}
+					if err := ve.S.handleView(context.Background(), view, map[string]string{}); err != nil {
+						s.logf("socket handleView error: %s", err)
+					}
+				}(m)
 			}
 		}
 	}(view)
@@ -125,14 +123,12 @@ func (s *Server) getSession(r *http.Request) (Session, error) {
 
 	v, ok := session.Values[SessionKey]
 	if !ok {
-		log.Println("failed to find existing session")
 		// Create new connection.
 		ns := NewSession()
 		sess = ns
 	}
 	sess, ok = v.(Session)
 	if !ok {
-		log.Println("failed to assert session type")
 		// Create new connection and set.
 		ns := NewSession()
 		sess = ns
@@ -164,6 +160,13 @@ func (s *Server) viewHTTP(view *View) http.HandlerFunc {
 
 		// Get socket.
 		sock := NewSocket(session)
+
+		if err := sock.mount(r.Context(), view, params, false); err != nil {
+			s.logf("socket mount err: %w", err)
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
 
 		if err := sock.handleView(r.Context(), view, params); err != nil {
 			s.logf("socket handle view err: %w", err)
@@ -218,12 +221,14 @@ func (s *Server) viewSocket(ctx context.Context, view *View, params map[string]s
 	// Get the sessions socket and register it with the server.
 	sock := NewSocket(session)
 	sock.AssignWS(c)
-	s.addSocket(sock)
-	defer s.deleteSocket(sock)
 	s.addViewSocket(view, sock)
 	defer s.deleteViewSocket(view, sock)
 
 	s.logf("%s connected to %s", session.ID, view.path)
+
+	if err := sock.mount(ctx, view, params, true); err != nil {
+		return fmt.Errorf("socket mount error: %w", err)
+	}
 
 	if err := sock.handleView(ctx, view, params); err != nil {
 		return fmt.Errorf("socket handle error: %w", err)
@@ -276,21 +281,7 @@ func (s *Server) viewSocket(ctx context.Context, view *View, params map[string]s
 				return err
 			}
 		case <-ctx.Done():
-		}
-	}
-}
-
-func (s *Server) broadcast(msg SocketMessage) {
-	s.socketsMu.Lock()
-	defer s.socketsMu.Unlock()
-
-	s.publishLimiter.Wait(context.Background())
-
-	for c := range s.sockets {
-		select {
-		case c.msgs <- msg:
-		default:
-			go c.closeSlow()
+			return nil
 		}
 	}
 }
@@ -308,14 +299,6 @@ func (s *Server) viewBroadcast(view *View, msg SocketMessage) {
 	}
 }
 
-// addSocket registers a socket with the server.
-func (s *Server) addSocket(c *Socket) {
-	s.socketsMu.Lock()
-	defer s.socketsMu.Unlock()
-
-	s.sockets[c] = struct{}{}
-}
-
 // addViewSocket  registers a socket with a view on the server.
 func (s *Server) addViewSocket(view *View, c *Socket) {
 	s.viewsMu.Lock()
@@ -329,13 +312,6 @@ func (s *Server) addViewSocket(view *View, c *Socket) {
 	s.views[view][c] = struct{}{}
 }
 
-// deleteSocket deletes the given socket from the server.
-func (s *Server) deleteSocket(c *Socket) {
-	s.socketsMu.Lock()
-	delete(s.sockets, c)
-	s.socketsMu.Unlock()
-}
-
 // deleteViewSocket deletes the given socket from the view.
 func (s *Server) deleteViewSocket(view *View, c *Socket) {
 	s.viewsMu.Lock()
@@ -347,6 +323,18 @@ func (s *Server) deleteViewSocket(view *View, c *Socket) {
 		return
 	}
 	delete(s.views[view], c)
+}
+
+// hasViewSocket does a view still have the socket.
+func (s *Server) hasViewSocket(view *View, c *Socket) bool {
+	s.viewsMu.Lock()
+	defer s.viewsMu.Unlock()
+	v, vok := s.views[view]
+	if !vok {
+		return false
+	}
+	_, ok := v[c]
+	return ok
 }
 
 func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn, msg SocketMessage) error {

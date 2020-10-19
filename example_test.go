@@ -39,6 +39,8 @@ func Example_temperature() {
             <div>{{.C}}</div>
             <button live-click="temp-up">+</button>
             <button live-click="temp-down">-</button>
+            <!-- Include to make live work -->
+            <script src="/live.js"></script>
         `)
 		if err != nil {
 			return nil, err

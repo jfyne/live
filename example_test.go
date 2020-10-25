@@ -8,9 +8,9 @@ import (
 	"log"
 )
 
-//
+// Example_temperature shows a simple temperature control using the
+// "live-click" event.
 func Example_temperature() {
-
 	// Model of our thermostat.
 	type ThermoModel struct {
 		C float32

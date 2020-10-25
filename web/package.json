@@ -1,0 +1,17 @@
+{
+    "name": "web",
+    "version": "1.0.0",
+    "description": "",
+    "main": "live.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "build": "npx tsc -noemit && npx esbuild --bundle src/live.ts --outfile=dist/live.js --minify --sourcemap"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "esbuild": "^0.7.20",
+        "typescript": "^4.0.3"
+    }
+}

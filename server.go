@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"log"
 	"net"
@@ -57,9 +56,6 @@ type Server struct {
 
 // NewServer constructs a Server with the defaults.
 func NewServer(sessionKey string, secret []byte) *Server {
-	// Get live javascript template.
-	liveJS := template.Must(template.New("live.js").Parse(string(embed.Get("/live.js"))))
-
 	s := &Server{
 		subscriberMessageBuffer: 16,
 		logf:                    log.Printf,
@@ -68,11 +64,13 @@ func NewServer(sessionKey string, secret []byte) *Server {
 		sessionKey:              sessionKey,
 		views:                   make(map[*View]map[*Socket]struct{}),
 	}
+
+	// Handle JS.
+	s.serveMux.HandleFunc("/live.js.map", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(embed.Get("/live.js.map"))
+	})
 	s.serveMux.HandleFunc("/live.js", func(w http.ResponseWriter, r *http.Request) {
-		if err := liveJS.Execute(w, nil); err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte(err.Error()))
-		}
+		w.Write(embed.Get("/live.js"))
 	})
 
 	return s

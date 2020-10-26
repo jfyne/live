@@ -1,7 +1,10 @@
 import { Socket } from "./socket";
 import { LiveValues, LiveElement } from "./element";
 
-class EventHandler {
+/**
+ * Standard event handler class. Clicks, focus and blur.
+ */
+class LiveHandler {
     constructor(protected event: string, protected attribute: string) {}
 
     public isWired(element: Element): boolean {
@@ -27,7 +30,7 @@ class EventHandler {
             });
     }
 
-    protected handler(element: HTMLElement, values: LiveValues) {
+    protected handler(element: HTMLElement, values: LiveValues): EventListener {
         return (_: Event) => {
             const t = element?.getAttribute(this.attribute);
             if (t === null) {
@@ -39,9 +42,38 @@ class EventHandler {
 }
 
 /**
+ * KeyHandler handle key events.
+ */
+export class KeyHandler extends LiveHandler {
+    protected handler(element: HTMLElement, values: LiveValues): EventListener {
+        return (ev: Event) => {
+            const ke = ev as KeyboardEvent;
+            const t = element?.getAttribute(this.attribute);
+            if (t === null) {
+                return;
+            }
+            const filter = element.getAttribute("live-key");
+            if (filter !== null) {
+                if (ke.key !== filter) {
+                    return;
+                }
+            }
+            const keyData = {
+                "key": ke.key,
+                "altKey": ke.altKey,
+                "ctrlKey": ke.ctrlKey,
+                "shiftKey": ke.shiftKey,
+                "metaKey": ke.metaKey
+            };
+            Socket.send({ t: t, d: { ...values, ...keyData}});
+        };
+    }
+}
+
+/**
  * live-click attribute handling.
  */
-export class Click extends EventHandler {
+export class Click extends LiveHandler {
     constructor() {
         super("click", "live-click");
     }
@@ -50,7 +82,7 @@ export class Click extends EventHandler {
 /**
  * live-focus event handling.
  */
-export class Focus extends EventHandler {
+export class Focus extends LiveHandler {
     constructor() {
         super("focus", "live-focus");
     }
@@ -59,7 +91,7 @@ export class Focus extends EventHandler {
 /**
  * live-blur event handling.
  */
-export class Blur extends EventHandler {
+export class Blur extends LiveHandler {
     constructor() {
         super("blur", "live-blur");
     }
@@ -68,7 +100,7 @@ export class Blur extends EventHandler {
 /**
  * live-window-focus event handler.
  */
-export class WindowFocus extends EventHandler {
+export class WindowFocus extends LiveHandler {
     constructor() {
         super("focus", "live-window-focus");
     }
@@ -92,7 +124,7 @@ export class WindowFocus extends EventHandler {
 /**
  * live-window-blur event handler.
  */
-export class WindowBlur extends EventHandler {
+export class WindowBlur extends LiveHandler {
     constructor() {
         super("blur", "live-window-blur");
     }
@@ -114,6 +146,24 @@ export class WindowBlur extends EventHandler {
 }
 
 /**
+ * live-keydown event handler.
+ */
+export class Keydown extends KeyHandler {
+    constructor() {
+        super("keydown", "live-keydown");
+    }
+}
+
+/**
+ * live-keyup event handler.
+ */
+export class Keyup extends KeyHandler {
+    constructor() {
+        super("keyup", "live-keyup");
+    }
+}
+
+/**
  * Handle all events.
  */
 export class Events {
@@ -122,6 +172,8 @@ export class Events {
     private static blur: Blur;
     private static windowFocus: WindowFocus;
     private static windowBlur: WindowBlur;
+    private static keydown: Keydown;
+    private static keyup: Keyup;
 
     /**
      * Initialise all the event wiring.
@@ -132,6 +184,8 @@ export class Events {
         this.blur = new Blur();
         this.windowFocus = new WindowFocus();
         this.windowBlur = new WindowBlur();
+        this.keydown = new Keydown();
+        this.keyup = new Keyup();
     }
 
     /**
@@ -143,5 +197,7 @@ export class Events {
         this.blur.attach();
         this.windowFocus.attach();
         this.windowBlur.attach();
+        this.keydown.attach();
+        this.keyup.attach();
     }
 }

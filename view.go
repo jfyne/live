@@ -20,7 +20,7 @@ type ViewConfig func(v *View) error
 // ViewEvent an event sent by the view to the server.
 type ViewEvent struct {
 	S   *Socket
-	Msg SocketMessage
+	Msg Event
 }
 
 // View to be handled by the server.
@@ -34,11 +34,11 @@ type View struct {
 	emitter chan ViewEvent
 
 	// eventHandlers the map of event handlers.
-	eventHandlers map[Event]EventHandler
+	eventHandlers map[ET]EventHandler
 
 	// selfHandlers handle messages send to this view by server-side
 	// entities.
-	selfHandlers map[Event]EventHandler
+	selfHandlers map[ET]EventHandler
 
 	Mount  MountHandler
 	Render RenderHandler
@@ -54,8 +54,8 @@ func NewView(path string, files []string, configs ...ViewConfig) (*View, error) 
 		t:             t,
 		path:          path,
 		emitter:       make(chan ViewEvent),
-		eventHandlers: make(map[Event]EventHandler),
-		selfHandlers:  make(map[Event]EventHandler),
+		eventHandlers: make(map[ET]EventHandler),
+		selfHandlers:  make(map[ET]EventHandler),
 		Mount: func(ctx context.Context, view *View, params map[string]string, c *Socket, connected bool) error {
 			return nil
 		},
@@ -78,46 +78,56 @@ func NewView(path string, files []string, configs ...ViewConfig) (*View, error) 
 }
 
 // HandleEvent handles an event that comes from the client. For example a click.
-func (v *View) HandleEvent(e Event, handler EventHandler) {
-	v.eventHandlers[e] = handler
+func (v *View) HandleEvent(t ET, handler EventHandler) {
+	v.eventHandlers[t] = handler
 }
 
 // HandleSelf handles an event that comes from the view. This enables us to push
 // updates if needed.
-func (v *View) HandleSelf(e Event, handler EventHandler) {
-	v.selfHandlers[e] = handler
+func (v *View) HandleSelf(t ET, handler EventHandler) {
+	v.selfHandlers[t] = handler
 }
 
 // handleEvent route an event to the correct handler.
-func (v View) handleEvent(e Event, sock *Socket, msg SocketMessage) error {
-	handler, ok := v.eventHandlers[e]
+func (v View) handleEvent(t ET, sock *Socket, msg Event) error {
+	handler, ok := v.eventHandlers[t]
 	if !ok {
-		return fmt.Errorf("no event handler for %s: %w", e, ErrNoEventHandler)
+		return fmt.Errorf("no event handler for %s: %w", t, ErrNoEventHandler)
 	}
 
-	if err := handler(sock, msg); err != nil {
-		return fmt.Errorf("view event handler error [%s]: %w", e, err)
+	params, err := msg.Params()
+	if err != nil {
+		return fmt.Errorf("recieved message and could not extract params: %w", err)
+	}
+
+	if err := handler(sock, params); err != nil {
+		return fmt.Errorf("view event handler error [%s]: %w", t, err)
 	}
 
 	return nil
 }
 
 // handleSelf route an event to the correct handler.
-func (v View) handleSelf(e Event, sock *Socket, msg SocketMessage) error {
-	handler, ok := v.selfHandlers[e]
+func (v View) handleSelf(t ET, sock *Socket, msg Event) error {
+	handler, ok := v.selfHandlers[t]
 	if !ok {
-		return fmt.Errorf("no event handler for %s: %w", e, ErrNoEventHandler)
+		return fmt.Errorf("no self event handler for %s: %w", t, ErrNoEventHandler)
 	}
 
-	if err := handler(sock, msg); err != nil {
-		return fmt.Errorf("view event handler error [%s]: %w", e, err)
+	params, err := msg.Params()
+	if err != nil {
+		return fmt.Errorf("recieved self message and could not extract params: %w", err)
+	}
+
+	if err := handler(sock, params); err != nil {
+		return fmt.Errorf("view self event handler error [%s]: %w", t, err)
 	}
 
 	return nil
 }
 
 // Self sends a message to the view to action something on the socket.
-func (v View) Self(sock *Socket, msg SocketMessage) {
+func (v View) Self(sock *Socket, msg Event) {
 	v.emitter <- ViewEvent{
 		S:   sock,
 		Msg: msg,

@@ -29,7 +29,7 @@ export class Socket {
         // Ping on open.
         this.conn.addEventListener("open", (ev) => {
             console.info("websocket connected", ev);
-            this.send({ t: "ping", d: location.pathname });
+            this.send({ t: "ping", d: { path: location.pathname } });
         });
         this.conn.addEventListener("message", (ev) => {
             if (typeof ev.data !== "string") {

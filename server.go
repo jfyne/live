@@ -243,7 +243,7 @@ func (s *Server) viewSocket(ctx context.Context, view *View, params map[string]s
 			}
 			switch t {
 			case websocket.MessageText:
-				var m SocketMessage
+				var m Event
 				if err := json.Unmarshal(d, &m); err != nil {
 					readError <- err
 					break
@@ -271,7 +271,7 @@ func (s *Server) viewSocket(ctx context.Context, view *View, params map[string]s
 		select {
 		case err := <-readError:
 			if err != nil {
-				writeTimeout(ctx, time.Second*5, c, SocketMessage{T: EventError, Data: err.Error()})
+				writeTimeout(ctx, time.Second*5, c, Event{T: ETError, Data: err.Error()})
 				return fmt.Errorf("read error: %w", err)
 			}
 		case msg := <-sock.msgs:
@@ -284,7 +284,7 @@ func (s *Server) viewSocket(ctx context.Context, view *View, params map[string]s
 	}
 }
 
-func (s *Server) viewBroadcast(view *View, msg SocketMessage) {
+func (s *Server) viewBroadcast(view *View, msg Event) {
 	s.viewsMu.Lock()
 	defer s.viewsMu.Unlock()
 
@@ -335,7 +335,7 @@ func (s *Server) hasViewSocket(view *View, c *Socket) bool {
 	return ok
 }
 
-func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn, msg SocketMessage) error {
+func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn, msg Event) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 

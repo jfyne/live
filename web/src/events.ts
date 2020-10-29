@@ -22,6 +22,7 @@ class LiveHandler {
                 if (this.isWired(element) == true) {
                     return;
                 }
+                console.log("Wiring", this.attribute, this.event, element);
                 const values = LiveElement.values(element as HTMLElement);
                 element.addEventListener(
                     this.event,
@@ -31,7 +32,8 @@ class LiveHandler {
     }
 
     protected handler(element: HTMLElement, values: LiveValues): EventListener {
-        return (_: Event) => {
+        return (e: Event) => {
+            console.log(e);
             const t = element?.getAttribute(this.attribute);
             if (t === null) {
                 return;
@@ -47,6 +49,7 @@ class LiveHandler {
 export class KeyHandler extends LiveHandler {
     protected handler(element: HTMLElement, values: LiveValues): EventListener {
         return (ev: Event) => {
+            console.log(ev);
             const ke = ev as KeyboardEvent;
             const t = element?.getAttribute(this.attribute);
             if (t === null) {
@@ -59,13 +62,13 @@ export class KeyHandler extends LiveHandler {
                 }
             }
             const keyData = {
-                "key": ke.key,
-                "altKey": ke.altKey,
-                "ctrlKey": ke.ctrlKey,
-                "shiftKey": ke.shiftKey,
-                "metaKey": ke.metaKey
+                key: ke.key,
+                altKey: ke.altKey,
+                ctrlKey: ke.ctrlKey,
+                shiftKey: ke.shiftKey,
+                metaKey: ke.metaKey,
             };
-            Socket.send({ t: t, d: { ...values, ...keyData}});
+            Socket.send({ t: t, d: { ...values, ...keyData } });
         };
     }
 }

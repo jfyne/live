@@ -18,7 +18,7 @@ type Socket struct {
 	Data    interface{}
 
 	currentRender *html.Node
-	msgs          chan SocketMessage
+	msgs          chan Event
 	closeSlow     func()
 }
 
@@ -49,8 +49,8 @@ func (s *Socket) handleView(ctx context.Context, view *View, params map[string]s
 			return fmt.Errorf("diff error: %w", err)
 		}
 		for _, p := range patches {
-			msg := SocketMessage{
-				T:    EventPatch,
+			msg := Event{
+				T:    ETPatch,
 				Data: p,
 			}
 			s.msgs <- msg
@@ -61,18 +61,11 @@ func (s *Socket) handleView(ctx context.Context, view *View, params map[string]s
 	return nil
 }
 
-// SocketMessage messages that are sent and received by the
-// socket.
-type SocketMessage struct {
-	T    Event       `json:"t"`
-	Data interface{} `json:"d"`
-}
-
 // NewSocket creates a new socket.
 func NewSocket(s Session) *Socket {
 	return &Socket{
 		Session: s,
-		msgs:    make(chan SocketMessage, MaxMessageBufferSize),
+		msgs:    make(chan Event, MaxMessageBufferSize),
 	}
 }
 

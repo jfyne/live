@@ -4,5 +4,5 @@
  */
 export interface Event {
     t: string;
-    d: any;
+    d: { [key: string]: any };
 }

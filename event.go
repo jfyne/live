@@ -31,3 +31,42 @@ func (e Event) Params() (map[string]interface{}, error) {
 	}
 	return p, nil
 }
+
+// ParamString helper to return a string from the params.
+func ParamString(params map[string]interface{}, key string) string {
+	v, ok := params[key]
+	if !ok {
+		return ""
+	}
+	out, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return out
+}
+
+// ParamInt helper to return an int from the params.
+func ParamInt(params map[string]interface{}, key string) int {
+	v, ok := params[key]
+	if !ok {
+		return 0
+	}
+	out, ok := v.(int)
+	if !ok {
+		return 0
+	}
+	return out
+}
+
+// ParamFloat32 helper to return a float32 from the params.
+func ParamFloat32(params map[string]interface{}, key string) float32 {
+	v, ok := params[key]
+	if !ok {
+		return 0.0
+	}
+	out, ok := v.(float32)
+	if !ok {
+		return 0.0
+	}
+	return out
+}

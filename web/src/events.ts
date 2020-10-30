@@ -22,7 +22,6 @@ class LiveHandler {
                 if (this.isWired(element) == true) {
                     return;
                 }
-                console.log("Wiring", this.attribute, this.event, element);
                 const values = LiveElement.values(element as HTMLElement);
                 element.addEventListener(
                     this.event,
@@ -38,7 +37,6 @@ class LiveHandler {
                 if (this.isWired(element) === true) {
                     return;
                 }
-                console.log("Wiring", this.attribute, this.event, element);
                 const values = LiveElement.values(element as HTMLElement);
                 window.addEventListener(
                     this.event,
@@ -48,8 +46,7 @@ class LiveHandler {
     }
 
     protected handler(element: HTMLElement, values: LiveValues): EventListener {
-        return (e: Event) => {
-            console.log(e);
+        return (_: Event) => {
             const t = element?.getAttribute(this.attribute);
             if (t === null) {
                 return;
@@ -65,7 +62,6 @@ class LiveHandler {
 export class KeyHandler extends LiveHandler {
     protected handler(element: HTMLElement, values: LiveValues): EventListener {
         return (ev: Event) => {
-            console.log(ev);
             const ke = ev as KeyboardEvent;
             const t = element?.getAttribute(this.attribute);
             if (t === null) {
@@ -187,6 +183,59 @@ class WindowKeyup extends KeyHandler {
 }
 
 /**
+ * live-change form handler.
+ */
+class Change {
+    protected attribute = "live-change";
+
+    constructor() {
+    }
+
+    public isWired(element: Element): boolean {
+        if (element.hasAttribute(`${this.attribute}-wired`)) {
+            return true;
+        }
+        element.setAttribute(`${this.attribute}-wired`, "");
+        return false;
+    }
+
+    public attach() {
+        document
+            .querySelectorAll(`form[${this.attribute}]`)
+            .forEach((element: Element) => {
+                if (this.isWired(element) == true) {
+                    return;
+                }
+                element.querySelectorAll("input,select,textarea").forEach((childElement: Element) => {
+                    childElement.addEventListener("input", (_) => {
+                        this.handler(element as HTMLFormElement);
+                    });
+                });
+            });
+    }
+
+    private handler(element: HTMLFormElement) {
+        const t = element?.getAttribute(this.attribute);
+        if (t === null) {
+            return;
+        }
+        const formData = new FormData(element);
+        const values: {[key:string]: any} ={};
+        formData.forEach((value, key) => {
+            if(!Reflect.has(values, key)){
+                values[key] = value;
+                return;
+            }
+            if(!Array.isArray(values[key])){
+                values[key] = [values[key]];
+            }
+            values[key].push(value);
+        });
+        Socket.send({ t: t, d: values });
+    }
+}
+
+/**
  * Handle all events.
  */
 export class Events {
@@ -199,6 +248,7 @@ export class Events {
     private static keyup: Keyup;
     private static windowKeydown: WindowKeydown;
     private static windowKeyup: WindowKeyup;
+    private static change: Change;
 
     /**
      * Initialise all the event wiring.
@@ -213,6 +263,7 @@ export class Events {
         this.keyup = new Keyup();
         this.windowKeydown = new WindowKeydown();
         this.windowKeyup = new WindowKeyup();
+        this.change = new Change();
     }
 
     /**
@@ -228,5 +279,6 @@ export class Events {
         this.keyup.attach();
         this.windowKeyup.attach();
         this.windowKeydown.attach();
+        this.change.attach();
     }
 }

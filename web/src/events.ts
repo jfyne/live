@@ -31,6 +31,22 @@ class LiveHandler {
             });
     }
 
+    protected windowAttach() {
+        document
+            .querySelectorAll(`*[${this.attribute}]`)
+            .forEach((element: Element) => {
+                if (this.isWired(element) === true) {
+                    return;
+                }
+                console.log("Wiring", this.attribute, this.event, element);
+                const values = LiveElement.values(element as HTMLElement);
+                window.addEventListener(
+                    this.event,
+                    this.handler(element as HTMLElement, values)
+                );
+            });
+    }
+
     protected handler(element: HTMLElement, values: LiveValues): EventListener {
         return (e: Event) => {
             console.log(e);
@@ -76,7 +92,7 @@ export class KeyHandler extends LiveHandler {
 /**
  * live-click attribute handling.
  */
-export class Click extends LiveHandler {
+class Click extends LiveHandler {
     constructor() {
         super("click", "live-click");
     }
@@ -85,7 +101,7 @@ export class Click extends LiveHandler {
 /**
  * live-focus event handling.
  */
-export class Focus extends LiveHandler {
+class Focus extends LiveHandler {
     constructor() {
         super("focus", "live-focus");
     }
@@ -94,7 +110,7 @@ export class Focus extends LiveHandler {
 /**
  * live-blur event handling.
  */
-export class Blur extends LiveHandler {
+class Blur extends LiveHandler {
     constructor() {
         super("blur", "live-blur");
     }
@@ -103,55 +119,33 @@ export class Blur extends LiveHandler {
 /**
  * live-window-focus event handler.
  */
-export class WindowFocus extends LiveHandler {
+class WindowFocus extends LiveHandler {
     constructor() {
         super("focus", "live-window-focus");
     }
 
     public attach() {
-        document
-            .querySelectorAll(`*[${this.attribute}]`)
-            .forEach((element: Element) => {
-                if (this.isWired(element) === true) {
-                    return;
-                }
-                const values = LiveElement.values(element as HTMLElement);
-                window.addEventListener(
-                    this.event,
-                    this.handler(element as HTMLElement, values)
-                );
-            });
+        this.windowAttach();
     }
 }
 
 /**
  * live-window-blur event handler.
  */
-export class WindowBlur extends LiveHandler {
+class WindowBlur extends LiveHandler {
     constructor() {
         super("blur", "live-window-blur");
     }
 
     public attach() {
-        document
-            .querySelectorAll(`*[${this.attribute}]`)
-            .forEach((element: Element) => {
-                if (this.isWired(element) === true) {
-                    return;
-                }
-                const values = LiveElement.values(element as HTMLElement);
-                window.addEventListener(
-                    this.event,
-                    this.handler(element as HTMLElement, values)
-                );
-            });
+        this.windowAttach();
     }
 }
 
 /**
  * live-keydown event handler.
  */
-export class Keydown extends KeyHandler {
+class Keydown extends KeyHandler {
     constructor() {
         super("keydown", "live-keydown");
     }
@@ -160,9 +154,35 @@ export class Keydown extends KeyHandler {
 /**
  * live-keyup event handler.
  */
-export class Keyup extends KeyHandler {
+class Keyup extends KeyHandler {
     constructor() {
         super("keyup", "live-keyup");
+    }
+}
+
+/**
+ * live-window-keydown event handler.
+ */
+class WindowKeydown extends KeyHandler {
+    constructor() {
+        super("keydown", "live-window-keydown");
+    }
+
+    public attach() {
+        this.windowAttach();
+    }
+}
+
+/**
+ * live-window-keyup event handler.
+ */
+class WindowKeyup extends KeyHandler {
+    constructor() {
+        super("keyup", "live-window-keyup");
+    }
+
+    public attach() {
+        this.windowAttach();
     }
 }
 
@@ -177,6 +197,8 @@ export class Events {
     private static windowBlur: WindowBlur;
     private static keydown: Keydown;
     private static keyup: Keyup;
+    private static windowKeydown: WindowKeydown;
+    private static windowKeyup: WindowKeyup;
 
     /**
      * Initialise all the event wiring.
@@ -189,6 +211,8 @@ export class Events {
         this.windowBlur = new WindowBlur();
         this.keydown = new Keydown();
         this.keyup = new Keyup();
+        this.windowKeydown = new WindowKeydown();
+        this.windowKeyup = new WindowKeyup();
     }
 
     /**
@@ -202,5 +226,7 @@ export class Events {
         this.windowBlur.attach();
         this.keydown.attach();
         this.keyup.attach();
+        this.windowKeyup.attach();
+        this.windowKeydown.attach();
     }
 }

@@ -12,7 +12,7 @@ export class Patch {
     static handle(event: Event) {
         const e = event.d as PatchEvent;
 
-        let walkElement: NodeListOf<Element> = document.querySelectorAll(
+        let walkElement: NodeListOf<Element> = document.body.querySelectorAll(
             ":scope > *"
         );
         let targetElement: any = null;

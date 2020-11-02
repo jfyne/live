@@ -43,7 +43,7 @@ func Diff(current, proposed *html.Node) ([]Patch, error) {
 		}
 
 		output[idx] = Patch{
-			Path: p.Path,
+			Path: p.Path[1:],
 			HTML: buf.String(),
 		}
 	}

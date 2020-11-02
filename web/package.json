@@ -4,14 +4,17 @@
     "description": "",
     "main": "live.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "test": "npx jest",
         "build": "npx tsc -noemit && npx esbuild --bundle src/live.ts --outfile=dist/live.js --minify --sourcemap"
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
     "devDependencies": {
+        "@types/jest": "^26.0.15",
         "esbuild": "^0.7.20",
+        "jest": "^26.6.1",
+        "ts-jest": "^26.4.3",
         "typescript": "^4.0.3"
     }
 }

@@ -2,6 +2,7 @@ import { Event } from "./event";
 
 interface PatchEvent {
     Path: number[];
+    Action: number;
     HTML: string;
 }
 

@@ -19,7 +19,7 @@ func TestSingleTextChange(t *testing.T) {
 		root:     "<div>Hello</div>",
 		proposed: "<div>World</div>",
 		patches: []Patch{
-			{Path: []int{0}, HTML: "<div>World</div>"},
+			{Path: []int{0}, Action: Replace, HTML: "<div>World</div>"},
 		},
 	}, t)
 }
@@ -29,18 +29,26 @@ func TestMultipleTextChange(t *testing.T) {
 		root:     `<div>Hello</div><div>World</div>`,
 		proposed: `<div>World</div><div>Hello</div>`,
 		patches: []Patch{
-			{Path: []int{0}, HTML: "<div>World</div>"},
-			{Path: []int{1}, HTML: "<div>Hello</div>"},
+			{Path: []int{0}, Action: Replace, HTML: "<div>World</div>"},
+			{Path: []int{1}, Action: Replace, HTML: "<div>Hello</div>"},
 		},
 	}, t)
 }
 
-func TestNodeAddition(t *testing.T) {
+func TestNodeInsertion(t *testing.T) {
+	runDiffTest(diffTest{
+		root:     `<div>World</div>`,
+		proposed: `<div>Hello</div><div>World</div>`,
+		patches: []Patch{
+			{Path: []int{0}, Action: Replace, HTML: "<div>Hello</div>"},
+			{Path: []int{1}, Action: Insert, HTML: "<div>World</div>"},
+		},
+	}, t)
 	runDiffTest(diffTest{
 		root:     `<div>Hello</div>`,
 		proposed: `<div>Hello</div><div>World</div>`,
 		patches: []Patch{
-			{Path: []int{1}, HTML: "<div>World</div>"},
+			{Path: []int{1}, Action: Insert, HTML: "<div>World</div>"},
 		},
 	}, t)
 }
@@ -50,7 +58,7 @@ func TestNodeDeletion(t *testing.T) {
 		root:     `<div>Hello</div><div>World</div>`,
 		proposed: `<div>Hello</div>`,
 		patches: []Patch{
-			{Path: []int{1}, HTML: ""},
+			{Path: []int{1}, Action: Replace, HTML: ""},
 		},
 	}, t)
 }
@@ -60,7 +68,7 @@ func TestAttributeValueChange(t *testing.T) {
 		root:     `<div place="World">Hello</div>`,
 		proposed: `<div place="Change">Hello</div>`,
 		patches: []Patch{
-			{Path: []int{0}, HTML: `<div place="Change">Hello</div>`},
+			{Path: []int{0}, Action: Replace, HTML: `<div place="Change">Hello</div>`},
 		},
 	}, t)
 }
@@ -70,8 +78,8 @@ func TestMultipleAttributeValueChange(t *testing.T) {
 		root:     `<div place="World">World</div><div place="Hello">Hello</div>`,
 		proposed: `<div place="Hello">Hello</div><div place="World">World</div>`,
 		patches: []Patch{
-			{Path: []int{0}, HTML: `<div place="Hello">Hello</div>`},
-			{Path: []int{1}, HTML: `<div place="World">World</div>`},
+			{Path: []int{0}, Action: Replace, HTML: `<div place="Hello">Hello</div>`},
+			{Path: []int{1}, Action: Replace, HTML: `<div place="World">World</div>`},
 		},
 	}, t)
 }
@@ -79,10 +87,12 @@ func TestMultipleAttributeValueChange(t *testing.T) {
 func TestNestedInsert(t *testing.T) {
 	tests := []diffTest{
 		{
-			root:     `<form><input type="text"><input type="submit"></form>`,
-			proposed: `<form><div>Extra</div><input type="text"><input type="submit"></form>`,
+			root:     `<form><input type="text"/><input type="submit"/></form>`,
+			proposed: `<form><div>Extra</div><input type="text"/><input type="submit"/></form>`,
 			patches: []Patch{
-				{Path: []int{0, 0}, HTML: `<div>Extra</div>`},
+				{Path: []int{0, 0}, Action: Replace, HTML: `<div>Extra</div>`},
+				{Path: []int{0, 1}, Action: Replace, HTML: `<input type="text"/>`},
+				{Path: []int{0, 2}, Action: Insert, HTML: `<input type="submit"/>`},
 			},
 		},
 	}
@@ -108,17 +118,20 @@ func runDiffTest(tt diffTest, t *testing.T) {
 		return
 	}
 
+	t.Log("Patches", patches)
+	t.Log("Expected", tt.patches)
 	for _, expectedPatch := range tt.patches {
 		matched := false
-		t.Log("Expected patch", expectedPatch)
 		for _, proposedPatch := range patches {
-			t.Log("Proposed patch", proposedPatch)
 			if expectedPatch.HTML == proposedPatch.HTML {
 				if reflect.DeepEqual(expectedPatch.Path, proposedPatch.Path) {
-					matched = true
+					if expectedPatch.Action == proposedPatch.Action {
+						matched = true
+					} else {
+						t.Error("html match, path matched, but action did not", expectedPatch.Action, proposedPatch.Action)
+					}
 				} else {
 					t.Error("html matched, but path did not", expectedPatch.Path, proposedPatch.Path)
-					return
 				}
 			}
 		}

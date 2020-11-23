@@ -11,10 +11,20 @@ import (
 
 const _debug = false
 
+// PatchAction
+type PatchAction uint32
+
+const (
+	Noop PatchAction = iota
+	Insert
+	Replace
+)
+
 // Patch a location in the frontend dom.
 type Patch struct {
-	Path []int
-	HTML string
+	Path   []int
+	Action PatchAction
+	HTML   string
 }
 
 type traverseAction uint32
@@ -43,8 +53,9 @@ func Diff(current, proposed *html.Node) ([]Patch, error) {
 		}
 
 		output[idx] = Patch{
-			Path: p.Path[1:],
-			HTML: buf.String(),
+			Path:   p.Path[3:],
+			Action: p.Action,
+			HTML:   buf.String(),
 		}
 	}
 
@@ -53,94 +64,71 @@ func Diff(current, proposed *html.Node) ([]Patch, error) {
 
 // patch describes how to modify a dom.
 type patch struct {
-	Path []int
-	Node *html.Node
+	Path   []int
+	Action PatchAction
+	Node   *html.Node
 }
 
 // diffTrees compares two html Nodes and outputs patches.
 func diffTrees(current, proposed *html.Node) []patch {
-	return compareNodes(current, proposed, 0, []int{0})
+	return compareNodes(current, proposed, []int{0})
 }
 
-func compareNodes(current, proposed *html.Node, currentBranch int, followedPath []int) []patch {
+func compareNodes(oldNode, newNode *html.Node, followedPath []int) []patch {
+	debugNodeLog("compareNodes oldNode", oldNode)
+	debugNodeLog("compareNodes newNode", newNode)
 	patches := []patch{}
 
 	// Same so no patch.
-	if current == nil && proposed == nil {
+	if oldNode == nil && newNode == nil {
 		return patches
 	}
 
-	// If current exists and proposed does not, we need to patch a removal.
-	if current != nil && proposed == nil {
-		return append(patches, generatePatch(proposed, currentBranch, followedPath))
+	// If oldNode is nothing we need to insert the new node.
+	if oldNode == nil {
+		return append(patches, generatePatch(newNode, followedPath, Insert))
 	}
 
-	// Decide if we need to skip over where we are, doctype <html> tag etc.
-	switch nodesToSkip(proposed) {
-	case toChild:
-		return append(patches, compareNodes(current.FirstChild, proposed.FirstChild, 0, followedPath)...)
+	// If newNode does not exist, we need to patch a removal.
+	if newNode == nil {
+		return append(patches, generatePatch(newNode, followedPath, Replace))
+	}
+
+	// If nodes at this position are not equal patch a replacement.
+	if nodeEqual(oldNode, newNode) == false {
+		return append(patches, generatePatch(newNode, followedPath, Replace))
+	}
+
+	switch nodeAction(newNode) {
 	case toSibling:
-		return append(patches, compareNodes(current.NextSibling, proposed.NextSibling, currentBranch+1, followedPath)...)
+		return append(patches, compareNodes(oldNode.NextSibling, newNode.NextSibling, followedPath)...)
+	case toChild:
+		fallthrough
 	case check:
-		break
-	default:
-		break
-	}
+		newChildren := generateNodeList(newNode.FirstChild)
+		oldChildren := generateNodeList(oldNode.FirstChild)
 
-	// If proposed is something, and current is not patch.
-	if current == nil && proposed != nil {
-		patch := generatePatch(proposed, currentBranch, followedPath)
-		//log.Println("selectedPatch", patch.Path, patch.Node.Data)
-		return append(patches, patch)
-	}
+		for i := 0; i < len(newChildren) || i < len(oldChildren); i++ {
+			// Have to copy the followed path here, otherwise the patches
+			// paths get updated.
+			nextPath := make([]int, len(followedPath))
+			copy(nextPath, followedPath)
 
-	// Go traverse sibling nodes.
-	switch proposed.Type {
-	case html.ElementNode:
-		// If we are an alement node we want to record the fact that the next sibling is actually at the next index.
-		patches = append(patches, nextDestination(current.NextSibling, proposed.NextSibling, currentBranch+1, followedPath)...)
-	case html.TextNode:
-		// Text nodes don't count as another branch in the tree.
-		patches = append(patches, nextDestination(current.NextSibling, proposed.NextSibling, currentBranch, followedPath)...)
-	}
-
-	proposedPatch := generatePatch(proposed, currentBranch, followedPath)
-	// Quick attr check.
-	if len(current.Attr) != len(proposed.Attr) {
-		//log.Println("selectedPatch", proposedPatch.Path, proposedPatch.Node.Data)
-		return append(patches, proposedPatch)
-	}
-	// Deep attr check
-	for _, c := range proposed.Attr {
-		found := false
-		for _, l := range current.Attr {
-			if cmp.Equal(c, l) {
-				found = true
-				break
+			nextPath = append(nextPath, i)
+			if i >= len(newChildren) {
+				patches = append(patches, compareNodes(oldChildren[i], nil, nextPath)...)
+			} else if i >= len(oldChildren) {
+				patches = append(patches, compareNodes(nil, newChildren[i], nextPath)...)
+			} else {
+				patches = append(patches, compareNodes(oldChildren[i], newChildren[i], nextPath)...)
 			}
 		}
-		if found {
-			continue
-		}
-		//log.Println("selectedPatch", proposedPatch.Path, proposedPatch.Node.Data)
-		return append(patches, proposedPatch)
-	}
-	// Data check
-	if current.Data != proposed.Data {
-		//log.Println("selectedPatch", proposedPatch.Path, proposedPatch.Node.Data)
-		return append(patches, proposedPatch)
-	}
-	// Type check
-	if current.Type != proposed.Type {
-		//log.Println("selectedPatch", proposedPatch.Path, proposedPatch.Node.Data)
-		return append(patches, proposedPatch)
 	}
 
-	// Add to path as we step down a level in the tree.
-	return append(patches, nextDestination(current.FirstChild, proposed.FirstChild, 0, append(followedPath, 0))...)
+	return patches
 }
 
-func nodesToSkip(node *html.Node) traverseAction {
+func nodeAction(node *html.Node) traverseAction {
 	switch {
 	case node.Type == html.DocumentNode:
 		return toChild
@@ -152,52 +140,96 @@ func nodesToSkip(node *html.Node) traverseAction {
 	return check
 }
 
-func nextDestination(current, proposed *html.Node, currentBranch int, followedPath []int) []patch {
-	branchPath := append(followedPath[:0:0], followedPath...)
-	checkNode := proposed
-	if proposed == nil {
-		checkNode = current
-	}
-	if checkNode == nil {
-		return compareNodes(current, proposed, currentBranch, branchPath)
-	}
-	switch checkNode.Type {
-	case html.TextNode:
-		return compareNodes(current, proposed, currentBranch, branchPath)
-	case html.ElementNode:
-		//log.Println("modifypath", checkNode.Data, branchPath, currentBranch)
-		branchPath[len(branchPath)-1] = currentBranch
-		return compareNodes(current, proposed, currentBranch, branchPath)
-	default:
-		debugNodeLog("unhandled", proposed)
-		panic("Should not be here")
-	}
-}
-
-func generatePatch(node *html.Node, currentBranch int, followedPath []int) patch {
+func generatePatch(node *html.Node, followedPath []int, action PatchAction) patch {
 	if node == nil {
 		return patch{
-			Path: followedPath,
-			Node: nil,
+			Path:   followedPath,
+			Action: action,
+			Node:   nil,
 		}
 	}
 	debugNodeLog("generatePatch", node)
 	switch node.Type {
 	case html.TextNode:
 		return patch{
-			Path: followedPath[:len(followedPath)-1],
-			Node: node.Parent,
+			Path:   followedPath[:len(followedPath)-1],
+			Action: action,
+			Node:   node.Parent,
 		}
 	default:
 		return patch{
-			Path: followedPath,
-			Node: node,
+			Path:   followedPath,
+			Action: action,
+			Node:   node,
 		}
 	}
 }
 
+// nodeEqual check if one node is equal to another.
+func nodeEqual(oldNode *html.Node, newNode *html.Node) bool {
+	// Type check
+	if oldNode.Type != newNode.Type {
+		return false
+	}
+	if len(oldNode.Attr) != len(newNode.Attr) {
+		return false
+	}
+	// Deep attr check
+	for _, c := range newNode.Attr {
+		found := false
+		for _, l := range oldNode.Attr {
+			if cmp.Equal(c, l) {
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
+		return false
+	}
+	// Data check
+	if oldNode.Data != newNode.Data {
+		return false
+	}
+	return true
+}
+
+// generateNodeList create a list of sibling nodes.
+func generateNodeList(node *html.Node) []*html.Node {
+	list := []*html.Node{}
+	if node == nil {
+		return list
+	}
+
+	current := getFirstSibling(node)
+	for {
+		list = append(list, current)
+		if current.NextSibling == nil {
+			break
+		} else {
+			current = current.NextSibling
+		}
+	}
+	return list
+}
+
+// getFirstSibling takes a node and finds the "first" node in the sibling
+// list.
+func getFirstSibling(node *html.Node) *html.Node {
+	if node.PrevSibling == nil {
+		return node
+	}
+	return getFirstSibling(node.PrevSibling)
+}
+
 func debugNodeLog(msg string, node *html.Node) {
 	if !_debug {
+		return
+	}
+
+	if node == nil {
+		log.Println(msg, nil, nil, "")
 		return
 	}
 

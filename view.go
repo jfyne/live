@@ -61,7 +61,7 @@ func NewView(path string, files []string, configs ...ViewConfig) (*View, error) 
 		},
 		Render: func(ctx context.Context, t *template.Template, c *Socket) (io.Reader, error) {
 			var buf bytes.Buffer
-			if err := t.ExecuteTemplate(&buf, "base.html", c.Data); err != nil {
+			if err := t.ExecuteTemplate(&buf, "root.html", c.Data); err != nil {
 				return nil, err
 			}
 			return &buf, nil

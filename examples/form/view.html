@@ -1,0 +1,14 @@
+{{ define "title" }} Example form {{ end }}
+{{ define "view" }}
+<form live-change="validate" live-submit="save">
+    {{ if index .Form.Errors "message" }}
+        <div class="error">{{index .Form.Errors "message"}}</div>
+    {{ end }}
+    <input type="text" name="message">
+    <input type="submit">
+</form>
+
+{{ range $msg := .Messages }}
+<pre>{{$msg}}</pre>
+{{ end }}
+{{ end }}

@@ -19,7 +19,7 @@ func TestSingleTextChange(t *testing.T) {
 		root:     "<div>Hello</div>",
 		proposed: "<div>World</div>",
 		patches: []Patch{
-			{Path: []int{0}, Action: Replace, HTML: "<div>World</div>"},
+			{Path: []int{1, 0}, Action: Replace, HTML: "<div>World</div>"},
 		},
 	}, t)
 }
@@ -29,8 +29,8 @@ func TestMultipleTextChange(t *testing.T) {
 		root:     `<div>Hello</div><div>World</div>`,
 		proposed: `<div>World</div><div>Hello</div>`,
 		patches: []Patch{
-			{Path: []int{0}, Action: Replace, HTML: "<div>World</div>"},
-			{Path: []int{1}, Action: Replace, HTML: "<div>Hello</div>"},
+			{Path: []int{1, 0}, Action: Replace, HTML: "<div>World</div>"},
+			{Path: []int{1, 1}, Action: Replace, HTML: "<div>Hello</div>"},
 		},
 	}, t)
 }
@@ -40,15 +40,15 @@ func TestNodeInsertion(t *testing.T) {
 		root:     `<div>World</div>`,
 		proposed: `<div>Hello</div><div>World</div>`,
 		patches: []Patch{
-			{Path: []int{0}, Action: Replace, HTML: "<div>Hello</div>"},
-			{Path: []int{1}, Action: Insert, HTML: "<div>World</div>"},
+			{Path: []int{1, 0}, Action: Replace, HTML: "<div>Hello</div>"},
+			{Path: []int{1, 1}, Action: Insert, HTML: "<div>World</div>"},
 		},
 	}, t)
 	runDiffTest(diffTest{
 		root:     `<div>Hello</div>`,
 		proposed: `<div>Hello</div><div>World</div>`,
 		patches: []Patch{
-			{Path: []int{1}, Action: Insert, HTML: "<div>World</div>"},
+			{Path: []int{1, 1}, Action: Insert, HTML: "<div>World</div>"},
 		},
 	}, t)
 }
@@ -58,7 +58,7 @@ func TestNodeDeletion(t *testing.T) {
 		root:     `<div>Hello</div><div>World</div>`,
 		proposed: `<div>Hello</div>`,
 		patches: []Patch{
-			{Path: []int{1}, Action: Replace, HTML: ""},
+			{Path: []int{1, 1}, Action: Replace, HTML: ""},
 		},
 	}, t)
 }
@@ -68,7 +68,7 @@ func TestAttributeValueChange(t *testing.T) {
 		root:     `<div place="World">Hello</div>`,
 		proposed: `<div place="Change">Hello</div>`,
 		patches: []Patch{
-			{Path: []int{0}, Action: Replace, HTML: `<div place="Change">Hello</div>`},
+			{Path: []int{1, 0}, Action: Replace, HTML: `<div place="Change">Hello</div>`},
 		},
 	}, t)
 }
@@ -78,8 +78,8 @@ func TestMultipleAttributeValueChange(t *testing.T) {
 		root:     `<div place="World">World</div><div place="Hello">Hello</div>`,
 		proposed: `<div place="Hello">Hello</div><div place="World">World</div>`,
 		patches: []Patch{
-			{Path: []int{0}, Action: Replace, HTML: `<div place="Hello">Hello</div>`},
-			{Path: []int{1}, Action: Replace, HTML: `<div place="World">World</div>`},
+			{Path: []int{1, 0}, Action: Replace, HTML: `<div place="Hello">Hello</div>`},
+			{Path: []int{1, 1}, Action: Replace, HTML: `<div place="World">World</div>`},
 		},
 	}, t)
 }
@@ -90,9 +90,46 @@ func TestNestedInsert(t *testing.T) {
 			root:     `<form><input type="text"/><input type="submit"/></form>`,
 			proposed: `<form><div>Extra</div><input type="text"/><input type="submit"/></form>`,
 			patches: []Patch{
-				{Path: []int{0, 0}, Action: Replace, HTML: `<div>Extra</div>`},
-				{Path: []int{0, 1}, Action: Replace, HTML: `<input type="text"/>`},
-				{Path: []int{0, 2}, Action: Insert, HTML: `<input type="submit"/>`},
+				{Path: []int{1, 0, 0}, Action: Replace, HTML: `<div>Extra</div>`},
+				{Path: []int{1, 0, 1}, Action: Replace, HTML: `<input type="text"/>`},
+				{Path: []int{1, 0, 2}, Action: Insert, HTML: `<input type="submit"/>`},
+			},
+		},
+	}
+	for _, d := range tests {
+		runDiffTest(d, t)
+	}
+}
+
+func TestDoc(t *testing.T) {
+	runDiffTest(diffTest{
+		root:     "<!doctype><html><html><head><title>1</title></head><body><div>1</div></body></html>",
+		proposed: "<!doctype><html><html><head><title>2</title></head><body><div>2</div></body></html>",
+		patches: []Patch{
+			{Path: []int{0, 0}, Action: Replace, HTML: "<title>2</title>"},
+			{Path: []int{1, 0}, Action: Replace, HTML: "<div>2</div>"},
+		},
+	}, t)
+}
+
+func TestInsignificantWhitespace(t *testing.T) {
+	tests := []diffTest{
+		{
+			root: `
+            <form>
+                <input type="text"/>
+                <input type="submit"/>
+            </form>`,
+			proposed: `
+            <form>
+            <div>Extra</div>
+            <input type="text"/>
+            <input type="submit"/>
+            </form>`,
+			patches: []Patch{
+				{Path: []int{1, 0, 1}, Action: Replace, HTML: `<div>Extra</div>`},
+				{Path: []int{1, 0, 3}, Action: Replace, HTML: `<input type="text"/>`},
+				{Path: []int{1, 0, 5}, Action: Insert, HTML: `<input type="submit"/>`},
 			},
 		},
 	}

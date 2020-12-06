@@ -13,27 +13,52 @@ export class Patch {
     static handle(event: Event) {
         const e = event.d as PatchEvent;
 
-        let walkElement: NodeListOf<Element> = document.body.querySelectorAll(
-            ":scope > *"
-        );
-        let targetElement: any = null;
-        e.Path.map((idx) => {
-            var currentIDX = 0;
-            walkElement.forEach((n) => {
-                if (currentIDX == idx) {
-                    var proposed = n.querySelectorAll(":scope > *");
-                    if (proposed.length !== 0) {
-                        walkElement = proposed;
-                    } else {
-                        targetElement = n as HTMLElement;
-                    }
-                }
-                currentIDX++;
-            });
-        });
-        if (targetElement === null) {
+        const html = document.querySelector("html");
+        if (html === null) {
+            throw "could not find html node";
+        }
+
+        let parent: Element = html;
+        let siblings = html.childNodes;
+        let target: Element | undefined = undefined;
+        for (let i = 0; i < e.Path.length; i++) {
+            target = siblings[e.Path[i]] as Element;
+            if (target === undefined) {
+                parent.appendChild(Patch.html2Node(e.HTML));
+                return;
+            }
+            if (target.childNodes.length) {
+                siblings = target.childNodes;
+            }
+            parent = target;
+        }
+        if (target === undefined) {
             return;
         }
-        targetElement.outerHTML = e.HTML;
+        if (e.Action == 0) {
+            // NOOP
+            return;
+        }
+        if (e.Action == 1) {
+            // INSERT
+            if (target.parentNode === null) {
+                return;
+            }
+            target.parentNode.insertBefore(Patch.html2Node(e.HTML), target);
+        }
+        if (e.Action == 2) {
+            // REPLACE
+            target.outerHTML = e.HTML;
+        }
+    }
+
+    private static html2Node(html: string): Node {
+        const template = document.createElement("template");
+        html = html.trim();
+        template.innerHTML = html;
+        if (template.content.firstChild === null) {
+            throw `${html} node not generated`;
+        }
+        return template.content.firstChild;
     }
 }

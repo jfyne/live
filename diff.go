@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
@@ -27,14 +28,6 @@ type Patch struct {
 	HTML   string
 }
 
-type traverseAction uint32
-
-const (
-	toSibling traverseAction = iota
-	toChild
-	check
-)
-
 // Diff compare two node states and return patches.
 func Diff(current, proposed *html.Node) ([]Patch, error) {
 	patches := diffTrees(current, proposed)
@@ -53,7 +46,7 @@ func Diff(current, proposed *html.Node) ([]Patch, error) {
 		}
 
 		output[idx] = Patch{
-			Path:   p.Path[3:],
+			Path:   p.Path[2:],
 			Action: p.Action,
 			HTML:   buf.String(),
 		}
@@ -86,6 +79,9 @@ func compareNodes(oldNode, newNode *html.Node, followedPath []int) []patch {
 
 	// If oldNode is nothing we need to insert the new node.
 	if oldNode == nil {
+		if !nodeRelevant(newNode) {
+			return []patch{}
+		}
 		return append(patches, generatePatch(newNode, followedPath, Insert))
 	}
 
@@ -99,45 +95,26 @@ func compareNodes(oldNode, newNode *html.Node, followedPath []int) []patch {
 		return append(patches, generatePatch(newNode, followedPath, Replace))
 	}
 
-	switch nodeAction(newNode) {
-	case toSibling:
-		return append(patches, compareNodes(oldNode.NextSibling, newNode.NextSibling, followedPath)...)
-	case toChild:
-		fallthrough
-	case check:
-		newChildren := generateNodeList(newNode.FirstChild)
-		oldChildren := generateNodeList(oldNode.FirstChild)
+	newChildren := generateNodeList(newNode.FirstChild)
+	oldChildren := generateNodeList(oldNode.FirstChild)
 
-		for i := 0; i < len(newChildren) || i < len(oldChildren); i++ {
-			// Have to copy the followed path here, otherwise the patches
-			// paths get updated.
-			nextPath := make([]int, len(followedPath))
-			copy(nextPath, followedPath)
+	for i := 0; i < len(newChildren) || i < len(oldChildren); i++ {
+		// Have to copy the followed path here, otherwise the patches
+		// paths get updated.
+		nextPath := make([]int, len(followedPath))
+		copy(nextPath, followedPath)
 
-			nextPath = append(nextPath, i)
-			if i >= len(newChildren) {
-				patches = append(patches, compareNodes(oldChildren[i], nil, nextPath)...)
-			} else if i >= len(oldChildren) {
-				patches = append(patches, compareNodes(nil, newChildren[i], nextPath)...)
-			} else {
-				patches = append(patches, compareNodes(oldChildren[i], newChildren[i], nextPath)...)
-			}
+		nextPath = append(nextPath, i)
+		if i >= len(newChildren) {
+			patches = append(patches, compareNodes(oldChildren[i], nil, nextPath)...)
+		} else if i >= len(oldChildren) {
+			patches = append(patches, compareNodes(nil, newChildren[i], nextPath)...)
+		} else {
+			patches = append(patches, compareNodes(oldChildren[i], newChildren[i], nextPath)...)
 		}
 	}
 
 	return patches
-}
-
-func nodeAction(node *html.Node) traverseAction {
-	switch {
-	case node.Type == html.DocumentNode:
-		return toChild
-	case node.Type == html.DoctypeNode:
-		return toSibling
-	case node.Type == html.ElementNode && node.Data == "html":
-		return toChild
-	}
-	return check
 }
 
 func generatePatch(node *html.Node, followedPath []int, action PatchAction) patch {
@@ -165,6 +142,14 @@ func generatePatch(node *html.Node, followedPath []int, action PatchAction) patc
 	}
 }
 
+// nodeRelevant check if this node is relevant.
+func nodeRelevant(node *html.Node) bool {
+	if node.Type == html.TextNode && len(strings.TrimSpace(node.Data)) == 0 {
+		return false
+	}
+	return true
+}
+
 // nodeEqual check if one node is equal to another.
 func nodeEqual(oldNode *html.Node, newNode *html.Node) bool {
 	// Type check
@@ -189,7 +174,7 @@ func nodeEqual(oldNode *html.Node, newNode *html.Node) bool {
 		return false
 	}
 	// Data check
-	if oldNode.Data != newNode.Data {
+	if strings.TrimSpace(oldNode.Data) != strings.TrimSpace(newNode.Data) {
 		return false
 	}
 	return true

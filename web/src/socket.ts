@@ -8,6 +8,7 @@ import { Events } from "./events";
  */
 export class Socket {
     private static conn: WebSocket;
+    private static ready: boolean = false;
 
     constructor() {}
 
@@ -16,6 +17,7 @@ export class Socket {
             `ws://${location.host}/socket${location.pathname}`
         );
         this.conn.addEventListener("close", (ev) => {
+            this.ready = false;
             console.warn(
                 `WebSocket Disconnected code: ${ev.code}, reason: ${ev.reason}`
             );
@@ -29,6 +31,7 @@ export class Socket {
         // Ping on open.
         this.conn.addEventListener("open", (ev) => {
             console.info("websocket connected", ev);
+            this.ready = true;
             this.send({ t: "ping", d: { path: location.pathname } });
         });
         this.conn.addEventListener("message", (ev) => {
@@ -49,6 +52,10 @@ export class Socket {
     }
 
     static send(e: Event) {
+        if (this.ready === false) {
+            console.warn("connection not ready for send of event", e)
+            return;
+        }
         this.conn.send(JSON.stringify(e));
     }
 }

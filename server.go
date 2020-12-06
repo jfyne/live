@@ -190,6 +190,7 @@ func (s *Server) viewHTTP(view *View) http.HandlerFunc {
 
 func (s *Server) viewWS(view *View) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		s.logf("connect")
 		params := mux.Vars(r)
 		c, err := websocket.Accept(w, r, nil)
 		if err != nil {

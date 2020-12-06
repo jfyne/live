@@ -1,0 +1,19 @@
+{{ define "title" }}Example buttons{{ end }}
+{{ define "view" }}
+<style>
+    .clicker {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 2rem;
+    }
+    .clicker > div {
+        margin: 0 1rem;
+    }
+</style>
+<div class="clicker">
+    <button live-click="dec">-</button>
+    <div>{{.Value}}</div>
+    <button live-click="inc">+</button>
+</div>
+{{ end }}

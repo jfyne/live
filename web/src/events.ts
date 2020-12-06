@@ -188,8 +188,7 @@ class WindowKeyup extends KeyHandler {
 class Change {
     protected attribute = "live-change";
 
-    constructor() {
-    }
+    constructor() {}
 
     public isWired(element: Element): boolean {
         if (element.hasAttribute(`${this.attribute}-wired`)) {
@@ -206,11 +205,13 @@ class Change {
                 if (this.isWired(element) == true) {
                     return;
                 }
-                element.querySelectorAll("input,select,textarea").forEach((childElement: Element) => {
-                    childElement.addEventListener("input", (_) => {
-                        this.handler(element as HTMLFormElement);
+                element
+                    .querySelectorAll("input,select,textarea")
+                    .forEach((childElement: Element) => {
+                        childElement.addEventListener("input", (_) => {
+                            this.handler(element as HTMLFormElement);
+                        });
                     });
-                });
             });
     }
 
@@ -220,13 +221,13 @@ class Change {
             return;
         }
         const formData = new FormData(element);
-        const values: {[key:string]: any} ={};
+        const values: { [key: string]: any } = {};
         formData.forEach((value, key) => {
-            if(!Reflect.has(values, key)){
+            if (!Reflect.has(values, key)) {
                 values[key] = value;
                 return;
             }
-            if(!Array.isArray(values[key])){
+            if (!Array.isArray(values[key])) {
                 values[key] = [values[key]];
             }
             values[key].push(value);

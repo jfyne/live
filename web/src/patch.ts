@@ -27,9 +27,7 @@ export class Patch {
             for (let i = 0; i < e.Path.length; i++) {
                 target = siblings[e.Path[i]] as Element;
                 if (target === undefined) {
-                    if (e.HTML === "") {
-                        console.log(e);
-                    } else {
+                    if (e.HTML !== "") {
                         parent.appendChild(Patch.html2Node(e.HTML));
                     }
                     return;
@@ -63,7 +61,6 @@ export class Patch {
     }
 
     private static html2Node(html: string): Node {
-        console.log("GENERATING", `"${html}"`);
         const template = document.createElement("template");
         html = html.trim();
         template.innerHTML = html;

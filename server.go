@@ -56,11 +56,16 @@ type Server struct {
 
 // NewServer constructs a Server with the defaults.
 func NewServer(sessionKey string, secret []byte) *Server {
+	cookieStore := sessions.NewCookieStore(secret)
+	cookieStore.Options.HttpOnly = true
+	cookieStore.Options.Secure = true
+	cookieStore.Options.SameSite = http.SameSiteStrictMode
+
 	s := &Server{
 		subscriberMessageBuffer: 16,
 		logf:                    log.Printf,
 		publishLimiter:          rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
-		store:                   sessions.NewCookieStore(secret),
+		store:                   cookieStore,
 		sessionKey:              sessionKey,
 		views:                   make(map[*View]map[*Socket]struct{}),
 	}

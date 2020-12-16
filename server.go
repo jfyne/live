@@ -93,20 +93,34 @@ func (s *Server) Add(view *View) {
 		for {
 			select {
 			case m := <-v.emitter:
-				go func(ve ViewEvent) {
-					if !s.hasViewSocket(view, ve.S) {
-						return
-					}
-					if err := view.handleSelf(ve.Msg.T, ve.S, ve.Msg); err != nil {
-						s.logf("server event error: %s", err)
-					}
-					if err := ve.S.handleView(context.Background(), view, map[string]string{}); err != nil {
-						s.logf("socket handleView error: %s", err)
-					}
-				}(m)
+				go handleEmmitedViewEvent(s, v, m)
 			}
 		}
 	}(view)
+}
+
+func handleEmmitedViewEvent(s *Server, v *View, ve ViewEvent) {
+	// If the socket is nil, this is broadcast message.
+	if ve.S == nil {
+		sockets := s.viewSockets(v)
+		for _, socket := range sockets {
+			handleViewEvent(s, v, ve, socket)
+		}
+	} else {
+		handleViewEvent(s, v, ve, ve.S)
+	}
+}
+
+func handleViewEvent(s *Server, v *View, ve ViewEvent, socket *Socket) {
+	if !s.hasViewSocket(v, socket) {
+		return
+	}
+	if err := v.handleSelf(ve.Msg.T, socket, ve.Msg); err != nil {
+		s.logf("server event error: %s", err)
+	}
+	if err := socket.handleView(context.Background(), v, map[string]string{}); err != nil {
+		s.logf("socket handleView error: %s", err)
+	}
 }
 
 // ServeHTTP.
@@ -324,6 +338,22 @@ func (s *Server) deleteViewSocket(view *View, c *Socket) {
 		return
 	}
 	delete(s.views[view], c)
+}
+
+// viewSockets returns the list of sockets connected to a view.
+func (s *Server) viewSockets(view *View) []*Socket {
+	s.viewsMu.Lock()
+	defer s.viewsMu.Unlock()
+
+	sockets := []*Socket{}
+	v, vok := s.views[view]
+	if !vok {
+		return sockets
+	}
+	for socket := range v {
+		sockets = append(sockets, socket)
+	}
+	return sockets
 }
 
 // hasViewSocket does a view still have the socket.

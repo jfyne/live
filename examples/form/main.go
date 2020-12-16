@@ -43,10 +43,9 @@ func main() {
 		log.Fatal(err)
 	}
 	// Set the mount function for this view.
-	view.Mount = func(ctx context.Context, v *live.View, params map[string]string, s *live.Socket, connected bool) error {
-		// This will initialise the counter if needed.
-		s.Data = newModel(s)
-		return nil
+	view.Mount = func(ctx context.Context, v *live.View, params map[string]string, s *live.Socket, connected bool) (interface{}, error) {
+		// This will initialise the form.
+		return newModel(s), nil
 	}
 
 	// Client side events.

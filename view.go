@@ -9,7 +9,7 @@ import (
 )
 
 // MountHandler when mount is reached.
-type MountHandler func(ctx context.Context, view *View, params map[string]string, c *Socket, connected bool) error
+type MountHandler func(ctx context.Context, view *View, params map[string]string, c *Socket, connected bool) (interface{}, error)
 
 // RenderHandler when the view is asked to render.
 type RenderHandler func(ctx context.Context, t *template.Template, c *Socket) (io.Reader, error)
@@ -56,8 +56,8 @@ func NewView(path string, files []string, configs ...ViewConfig) (*View, error) 
 		emitter:       make(chan ViewEvent),
 		eventHandlers: make(map[ET]EventHandler),
 		selfHandlers:  make(map[ET]EventHandler),
-		Mount: func(ctx context.Context, view *View, params map[string]string, c *Socket, connected bool) error {
-			return nil
+		Mount: func(ctx context.Context, view *View, params map[string]string, c *Socket, connected bool) (interface{}, error) {
+			return nil, nil
 		},
 		Render: func(ctx context.Context, t *template.Template, c *Socket) (io.Reader, error) {
 			var buf bytes.Buffer
@@ -134,6 +134,13 @@ func (v View) handleSelf(t ET, sock *Socket, msg Event) error {
 func (v View) Self(sock *Socket, msg Event) {
 	v.emitter <- ViewEvent{
 		S:   sock,
+		Msg: msg,
+	}
+}
+
+// Broadcase send a message to all sockets connected to this view.
+func (v View) Broadcast(msg Event) {
+	v.emitter <- ViewEvent{
 		Msg: msg,
 	}
 }

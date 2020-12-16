@@ -54,9 +54,8 @@ func Example_temperature() {
 
 	// Mount function is called on initial HTTP load and then initial web
 	// socket connection.
-	view.Mount = func(ctx context.Context, v *View, params map[string]string, s *Socket, connected bool) error {
-		s.Data = hydrate(s)
-		return nil
+	view.Mount = func(ctx context.Context, v *View, params map[string]string, s *Socket, connected bool) (interface{}, error) {
+		return hydrate(s), nil
 	}
 
 	view.HandleEvent("temp-up", func(s *Socket, _ map[string]interface{}) (interface{}, error) {

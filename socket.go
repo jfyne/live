@@ -24,9 +24,12 @@ type Socket struct {
 
 func (s *Socket) mount(ctx context.Context, view *View, params map[string]string, connected bool) error {
 	// Mount view.
-	if err := view.Mount(ctx, view, params, s, connected); err != nil {
+	data, err := view.Mount(ctx, view, params, s, connected)
+	if err != nil {
 		return fmt.Errorf("mount error: %w", err)
 	}
+	s.Data = data
+
 	return nil
 }
 

@@ -40,7 +40,7 @@ func main() {
 	// Client side events.
 
 	// Increment event. Each click will increment the count by one.
-	view.HandleEvent(inc, func(s *live.Socket, _ map[string]interface{}) error {
+	view.HandleEvent(inc, func(s *live.Socket, _ map[string]interface{}) (interface{}, error) {
 		// Get this sockets counter struct.
 		c := newCounter(s)
 
@@ -48,13 +48,11 @@ func main() {
 		c.Value += 1
 
 		// Set the counter struct back to the socket data.
-		s.Data = c
-
-		return nil
+		return c, nil
 	})
 
 	// Decrement event. Each click will increment the count by one.
-	view.HandleEvent(dec, func(s *live.Socket, _ map[string]interface{}) error {
+	view.HandleEvent(dec, func(s *live.Socket, _ map[string]interface{}) (interface{}, error) {
 		// Get this sockets counter struct.
 		c := newCounter(s)
 
@@ -62,9 +60,7 @@ func main() {
 		c.Value -= 1
 
 		// Set the counter struct back to the socket data.
-		s.Data = c
-
-		return nil
+		return c, nil
 	})
 
 	// Run the server.

@@ -61,19 +61,17 @@ func main() {
 	// Server side events.
 
 	// tick event updates the clock every second.
-	view.HandleSelf(tick, func(s *live.Socket, _ map[string]interface{}) error {
+	view.HandleSelf(tick, func(s *live.Socket, _ map[string]interface{}) (interface{}, error) {
 		// Get our view model
 		c := newClock(s)
 		// Update the time.
 		c.Time = time.Now()
-		// Set the model back to the socket.
-		s.Data = c
 		// Send ourselves another tick in a second.
 		go func() {
 			time.Sleep(1 * time.Second)
 			view.Self(s, live.Event{T: tick})
 		}()
-		return nil
+		return c, nil
 	})
 
 	// Run the server.

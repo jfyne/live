@@ -61,19 +61,18 @@ func main() {
 	}
 
 	// Validate the form.
-	view.HandleEvent(validate, func(s *live.Socket, p map[string]interface{}) error {
+	view.HandleEvent(validate, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		m := newModel(s)
 		msg := live.ParamString(p, "message")
 		vm := validateMessage(msg)
 		if vm != "" {
 			m.Form.Errors["message"] = vm
 		}
-		s.Data = m
-		return nil
+		return m, nil
 	})
 
 	// Handle form saving.
-	view.HandleEvent(save, func(s *live.Socket, p map[string]interface{}) error {
+	view.HandleEvent(save, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		m := newModel(s)
 		msg := live.ParamString(p, "message")
 		vm := validateMessage(msg)
@@ -82,8 +81,7 @@ func main() {
 		} else {
 			m.Messages = append(m.Messages, msg)
 		}
-		s.Data = m
-		return nil
+		return m, nil
 	})
 
 	// Run the server.

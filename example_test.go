@@ -59,18 +59,16 @@ func Example_temperature() {
 		return nil
 	}
 
-	view.HandleEvent("temp-up", func(s *Socket, _ map[string]interface{}) error {
+	view.HandleEvent("temp-up", func(s *Socket, _ map[string]interface{}) (interface{}, error) {
 		model := hydrate(s)
 		model.C += 0.1
-		s.Data = model
-		return nil
+		return model, nil
 	})
 
-	view.HandleEvent("temp-down", func(s *Socket, _ map[string]interface{}) error {
+	view.HandleEvent("temp-down", func(s *Socket, _ map[string]interface{}) (interface{}, error) {
 		model := hydrate(s)
 		model.C -= 0.1
-		s.Data = model
-		return nil
+		return model, nil
 	})
 
 	// Create our server.

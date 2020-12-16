@@ -3,8 +3,9 @@ package live
 // ET is an action that happens.
 type ET string
 
-// EventHandler a function to handle events.
-type EventHandler func(*Socket, map[string]interface{}) error
+// EventHandler a function to handle events, returns the data that should
+// be set to the socket after handling.
+type EventHandler func(*Socket, map[string]interface{}) (interface{}, error)
 
 // Live events.
 const (

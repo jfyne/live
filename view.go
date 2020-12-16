@@ -100,9 +100,11 @@ func (v View) handleEvent(t ET, sock *Socket, msg Event) error {
 		return fmt.Errorf("recieved message and could not extract params: %w", err)
 	}
 
-	if err := handler(sock, params); err != nil {
+	data, err := handler(sock, params)
+	if err != nil {
 		return fmt.Errorf("view event handler error [%s]: %w", t, err)
 	}
+	sock.Data = data
 
 	return nil
 }
@@ -119,9 +121,11 @@ func (v View) handleSelf(t ET, sock *Socket, msg Event) error {
 		return fmt.Errorf("recieved self message and could not extract params: %w", err)
 	}
 
-	if err := handler(sock, params); err != nil {
+	data, err := handler(sock, params)
+	if err != nil {
 		return fmt.Errorf("view self event handler error [%s]: %w", t, err)
 	}
+	sock.Data = data
 
 	return nil
 }

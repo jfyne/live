@@ -30,6 +30,9 @@ this in action.
 </html>
 ```
 
+Notice the `script` tag. Live's javascript is embedded within its binary for ease of use, and
+is required to be included for it to work.
+
 We would then define a view like this (from the clock example):
 
 ```html

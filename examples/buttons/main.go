@@ -31,10 +31,9 @@ func main() {
 	}
 
 	// Set the mount function for this view.
-	view.Mount = func(ctx context.Context, v *live.View, params map[string]string, s *live.Socket, connected bool) error {
+	view.Mount = func(ctx context.Context, v *live.View, params map[string]string, s *live.Socket, connected bool) (interface{}, error) {
 		// This will initialise the counter if needed.
-		s.Data = newCounter(s)
-		return nil
+		return newCounter(s), nil
 	}
 
 	// Client side events.

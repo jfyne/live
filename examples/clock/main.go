@@ -30,13 +30,10 @@ func (c clock) FormattedTime() string {
 	return c.Time.Format("15:04:05")
 }
 
-func mount(ctx context.Context, view *live.View, params map[string]string, s *live.Socket, connected bool) error {
+func mount(ctx context.Context, view *live.View, params map[string]string, s *live.Socket, connected bool) (interface{}, error) {
 	// Take the socket data and tranform it into our view model if it is
 	// available.
 	c := newClock(s)
-
-	// Set the socket data to our view model, as this could be first load.
-	s.Data = c
 
 	// If we are mouting the websocket connection, trigger the first tick
 	// event.
@@ -46,7 +43,7 @@ func mount(ctx context.Context, view *live.View, params map[string]string, s *li
 			view.Self(s, live.Event{T: tick})
 		}()
 	}
-	return nil
+	return c, nil
 }
 
 func main() {

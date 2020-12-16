@@ -2,7 +2,7 @@
  * A value from the "live-value-" attributes.
  */
 export interface LiveValues {
-    [key: string]: string;
+    [key: string]: any;
 }
 
 /**

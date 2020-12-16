@@ -50,13 +50,37 @@ func main() {
 	}
 
 	// Client side events.
+	validateMessage := func(msg string) string {
+		if len(msg) < 10 {
+			return fmt.Sprintf("Length of 10 required, have %d", len(msg))
+		}
+		if len(msg) > 20 {
+			return fmt.Sprintf("Your message is too long > 20, have %d", len(msg))
+		}
+		return ""
+	}
 
 	// Validate the form.
 	view.HandleEvent(validate, func(s *live.Socket, p map[string]interface{}) error {
 		m := newModel(s)
 		msg := live.ParamString(p, "message")
-		if len(msg) < 10 {
-			m.Form.Errors["message"] = fmt.Sprintf("Length of 10 required, have %d", len(msg))
+		vm := validateMessage(msg)
+		if vm != "" {
+			m.Form.Errors["message"] = vm
+		}
+		s.Data = m
+		return nil
+	})
+
+	// Handle form saving.
+	view.HandleEvent(save, func(s *live.Socket, p map[string]interface{}) error {
+		m := newModel(s)
+		msg := live.ParamString(p, "message")
+		vm := validateMessage(msg)
+		if vm != "" {
+			m.Form.Errors["message"] = vm
+		} else {
+			m.Messages = append(m.Messages, msg)
 		}
 		s.Data = m
 		return nil

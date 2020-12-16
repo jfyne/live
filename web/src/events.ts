@@ -237,6 +237,33 @@ class Change {
 }
 
 /**
+ * live-submit form handler.
+ */
+class Submit extends LiveHandler {
+    constructor() {
+        super("submit", "live-submit");
+    }
+
+    protected handler(element: HTMLElement, values: LiveValues): EventListener {
+        return (e: Event) => {
+            if (e.preventDefault) e.preventDefault();
+
+            const t = element?.getAttribute(this.attribute);
+            if (t === null) {
+                return;
+            }
+            const data = new FormData(element as HTMLFormElement);
+            data.forEach((value: any, name: string) => {
+                values[name] = value;
+            });
+            Socket.send({ t: t, d: values });
+
+            return false;
+        };
+    }
+}
+
+/**
  * Handle all events.
  */
 export class Events {
@@ -250,6 +277,7 @@ export class Events {
     private static windowKeydown: WindowKeydown;
     private static windowKeyup: WindowKeyup;
     private static change: Change;
+    private static submit: Submit;
 
     /**
      * Initialise all the event wiring.
@@ -265,6 +293,7 @@ export class Events {
         this.windowKeydown = new WindowKeydown();
         this.windowKeyup = new WindowKeyup();
         this.change = new Change();
+        this.submit = new Submit();
     }
 
     /**
@@ -281,5 +310,6 @@ export class Events {
         this.windowKeyup.attach();
         this.windowKeydown.attach();
         this.change.attach();
+        this.submit.attach();
     }
 }

@@ -1,5 +1,4 @@
-{{ define "title" }}Example buttons{{ end }}
-{{ define "view" }}
+{{ define "title" }}Example buttons{{ end }} {{ define "view" }}
 <style>
     .clicker {
         display: flex;
@@ -12,8 +11,12 @@
     }
 </style>
 <div class="clicker">
-    <button live-click="dec">-</button>
+    <button live-window-keyup="dec" live-key="ArrowDown" live-click="dec">
+        -
+    </button>
     <div>{{.Value}}</div>
-    <button live-click="inc">+</button>
+    <button live-window-keyup="inc" live-key="ArrowUp" live-click="inc">
+        +
+    </button>
 </div>
 {{ end }}

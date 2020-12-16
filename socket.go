@@ -48,13 +48,13 @@ func (s *Socket) handleView(ctx context.Context, view *View, params map[string]s
 		if err != nil {
 			return fmt.Errorf("diff error: %w", err)
 		}
-		for _, p := range patches {
-			msg := Event{
-				T:    ETPatch,
-				Data: p,
-			}
-			s.msgs <- msg
+		//for _, p := range patches {
+		msg := Event{
+			T:    ETPatch,
+			Data: patches,
 		}
+		s.msgs <- msg
+		//}
 	}
 	s.currentRender = node
 

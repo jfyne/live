@@ -202,12 +202,12 @@ class Change {
         document
             .querySelectorAll(`form[${this.attribute}]`)
             .forEach((element: Element) => {
-                if (this.isWired(element) == true) {
-                    return;
-                }
                 element
                     .querySelectorAll("input,select,textarea")
                     .forEach((childElement: Element) => {
+                        if (this.isWired(childElement) == true) {
+                            return;
+                        }
                         childElement.addEventListener("input", (_) => {
                             this.handler(element as HTMLFormElement);
                         });

@@ -1,6 +1,7 @@
 {{ define "title" }} Example form {{ end }}
 {{ define "view" }}
-<form live-change="validate" live-submit="save">
+<!-- Forms require an ID so that we can track changes in them -->
+<form id="test-form" live-change="validate" live-submit="save">
     {{ if index .Form.Errors "message" }}
         <div class="error">{{index .Form.Errors "message"}}</div>
     {{ end }}

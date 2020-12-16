@@ -67,9 +67,11 @@ func NewServer(sessionKey string, secret []byte) *Server {
 
 	// Handle JS.
 	s.serveMux.HandleFunc("/live.js.map", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
 		w.Write(embed.Get("/live.js.map"))
 	})
 	s.serveMux.HandleFunc("/live.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "text/javascript")
 		w.Write(embed.Get("/live.js"))
 	})
 

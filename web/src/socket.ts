@@ -13,6 +13,7 @@ export class Socket {
     constructor() {}
 
     static dial() {
+        console.info("dialing backend");
         this.conn = new WebSocket(
             `ws://${location.host}/socket${location.pathname}`
         );
@@ -53,7 +54,7 @@ export class Socket {
 
     static send(e: Event) {
         if (this.ready === false) {
-            console.warn("connection not ready for send of event", e)
+            console.warn("connection not ready for send of event", e);
             return;
         }
         this.conn.send(JSON.stringify(e));

@@ -45,7 +45,7 @@ We would then define a view like this (from the clock example):
 And in go
 
 ```go
-	view, err := live.NewView("/clock", []string{"examples/root.html", "examples/clock/view.html"})
+view, err := live.NewView("/clock", []string{"examples/root.html", "examples/clock/view.html"})
 ```
 
 ## Features

@@ -24,7 +24,8 @@ import (
 	"nhooyr.io/websocket"
 )
 
-// Server enables broadcasting to a set of subscribers.
+// Server serves our views both the html initial load and the web
+// socket connections.
 type Server struct {
 	// subscriberMessageBuffer controls the max number
 	// of messages that can be queued for a subscriber

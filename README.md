@@ -50,6 +50,22 @@ And in go
 view, err := live.NewView([]string{"examples/root.html", "examples/clock/view.html"}, "session-key", sessionStore)
 ```
 
+And then just serve like you normallly would
+
+```go
+// Here we are using `http.Handle` but you could use
+// `gorilla/mux` or whatever you want. 
+
+// Serve the view itself.
+http.Handle("/clock", view)
+
+// This serves the javscript for live to work and is required. This is what
+// we referenced in the `root.html`.
+http.Handle("/live.js", live.Javascript{})
+
+http.ListenAndServe(":8080", nil)
+```
+
 ## Features
 
 ### Click Events

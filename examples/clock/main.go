@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"time"
 
+	"github.com/gorilla/sessions"
 	"github.com/jfyne/live"
 )
 
@@ -30,7 +32,7 @@ func (c clock) FormattedTime() string {
 	return c.Time.Format("15:04:05")
 }
 
-func mount(ctx context.Context, view *live.View, params map[string]string, s *live.Socket, connected bool) (interface{}, error) {
+func mount(ctx context.Context, view *live.View, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
 	// Take the socket data and tranform it into our view model if it is
 	// available.
 	c := newClock(s)
@@ -47,7 +49,12 @@ func mount(ctx context.Context, view *live.View, params map[string]string, s *li
 }
 
 func main() {
-	view, err := live.NewView("/clock", []string{"examples/root.html", "examples/clock/view.html"})
+	cookieStore := sessions.NewCookieStore([]byte("weak-secret"))
+	cookieStore.Options.HttpOnly = true
+	cookieStore.Options.Secure = true
+	cookieStore.Options.SameSite = http.SameSiteStrictMode
+
+	view, err := live.NewView([]string{"examples/root.html", "examples/clock/view.html"}, "session-key", cookieStore)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,9 +79,8 @@ func main() {
 	})
 
 	// Run the server.
-	server := live.NewServer("session-key", []byte("weak-secret"))
-	server.Add(view)
-	if err := live.RunServer(server); err != nil {
-		log.Fatal(err)
-	}
+	http.Handle("/clock", view)
+	http.Handle("/live.js", live.Javascript{})
+	http.Handle("/live.js.map", live.JavascriptMap{})
+	http.ListenAndServe(":8080", nil)
 }

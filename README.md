@@ -2,6 +2,8 @@
 
 An attempt to bring something similar to phoenix live views to golang.
 
+Compatible with `net/http`, so will play nicely with middleware etc.
+
 ## Getting Started
 
 ### Install
@@ -45,7 +47,7 @@ We would then define a view like this (from the clock example):
 And in go
 
 ```go
-view, err := live.NewView("/clock", []string{"examples/root.html", "examples/clock/view.html"})
+view, err := live.NewView([]string{"examples/root.html", "examples/clock/view.html"}, "session-key", sessionStore)
 ```
 
 ## Features
@@ -121,7 +123,3 @@ See the [form example](https://github.com/jfyne/live/blob/master/examples/form) 
 ### JS Interop
 
 - [ ] live-hook
-
-## TODO
-
-- [ ] Golang http middleware support

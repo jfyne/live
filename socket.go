@@ -3,6 +3,7 @@ package live
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"golang.org/x/net/html"
 	"nhooyr.io/websocket"
@@ -22,9 +23,9 @@ type Socket struct {
 	closeSlow     func()
 }
 
-func (s *Socket) mount(ctx context.Context, view *View, params map[string]string, connected bool) error {
+func (s *Socket) mount(ctx context.Context, view *View, r *http.Request, connected bool) error {
 	// Mount view.
-	data, err := view.Mount(ctx, view, params, s, connected)
+	data, err := view.Mount(ctx, view, r, s, connected)
 	if err != nil {
 		return fmt.Errorf("mount error: %w", err)
 	}
@@ -34,7 +35,7 @@ func (s *Socket) mount(ctx context.Context, view *View, params map[string]string
 }
 
 // handleView takes a view and runs a mount and render.
-func (s *Socket) handleView(ctx context.Context, view *View, params map[string]string) error {
+func (s *Socket) handleView(ctx context.Context, view *View) error {
 	// Render view.
 	output, err := view.Render(ctx, view.t, s)
 	if err != nil {
@@ -51,13 +52,11 @@ func (s *Socket) handleView(ctx context.Context, view *View, params map[string]s
 		if err != nil {
 			return fmt.Errorf("diff error: %w", err)
 		}
-		//for _, p := range patches {
 		msg := Event{
 			T:    ETPatch,
 			Data: patches,
 		}
 		s.msgs <- msg
-		//}
 	}
 	s.currentRender = node
 

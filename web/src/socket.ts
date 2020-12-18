@@ -15,7 +15,7 @@ export class Socket {
     static dial() {
         console.info("dialing backend");
         this.conn = new WebSocket(
-            `ws://${location.host}/socket${location.pathname}`
+            `ws://${location.host}${location.pathname}`
         );
         this.conn.addEventListener("close", (ev) => {
             this.ready = false;

@@ -6,6 +6,9 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"net/http"
+
+	"github.com/gorilla/sessions"
 )
 
 // Example_temperature shows a simple temperature control using the
@@ -27,7 +30,12 @@ func Example_temperature() {
 		return m
 	}
 
-	view, err := NewView("/thermostat", []string{})
+	cookieStore := sessions.NewCookieStore([]byte("weak-secret"))
+	cookieStore.Options.HttpOnly = true
+	cookieStore.Options.Secure = true
+	cookieStore.Options.SameSite = http.SameSiteStrictMode
+
+	view, err := NewView([]string{}, "session-key", cookieStore)
 	if err != nil {
 		log.Fatal("could not create view")
 	}
@@ -54,7 +62,7 @@ func Example_temperature() {
 
 	// Mount function is called on initial HTTP load and then initial web
 	// socket connection.
-	view.Mount = func(ctx context.Context, v *View, params map[string]string, s *Socket, connected bool) (interface{}, error) {
+	view.Mount = func(ctx context.Context, v *View, r *http.Request, s *Socket, connected bool) (interface{}, error) {
 		return hydrate(s), nil
 	}
 
@@ -70,11 +78,6 @@ func Example_temperature() {
 		return model, nil
 	})
 
-	// Create our server.
-	l := NewServer("app", []byte("weak-secret"))
-
-	// Add the view
-	l.Add(view)
-
-	RunServer(l)
+	http.Handle("/thermostat", view)
+	http.ListenAndServe(":8080", nil)
 }

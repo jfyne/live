@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 
+	"github.com/gorilla/sessions"
 	"github.com/jfyne/live"
 )
 
@@ -38,12 +40,17 @@ func newModel(s *live.Socket) *model {
 }
 
 func main() {
-	view, err := live.NewView("/form", []string{"examples/root.html", "examples/form/view.html"})
+	cookieStore := sessions.NewCookieStore([]byte("weak-secret"))
+	cookieStore.Options.HttpOnly = true
+	cookieStore.Options.Secure = true
+	cookieStore.Options.SameSite = http.SameSiteStrictMode
+
+	view, err := live.NewView([]string{"examples/root.html", "examples/form/view.html"}, "session-key", cookieStore)
 	if err != nil {
 		log.Fatal(err)
 	}
 	// Set the mount function for this view.
-	view.Mount = func(ctx context.Context, v *live.View, params map[string]string, s *live.Socket, connected bool) (interface{}, error) {
+	view.Mount = func(ctx context.Context, v *live.View, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
 		// This will initialise the form.
 		return newModel(s), nil
 	}
@@ -84,9 +91,8 @@ func main() {
 	})
 
 	// Run the server.
-	server := live.NewServer("session-key", []byte("weak-secret"))
-	server.Add(view)
-	if err := live.RunServer(server); err != nil {
-		log.Fatal(err)
-	}
+	http.Handle("/form", view)
+	http.Handle("/live.js", live.Javascript{})
+	http.Handle("/live.js.map", live.JavascriptMap{})
+	http.ListenAndServe(":8080", nil)
 }

@@ -1,4 +1,4 @@
-import { Event } from "./event";
+import { EventDispatch, Event } from "./event";
 import { Patch } from "./patch";
 import { Events } from "./events";
 
@@ -10,28 +10,32 @@ export class Socket {
     private static conn: WebSocket;
     private static ready: boolean = false;
 
+    private static disconnectNotified: boolean = false;
+
     constructor() {}
 
     static dial() {
-        console.info("dialing backend");
-        this.conn = new WebSocket(
-            `ws://${location.host}${location.pathname}`
-        );
+        this.conn = new WebSocket(`ws://${location.host}${location.pathname}`);
         this.conn.addEventListener("close", (ev) => {
             this.ready = false;
             console.warn(
                 `WebSocket Disconnected code: ${ev.code}, reason: ${ev.reason}`
             );
             if (ev.code !== 1001) {
-                console.warn("Reconnecting in 1s");
+                if (this.disconnectNotified === false) {
+                    EventDispatch.disconnected();
+                    this.disconnectNotified = true;
+                }
                 setTimeout(() => {
                     Socket.dial();
                 }, 1000);
             }
         });
         // Ping on open.
-        this.conn.addEventListener("open", (ev) => {
-            console.info("websocket connected", ev);
+        this.conn.addEventListener("open", (_) => {
+            EventDispatch.reconnected();
+            this.disconnectNotified = false;
+
             this.ready = true;
             this.send({ t: "ping", d: { path: location.pathname } });
         });
@@ -47,7 +51,7 @@ export class Socket {
                     Events.rewire();
                     break;
                 default:
-                    console.log(e);
+                    EventDispatch.handleEvent(e);
             }
         });
     }

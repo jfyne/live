@@ -48,6 +48,7 @@ func main() {
 	configs := make(map[string][]byte)
 
 	err := filepath.Walk(embedFolder, func(path string, info os.FileInfo, err error) error {
+		log.Println("path", path, info.Name())
 		relativePath := filepath.ToSlash(strings.TrimPrefix(path, embedFolder))
 
 		if info.IsDir() {

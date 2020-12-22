@@ -1,4 +1,4 @@
-import { Event } from "./event";
+import { Event, EventDispatch } from "./event";
 import { Forms } from "./forms";
 
 interface PatchEvent {
@@ -49,11 +49,15 @@ export class Patch {
                 if (target.parentNode === null) {
                     return;
                 }
+                EventDispatch.beforeUpdate(target);
                 target.parentNode.insertBefore(Patch.html2Node(e.HTML), target);
+                EventDispatch.updated(target);
             }
             if (e.Action == 2) {
                 // REPLACE
+                EventDispatch.beforeDestroy(target);
                 target.outerHTML = e.HTML;
+                EventDispatch.destroyed(target);
             }
         });
 

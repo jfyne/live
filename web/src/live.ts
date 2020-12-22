@@ -1,8 +1,20 @@
 import { Socket } from "./socket";
 import { Events } from "./events";
+import { EventDispatch } from "./event";
+import { Hooks } from "./interop";
 
-document.addEventListener("DOMContentLoaded", (_) => {
-    Events.init();
-    Events.rewire();
-    Socket.dial();
-});
+export class Live {
+    constructor(private hooks: Hooks) {
+        // Initialise the event dispatch.
+        EventDispatch.init(this.hooks);
+
+        // Dial the server.
+        Socket.dial();
+
+        // Initialise our live bindings.
+        Events.init();
+
+        // Rewire all the events.
+        Events.rewire();
+    }
+}

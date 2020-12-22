@@ -1,5 +1,6 @@
 import { Socket } from "./socket";
 import { LiveValues, LiveElement } from "./element";
+import { EventDispatch } from "./event";
 
 /**
  * Standard event handler class. Clicks, focus and blur.
@@ -264,6 +265,26 @@ class Submit extends LiveHandler {
 }
 
 /**
+ * live-hook event handler.
+ */
+class Hook extends LiveHandler {
+    constructor() {
+        super("", "live-hook");
+    }
+
+    public attach() {
+        document
+            .querySelectorAll(`[${this.attribute}]`)
+            .forEach((element: Element) => {
+                if (this.isWired(element) == true) {
+                    return;
+                }
+                EventDispatch.mounted(element);
+            });
+    }
+}
+
+/**
  * Handle all events.
  */
 export class Events {
@@ -278,6 +299,7 @@ export class Events {
     private static windowKeyup: WindowKeyup;
     private static change: Change;
     private static submit: Submit;
+    private static hook: Hook;
 
     /**
      * Initialise all the event wiring.
@@ -294,6 +316,7 @@ export class Events {
         this.windowKeyup = new WindowKeyup();
         this.change = new Change();
         this.submit = new Submit();
+        this.hook = new Hook();
     }
 
     /**
@@ -311,5 +334,6 @@ export class Events {
         this.windowKeydown.attach();
         this.change.attach();
         this.submit.attach();
+        this.hook.attach();
     }
 }

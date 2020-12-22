@@ -35,9 +35,7 @@ export class Socket {
         this.conn.addEventListener("open", (_) => {
             EventDispatch.reconnected();
             this.disconnectNotified = false;
-
             this.ready = true;
-            this.send({ t: "ping", d: { path: location.pathname } });
         });
         this.conn.addEventListener("message", (ev) => {
             if (typeof ev.data !== "string") {

@@ -23,6 +23,10 @@ type Socket struct {
 	closeSlow     func()
 }
 
+func (s *Socket) Send(msg Event) {
+	s.msgs <- msg
+}
+
 func (s *Socket) mount(ctx context.Context, view *View, r *http.Request, connected bool) error {
 	// Mount view.
 	data, err := view.Mount(ctx, view, r, s, connected)

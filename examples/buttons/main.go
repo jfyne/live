@@ -72,6 +72,6 @@ func main() {
 	// Run the server.
 	http.Handle("/buttons", view)
 	http.Handle("/live.js", live.Javascript{})
-	http.Handle("/live.js.map", live.JavascriptMap{})
+	http.Handle("/auto.js.map", live.JavascriptMap{})
 	http.ListenAndServe(":8080", nil)
 }

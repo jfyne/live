@@ -26,4 +26,8 @@ export class LiveElement {
         }
         return values;
     }
+
+    static hook(element: HTMLElement): string | null {
+        return element.getAttribute("live-hook");
+    }
 }

@@ -58,11 +58,23 @@
         {{ end }}
     </div>
     <div class="actions">
-        <form id="chatinput" live-submit="send">
-            <input autofocus type="text" name="message">
+        <form id="chatinput" live-submit="send" live-hook="chat">
+            <input autocomplete="off" autofocus type="text" name="message">
             <button type="submit">Send</button>
         </form>
     </div>
 </main>
+
+<script>
+    window.Hooks = {
+        "chat": {
+            mounted: function() {
+                this.el.addEventListener("submit", () => {
+                    this.el.querySelector('input').value = '';
+                });
+            }
+        }
+    };
+</script>
 
 {{ end }}

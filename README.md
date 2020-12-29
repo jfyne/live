@@ -12,6 +12,8 @@ Compatible with `net/http`, so will play nicely with middleware etc.
 go get github.com/jfyne/live
 ```
 
+See the [examples](https://github.com/jfyne/live/blob/master/examples) for usage.
+
 ### First view
 
 As of writing, each view expects there to be a `root.html` template which it will render
@@ -47,7 +49,8 @@ We would then define a view like this (from the clock example):
 And in go
 
 ```go
-view, err := live.NewView([]string{"examples/root.html", "examples/clock/view.html"}, "session-key", sessionStore)
+t, _ := template.ParseFiles("examples/root.html", "examples/clock/view.html")
+view, _ := live.NewView(t, "session-key", sessionStore)
 ```
 
 And then just serve like you normallly would

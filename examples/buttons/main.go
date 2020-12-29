@@ -20,7 +20,7 @@ type counter struct {
 }
 
 func newCounter(s *live.Socket) *counter {
-	c, ok := s.Data.(*counter)
+	c, ok := s.Assigns().(*counter)
 	if !ok {
 		return &counter{}
 	}

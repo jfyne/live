@@ -26,7 +26,7 @@ type ChatInstance struct {
 }
 
 func NewChatInstance(s *live.Socket) *ChatInstance {
-	m, ok := s.Data.(*ChatInstance)
+	m, ok := s.Assigns().(*ChatInstance)
 	if !ok {
 		return &ChatInstance{
 			Messages: []Message{},

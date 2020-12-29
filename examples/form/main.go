@@ -26,7 +26,7 @@ type model struct {
 }
 
 func newModel(s *live.Socket) *model {
-	m, ok := s.Data.(*model)
+	m, ok := s.Assigns().(*model)
 	if !ok {
 		return &model{
 			Form: form{

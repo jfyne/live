@@ -17,15 +17,31 @@ const (
 // Socket describes a socket from the outside.
 type Socket struct {
 	Session Session
-	Data    interface{}
 
 	currentRender *html.Node
 	msgs          chan Event
 	closeSlow     func()
 
-	renderLock sync.Mutex
+	data   interface{}
+	dataMu sync.Mutex
 }
 
+// Assigns returns the data currently assigned to this
+// socket.
+func (s *Socket) Assigns() interface{} {
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
+	return s.data
+}
+
+// Assign assigns data to this socket.
+func (s *Socket) Assign(data interface{}) {
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
+	s.data = data
+}
+
+// Send an event to this socket.
 func (s *Socket) Send(msg Event) {
 	s.msgs <- msg
 }
@@ -36,18 +52,17 @@ func (s *Socket) mount(ctx context.Context, view *View, r *http.Request, connect
 	if err != nil {
 		return fmt.Errorf("mount error: %w", err)
 	}
-	s.Data = data
-
+	s.Assign(data)
 	return nil
 }
 
 // handleView takes a view and runs a mount and render.
 func (s *Socket) handleView(ctx context.Context, view *View) error {
-	s.renderLock.Lock()
-	defer s.renderLock.Unlock()
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
 
 	// Render view.
-	output, err := view.Render(ctx, view.t, s.Data)
+	output, err := view.Render(ctx, view.t, s.data)
 	if err != nil {
 		return fmt.Errorf("render error: %w", err)
 	}

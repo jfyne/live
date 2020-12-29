@@ -21,7 +21,7 @@ func Example_temperature() {
 
 	// Helper function to get the model from the socket data.
 	NewThermoModel := func(s *Socket) *ThermoModel {
-		m, ok := s.Data.(*ThermoModel)
+		m, ok := s.Assigns().(*ThermoModel)
 		if !ok {
 			m = &ThermoModel{
 				C: 19.5,

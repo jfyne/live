@@ -64,6 +64,8 @@ type View struct {
 	// All of our current sockets.
 	socketsMu sync.Mutex
 	socketMap map[*Socket]struct{}
+
+	eventMu sync.Mutex
 }
 
 // NewView creates a new live view.
@@ -328,13 +330,16 @@ func (v *View) handleEvent(t ET, sock *Socket, msg Event) error {
 	if err != nil {
 		return fmt.Errorf("view event handler error [%s]: %w", t, err)
 	}
-	sock.Data = data
+	sock.Assign(data)
 
 	return nil
 }
 
 // handleSelf route an event to the correct handler.
 func (v *View) handleSelf(t ET, sock *Socket, msg Event) error {
+	v.eventMu.Lock()
+	defer v.eventMu.Unlock()
+
 	handler, ok := v.selfHandlers[t]
 	if !ok {
 		return fmt.Errorf("no self event handler for %s: %w", t, ErrNoEventHandler)
@@ -349,7 +354,7 @@ func (v *View) handleSelf(t ET, sock *Socket, msg Event) error {
 	if err != nil {
 		return fmt.Errorf("view self event handler error [%s]: %w", t, err)
 	}
-	sock.Data = data
+	sock.Assign(data)
 
 	return nil
 }

@@ -20,7 +20,7 @@ type clock struct {
 }
 
 func newClock(s *live.Socket) *clock {
-	c, ok := s.Data.(*clock)
+	c, ok := s.Assigns().(*clock)
 	if !ok {
 		return &clock{
 			Time: time.Now(),

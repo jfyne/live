@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"html/template"
 	"log"
 	"net/http"
 
@@ -32,7 +33,12 @@ func main() {
 	cookieStore.Options.Secure = true
 	cookieStore.Options.SameSite = http.SameSiteStrictMode
 
-	view, err := live.NewView([]string{"examples/root.html", "examples/buttons/view.html"}, "session-key", cookieStore)
+	t, err := template.ParseFiles("examples/root.html", "examples/buttons/view.html")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	view, err := live.NewView(t, "session-key", cookieStore)
 	if err != nil {
 		log.Fatal(err)
 	}

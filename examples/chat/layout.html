@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+    <head>
+        <title>{{ template "title" . }}</title>
+        <style>
+            html {
+                padding: 0;
+                margin: 0;
+                overflow: hidden;
+            }
+            body {
+                height: 100vh;
+                padding: 0;
+                margin: 0;
+            }
+            main {
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            }
+            .window {
+                height: 90vh;
+                overflow-y: scroll;
+            }
+            .message {
+                display: flex;
+                align-items: center;
+            }
+            .message span {
+                margin-right: 1rem;
+                font-size: .8rem;
+            }
+            .actions {
+                height: 10vh;
+                display: flex;
+                align-items: center;
+                padding: 0 1rem;
+            }
+            .actions form {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            .actions form input {
+                flex: 1 0 90%;
+            }
+            .actions form button {
+                margin-left: 1rem;
+            }
+        </style>
+    </head>
+    <body>
+        {{ template "view" . }}
+        <script type="text/javascript" src="/live.js"></script>
+    </body>
+</html>

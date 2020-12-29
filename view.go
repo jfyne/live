@@ -67,11 +67,7 @@ type View struct {
 }
 
 // NewView creates a new live view.
-func NewView(files []string, sessionKey string, store sessions.Store, configs ...ViewConfig) (*View, error) {
-	t, err := template.ParseFiles(files...)
-	if err != nil {
-		return nil, fmt.Errorf("could not create view: %w", err)
-	}
+func NewView(t *template.Template, sessionKey string, store sessions.Store, configs ...ViewConfig) (*View, error) {
 	v := &View{
 		t:                t,
 		store:            store,
@@ -85,6 +81,9 @@ func NewView(files []string, sessionKey string, store sessions.Store, configs ..
 		},
 		Render: func(ctx context.Context, t *template.Template, data interface{}) (io.Reader, error) {
 			var buf bytes.Buffer
+			if t == nil {
+				return nil, fmt.Errorf("default renderer: no template defined")
+			}
 			if err := t.ExecuteTemplate(&buf, "root.html", data); err != nil {
 				return nil, err
 			}
@@ -431,4 +430,19 @@ func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn,
 	}
 
 	return c.Write(ctx, websocket.MessageText, data)
+}
+
+// WithRootTemplate set the renderer to use a different root template. This changes the views
+// Render function.
+func WithRootTemplate(rootTemplate string) ViewConfig {
+	return func(v *View) error {
+		v.Render = func(ctx context.Context, t *template.Template, data interface{}) (io.Reader, error) {
+			var buf bytes.Buffer
+			if err := t.ExecuteTemplate(&buf, rootTemplate, data); err != nil {
+				return nil, err
+			}
+			return &buf, nil
+		}
+		return nil
+	}
 }

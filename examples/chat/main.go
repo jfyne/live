@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 
@@ -40,7 +41,16 @@ func main() {
 	cookieStore.Options.Secure = true
 	cookieStore.Options.SameSite = http.SameSiteStrictMode
 
-	view, err := live.NewView([]string{"examples/root.html", "examples/chat/view.html"}, "session-key", cookieStore)
+	t, err := template.ParseFiles("examples/chat/layout.html", "examples/chat/view.html")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	view, err := live.NewView(
+		t,
+		"session-key",
+		cookieStore,
+		live.WithRootTemplate("layout.html"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -76,6 +86,6 @@ func main() {
 	// Run the server.
 	http.Handle("/chat", view)
 	http.Handle("/live.js", live.Javascript{})
-	http.Handle("/auto.js.map", live.JavascriptMap{})
+	http.Handle("/live.js.map", live.JavascriptMap{})
 	http.ListenAndServe(":8080", nil)
 }

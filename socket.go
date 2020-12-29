@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"golang.org/x/net/html"
 	"nhooyr.io/websocket"
@@ -21,6 +22,8 @@ type Socket struct {
 	currentRender *html.Node
 	msgs          chan Event
 	closeSlow     func()
+
+	renderLock sync.Mutex
 }
 
 func (s *Socket) Send(msg Event) {
@@ -40,8 +43,11 @@ func (s *Socket) mount(ctx context.Context, view *View, r *http.Request, connect
 
 // handleView takes a view and runs a mount and render.
 func (s *Socket) handleView(ctx context.Context, view *View) error {
+	s.renderLock.Lock()
+	defer s.renderLock.Unlock()
+
 	// Render view.
-	output, err := view.Render(ctx, view.t, s)
+	output, err := view.Render(ctx, view.t, s.Data)
 	if err != nil {
 		return fmt.Errorf("render error: %w", err)
 	}
@@ -56,11 +62,13 @@ func (s *Socket) handleView(ctx context.Context, view *View) error {
 		if err != nil {
 			return fmt.Errorf("diff error: %w", err)
 		}
-		msg := Event{
-			T:    ETPatch,
-			Data: patches,
+		if len(patches) != 0 {
+			msg := Event{
+				T:    ETPatch,
+				Data: patches,
+			}
+			s.msgs <- msg
 		}
-		s.msgs <- msg
 	}
 	s.currentRender = node
 

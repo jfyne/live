@@ -23,7 +23,7 @@ import (
 type MountHandler func(ctx context.Context, view *View, r *http.Request, c *Socket, connected bool) (interface{}, error)
 
 // RenderHandler when the view is asked to render.
-type RenderHandler func(ctx context.Context, t *template.Template, c *Socket) (io.Reader, error)
+type RenderHandler func(ctx context.Context, t *template.Template, data interface{}) (io.Reader, error)
 
 // ViewOption applies config to a view.
 type ViewConfig func(v *View) error
@@ -83,9 +83,9 @@ func NewView(files []string, sessionKey string, store sessions.Store, configs ..
 		Mount: func(ctx context.Context, view *View, r *http.Request, c *Socket, connected bool) (interface{}, error) {
 			return nil, nil
 		},
-		Render: func(ctx context.Context, t *template.Template, c *Socket) (io.Reader, error) {
+		Render: func(ctx context.Context, t *template.Template, data interface{}) (io.Reader, error) {
 			var buf bytes.Buffer
-			if err := t.ExecuteTemplate(&buf, "root.html", c.Data); err != nil {
+			if err := t.ExecuteTemplate(&buf, "root.html", data); err != nil {
 				return nil, err
 			}
 			return &buf, nil
@@ -103,7 +103,7 @@ func NewView(files []string, sessionKey string, store sessions.Store, configs ..
 		for {
 			select {
 			case m := <-ve.emitter:
-				go handleEmmitedEvent(ve, m)
+				go handleEmmittedEvent(ve, m)
 			}
 		}
 	}(v)
@@ -369,19 +369,19 @@ func (v *View) sockets() []*Socket {
 	return sockets
 }
 
-func handleEmmitedEvent(v *View, ve ViewEvent) {
+func handleEmmittedEvent(v *View, ve ViewEvent) {
 	// If the socket is nil, this is broadcast message.
 	if ve.S == nil {
 		sockets := v.sockets()
 		for _, socket := range sockets {
-			handleEvent(v, ve, socket)
+			_handleEmittedEvent(v, ve, socket)
 		}
 	} else {
-		handleEvent(v, ve, ve.S)
+		_handleEmittedEvent(v, ve, ve.S)
 	}
 }
 
-func handleEvent(v *View, ve ViewEvent, socket *Socket) {
+func _handleEmittedEvent(v *View, ve ViewEvent, socket *Socket) {
 	if err := v.handleSelf(ve.Msg.T, socket, ve.Msg); err != nil {
 		log.Println("server event error", err)
 	}

@@ -42,7 +42,7 @@ func Example_temperature() {
 
 	// By default the view will automatically render any template degined in the
 	// NewView function. However you can override and
-	view.Render = func(ctc context.Context, t *template.Template, s *Socket) (io.Reader, error) {
+	view.Render = func(ctc context.Context, t *template.Template, data interface{}) (io.Reader, error) {
 		tmpl, err := template.New("thermo").Parse(`
             <div>{{.C}}</div>
             <button live-click="temp-up">+</button>
@@ -54,7 +54,7 @@ func Example_temperature() {
 			return nil, err
 		}
 		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, s.Data); err != nil {
+		if err := tmpl.Execute(&buf, data); err != nil {
 			return nil, err
 		}
 		return &buf, nil

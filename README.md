@@ -28,13 +28,13 @@ this in action.
     </head>
     <body>
         {{ template "view" . }}
-        <!-- This is embedded in the binary and enables live to work -->
+        <!-- This is embedded in the library and enables live to work -->
         <script type="text/javascript" src="/live.js"></script>
     </body>
 </html>
 ```
 
-Notice the `script` tag. Live's javascript is embedded within its binary for ease of use, and
+Notice the `script` tag. Live's javascript is embedded within the library for ease of use, and
 is required to be included for it to work.
 
 We would then define a view like this (from the clock example):

@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
     <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{{ template "title" . }}</title>
         <style>
             html {
@@ -27,10 +28,16 @@
                 align-items: center;
             }
             .message span {
+                min-width: 8rem;
+                width: 8rem;
+                text-align: right;
                 font-family: monospace;
-                color: #cccccc;
+                color: #999999;
                 margin-right: 1rem;
                 font-size: .8rem;
+            }
+            .message pre {
+                white-space: normal;
             }
             .actions {
                 height: 10vh;

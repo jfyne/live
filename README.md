@@ -150,7 +150,7 @@ interop with existing libraries that do their own DOM operations. The following
 - `append` - append the new DOM contents instead of replacing
 - `prepend` - prepend the new DOM contents instead of replacing
 
-When using `phx-update` If using "append" or "prepend", a DOM ID must be set
+When using `live-update` If using "append" or "prepend", a DOM ID must be set
 for each child.
 
 See the [chat example](https://github.com/jfyne/live/blob/master/examples/chat) for usage.

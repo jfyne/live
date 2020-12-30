@@ -1,9 +1,10 @@
 {{ define "title" }} Live Chat {{ end }}
 {{ define "view" }}
+
 <main>
-    <div class="window">
+    <div class="window" live-update="append">
         {{ range $msg := .Messages }}
-        <div class="message">
+        <div id="{{$msg.ID}}" class="message">
             <span>{{$msg.User}}</span>
             <pre>{{$msg.Msg}}</pre>
         </div>
@@ -22,7 +23,7 @@
         "chat": {
             mounted: function() {
                 this.el.addEventListener("submit", () => {
-                    this.el.querySelector('input').value = '';
+                    this.el.querySelector("input").value = "";
                 });
             }
         }

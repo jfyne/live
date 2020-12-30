@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/sessions"
 	"github.com/jfyne/live"
+	"github.com/rs/xid"
 )
 
 const (
@@ -17,6 +18,7 @@ const (
 )
 
 type Message struct {
+	ID   string // Unique ID per message so that we can use `live-update`.
 	User string
 	Msg  string
 }
@@ -29,7 +31,10 @@ func NewChatInstance(s *live.Socket) *ChatInstance {
 	m, ok := s.Assigns().(*ChatInstance)
 	if !ok {
 		return &ChatInstance{
-			Messages: []Message{},
+			Messages: []Message{
+				{ID: "1", User: "Room", Msg: "Welcome to chat"},
+				{ID: "2", User: "Room", Msg: "Start typing to talk to other users who are connected"},
+			},
 		}
 	}
 	return m
@@ -64,7 +69,10 @@ func main() {
 	view.HandleEvent(send, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		m := NewChatInstance(s)
 		msg := live.ParamString(p, "message")
-		view.Broadcast(live.Event{T: newmessage, Data: map[string]interface{}{"message": Message{User: s.Session.ID, Msg: msg}}})
+		if msg == "" {
+			return m, nil
+		}
+		view.Broadcast(live.Event{T: newmessage, Data: map[string]interface{}{"message": Message{ID: xid.New().String(), User: s.Session.ID, Msg: msg}}})
 		return m, nil
 	})
 
@@ -79,7 +87,10 @@ func main() {
 		if !ok {
 			return m, fmt.Errorf("malformed message")
 		}
-		m.Messages = append(m.Messages, msg)
+		// Here we don't append to messages as we don't want to use
+		// loads of memory. `live-update="append"` handles the appending
+		// of messages in the DOM.
+		m.Messages = []Message{msg}
 		return m, nil
 	})
 

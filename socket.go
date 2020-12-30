@@ -79,7 +79,7 @@ func (s *Socket) handleView(ctx context.Context, view *View) error {
 		}
 		if len(patches) != 0 {
 			msg := Event{
-				T:    ETPatch,
+				T:    EventPatch,
 				Data: patches,
 			}
 			s.msgs <- msg

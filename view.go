@@ -52,11 +52,11 @@ type View struct {
 	broadcastLimiter *rate.Limiter
 
 	// eventHandlers the map of event handlers.
-	eventHandlers map[ET]EventHandler
+	eventHandlers map[string]EventHandler
 
 	// selfHandlers handle messages send to this view by server-side
 	// entities.
-	selfHandlers map[ET]EventHandler
+	selfHandlers map[string]EventHandler
 
 	Mount  MountHandler
 	Render RenderHandler
@@ -76,8 +76,8 @@ func NewView(t *template.Template, sessionKey string, store sessions.Store, conf
 		sessionKey:       sessionKey,
 		emitter:          make(chan ViewEvent),
 		broadcastLimiter: rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
-		eventHandlers:    make(map[ET]EventHandler),
-		selfHandlers:     make(map[ET]EventHandler),
+		eventHandlers:    make(map[string]EventHandler),
+		selfHandlers:     make(map[string]EventHandler),
 		Mount: func(ctx context.Context, view *View, r *http.Request, c *Socket, connected bool) (interface{}, error) {
 			return nil, nil
 		},
@@ -257,7 +257,7 @@ func (v *View) socket(ctx context.Context, r *http.Request, session Session, c *
 		select {
 		case err := <-readError:
 			if err != nil {
-				writeTimeout(ctx, time.Second*5, c, Event{T: ETError, Data: err.Error()})
+				writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: err.Error()})
 				return fmt.Errorf("read error: %w", err)
 			}
 		case msg := <-sock.msgs:
@@ -304,18 +304,18 @@ func (v *View) Broadcast(msg Event) {
 
 // HandleEvent handles an event that comes from the client. For example a click
 // from `live-click="myevent"`.
-func (v *View) HandleEvent(t ET, handler EventHandler) {
+func (v *View) HandleEvent(t string, handler EventHandler) {
 	v.eventHandlers[t] = handler
 }
 
 // HandleSelf handles an event that comes from the view. For example calling
 // view.Self(socket, msg) will be handled here.
-func (v *View) HandleSelf(t ET, handler EventHandler) {
+func (v *View) HandleSelf(t string, handler EventHandler) {
 	v.selfHandlers[t] = handler
 }
 
 // handleEvent route an event to the correct handler.
-func (v *View) handleEvent(t ET, sock *Socket, msg Event) error {
+func (v *View) handleEvent(t string, sock *Socket, msg Event) error {
 	handler, ok := v.eventHandlers[t]
 	if !ok {
 		return fmt.Errorf("no event handler for %s: %w", t, ErrNoEventHandler)
@@ -336,7 +336,7 @@ func (v *View) handleEvent(t ET, sock *Socket, msg Event) error {
 }
 
 // handleSelf route an event to the correct handler.
-func (v *View) handleSelf(t ET, sock *Socket, msg Event) error {
+func (v *View) handleSelf(t string, sock *Socket, msg Event) error {
 	v.eventMu.Lock()
 	defer v.eventMu.Unlock()
 

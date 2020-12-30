@@ -1,23 +1,19 @@
 package live
 
-// ET is an action that happens.
-type ET string
-
 // EventHandler a function to handle events, returns the data that should
 // be set to the socket after handling.
 type EventHandler func(*Socket, map[string]interface{}) (interface{}, error)
 
 // Live events.
 const (
-	ETError = "err"
-	ETPing  = "ping"
-	ETPatch = "patch"
+	EventError = "err"
+	EventPatch = "patch"
 )
 
 // Event messages that are sent and received by the
 // socket.
 type Event struct {
-	T    ET          `json:"t"`
+	T    string      `json:"t"`
 	Data interface{} `json:"d"`
 }
 

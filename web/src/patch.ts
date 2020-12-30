@@ -15,53 +15,59 @@ export class Patch {
         Forms.dehydrate();
 
         const patches = event.d;
-        patches.map((e: PatchEvent) => {
-            const html = document.querySelector("html");
-            if (html === null) {
-                throw "could not find html node";
-            }
+        patches.map(Patch.applyPatch);
 
-            let parent: Element = html;
-            let siblings = html.childNodes;
-            let target: Element | undefined = undefined;
-            for (let i = 0; i < e.Path.length; i++) {
-                target = siblings[e.Path[i]] as Element;
-                if (target === undefined) {
-                    if (e.HTML !== "") {
-                        parent.appendChild(Patch.html2Node(e.HTML));
-                    }
-                    return;
-                }
-                if (target.childNodes.length) {
-                    siblings = target.childNodes;
-                }
-                parent = target;
+        Forms.hydrate();
+    }
+
+    private static applyPatch(e: PatchEvent) {
+        const html = document.querySelector("html");
+        if (html === null) {
+            throw "could not find html node";
+        }
+
+        //let parent: Element = html;
+        let siblings = html.childNodes;
+        let target: Element | undefined = undefined;
+
+        for (let i = 0; i < e.Path.length; i++) {
+            target = siblings[e.Path[i]] as Element;
+            if (target.childNodes.length) {
+                siblings = target.childNodes;
             }
-            if (target === undefined) {
+        }
+
+        if (target === undefined) {
+            return;
+        }
+
+        switch (e.Action) {
+            case 0: // NOOP
                 return;
-            }
-            if (e.Action == 0) {
-                // NOOP
-                return;
-            }
-            if (e.Action == 1) {
-                // INSERT
+            case 1: // INSERT
                 if (target.parentNode === null) {
                     return;
                 }
                 EventDispatch.beforeUpdate(target);
                 target.parentNode.insertBefore(Patch.html2Node(e.HTML), target);
                 EventDispatch.updated(target);
-            }
-            if (e.Action == 2) {
-                // REPLACE
+                break;
+            case 2: // REPLACE
                 EventDispatch.beforeDestroy(target);
                 target.outerHTML = e.HTML;
                 EventDispatch.destroyed(target);
-            }
-        });
-
-        Forms.hydrate();
+                break;
+            case 3: // APPEND
+                EventDispatch.beforeUpdate(target);
+                target.append(Patch.html2Node(e.HTML));
+                EventDispatch.updated(target);
+                break;
+            case 4: // PREPEND
+                EventDispatch.beforeUpdate(target);
+                target.prepend(Patch.html2Node(e.HTML));
+                EventDispatch.updated(target);
+                break;
+        }
     }
 
     private static html2Node(html: string): Node {

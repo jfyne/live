@@ -137,7 +137,23 @@ See the [form example](https://github.com/jfyne/live/blob/master/examples/form) 
 
 ### Dom Patching
 
-- [ ] live-update
+- [x] live-update
+
+A container can be marked with `live-update`, allowing the DOM patch operations
+to avoid updating or removing portions of the view, or to append or prepend the
+updates rather than replacing the existing contents. This is useful for client-side
+interop with existing libraries that do their own DOM operations. The following
+`live-update` values are supported:
+
+- `replace` - replaces the element with the contents
+- `ignore` - ignores updates to the DOM regardless of new content changes
+- `append` - append the new DOM contents instead of replacing
+- `prepend` - prepend the new DOM contents instead of replacing
+
+When using `phx-update` If using "append" or "prepend", a DOM ID must be set
+for each child.
+
+See the [chat example](https://github.com/jfyne/live/blob/master/examples/chat) for usage.
 
 ### JS Interop
 

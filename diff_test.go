@@ -35,20 +35,20 @@ func TestMultipleTextChange(t *testing.T) {
 	}, t)
 }
 
-func TestNodeInsertion(t *testing.T) {
+func TestNodeAppend(t *testing.T) {
 	runDiffTest(diffTest{
 		root:     `<div>World</div>`,
 		proposed: `<div>Hello</div><div>World</div>`,
 		patches: []Patch{
 			{Path: []int{1, 0}, Action: Replace, HTML: "<div>Hello</div>"},
-			{Path: []int{1, 1}, Action: Insert, HTML: "<div>World</div>"},
+			{Path: []int{1}, Action: Append, HTML: "<div>World</div>"},
 		},
 	}, t)
 	runDiffTest(diffTest{
 		root:     `<div>Hello</div>`,
 		proposed: `<div>Hello</div><div>World</div>`,
 		patches: []Patch{
-			{Path: []int{1, 1}, Action: Insert, HTML: "<div>World</div>"},
+			{Path: []int{1}, Action: Append, HTML: "<div>World</div>"},
 		},
 	}, t)
 }
@@ -84,7 +84,7 @@ func TestMultipleAttributeValueChange(t *testing.T) {
 	}, t)
 }
 
-func TestNestedInsert(t *testing.T) {
+func TestNestedAppend(t *testing.T) {
 	tests := []diffTest{
 		{
 			root:     `<form><input type="text"/><input type="submit"/></form>`,
@@ -92,7 +92,7 @@ func TestNestedInsert(t *testing.T) {
 			patches: []Patch{
 				{Path: []int{1, 0, 0}, Action: Replace, HTML: `<div>Extra</div>`},
 				{Path: []int{1, 0, 1}, Action: Replace, HTML: `<input type="text"/>`},
-				{Path: []int{1, 0, 2}, Action: Insert, HTML: `<input type="submit"/>`},
+				{Path: []int{1, 0}, Action: Append, HTML: `<input type="submit"/>`},
 			},
 		},
 	}
@@ -129,8 +129,42 @@ func TestInsignificantWhitespace(t *testing.T) {
 			patches: []Patch{
 				{Path: []int{1, 0, 1}, Action: Replace, HTML: `<div>Extra</div>`},
 				{Path: []int{1, 0, 3}, Action: Replace, HTML: `<input type="text"/>`},
-				{Path: []int{1, 0, 5}, Action: Insert, HTML: `<input type="submit"/>`},
+				{Path: []int{1, 0}, Action: Append, HTML: `<input type="submit"/>`},
 			},
+		},
+	}
+	for _, d := range tests {
+		runDiffTest(d, t)
+	}
+}
+
+func TestLiveUpdate(t *testing.T) {
+	tests := []diffTest{
+		{
+			root:     `<div live-update="append"><div>Hello</div></div>`,
+			proposed: `<div live-update="append"><div>World</div></div>`,
+			patches: []Patch{
+				{Path: []int{1, 0}, Action: Append, HTML: `<div>World</div>`},
+			},
+		},
+		{
+			root:     `<div live-update="prepend"><div>Hello</div></div>`,
+			proposed: `<div live-update="prepend"><div>World</div></div>`,
+			patches: []Patch{
+				{Path: []int{1, 0}, Action: Prepend, HTML: `<div>World</div>`},
+			},
+		},
+		{
+			root:     `<div live-update="replace"><div>Hello</div></div>`,
+			proposed: `<div live-update="replace"><div>World</div></div>`,
+			patches: []Patch{
+				{Path: []int{1, 0, 0}, Action: Replace, HTML: `<div>World</div>`},
+			},
+		},
+		{
+			root:     `<div live-update="ignore"><div>Hello</div></div>`,
+			proposed: `<div live-update="ignore"><div>World</div></div>`,
+			patches:  []Patch{},
 		},
 	}
 	for _, d := range tests {

@@ -19,6 +19,8 @@ const (
 	Noop PatchAction = iota
 	Insert
 	Replace
+	Append
+	Prepend
 )
 
 // Patch a location in the frontend dom.
@@ -62,12 +64,21 @@ type patch struct {
 	Node   *html.Node
 }
 
-// diffTrees compares two html Nodes and outputs patches.
-func diffTrees(current, proposed *html.Node) []patch {
-	return compareNodes(current, proposed, []int{0})
+// differ handles state for recursive diffing.
+type differ struct {
+	// `live-update` handler.
+	updateNode     *html.Node
+	updateModifier PatchAction
+	updatePath     []int
 }
 
-func compareNodes(oldNode, newNode *html.Node, followedPath []int) []patch {
+// diffTrees compares two html Nodes and outputs patches.
+func diffTrees(current, proposed *html.Node) []patch {
+	d := &differ{}
+	return d.compareNodes(current, proposed, []int{0})
+}
+
+func (d *differ) compareNodes(oldNode, newNode *html.Node, followedPath []int) []patch {
 	debugNodeLog("compareNodes oldNode", oldNode)
 	debugNodeLog("compareNodes newNode", newNode)
 	patches := []patch{}
@@ -77,22 +88,25 @@ func compareNodes(oldNode, newNode *html.Node, followedPath []int) []patch {
 		return patches
 	}
 
-	// If oldNode is nothing we need to insert the new node.
+	// If oldNode is nothing we need to append the new node.
 	if oldNode == nil {
 		if !nodeRelevant(newNode) {
 			return []patch{}
 		}
-		return append(patches, generatePatch(newNode, followedPath, Insert))
+		return append(patches, d.generatePatch(newNode, followedPath[:len(followedPath)-1], Append))
 	}
 
 	// If newNode does not exist, we need to patch a removal.
 	if newNode == nil {
-		return append(patches, generatePatch(newNode, followedPath, Replace))
+		return append(patches, d.generatePatch(newNode, followedPath, Replace))
 	}
+
+	// Check for `live-update` modifiers.
+	d.liveUpdateCheck(newNode, followedPath)
 
 	// If nodes at this position are not equal patch a replacement.
 	if nodeEqual(oldNode, newNode) == false {
-		return append(patches, generatePatch(newNode, followedPath, Replace))
+		return append(patches, d.generatePatch(newNode, followedPath, Replace))
 	}
 
 	newChildren := generateNodeList(newNode.FirstChild)
@@ -106,22 +120,22 @@ func compareNodes(oldNode, newNode *html.Node, followedPath []int) []patch {
 
 		nextPath = append(nextPath, i)
 		if i >= len(newChildren) {
-			patches = append(patches, compareNodes(oldChildren[i], nil, nextPath)...)
+			patches = append(patches, d.compareNodes(oldChildren[i], nil, nextPath)...)
 		} else if i >= len(oldChildren) {
-			patches = append(patches, compareNodes(nil, newChildren[i], nextPath)...)
+			patches = append(patches, d.compareNodes(nil, newChildren[i], nextPath)...)
 		} else {
-			patches = append(patches, compareNodes(oldChildren[i], newChildren[i], nextPath)...)
+			patches = append(patches, d.compareNodes(oldChildren[i], newChildren[i], nextPath)...)
 		}
 	}
 
 	return patches
 }
 
-func generatePatch(node *html.Node, followedPath []int, action PatchAction) patch {
+func (d *differ) generatePatch(node *html.Node, followedPath []int, action PatchAction) patch {
 	if node == nil {
 		return patch{
-			Path:   followedPath,
-			Action: action,
+			Path:   d.patchPath(followedPath),
+			Action: d.patchAction(action),
 			Node:   nil,
 		}
 	}
@@ -129,17 +143,62 @@ func generatePatch(node *html.Node, followedPath []int, action PatchAction) patc
 	switch node.Type {
 	case html.TextNode:
 		return patch{
-			Path:   followedPath[:len(followedPath)-1],
-			Action: action,
+			Path:   d.patchPath(followedPath[:len(followedPath)-1]),
+			Action: d.patchAction(action),
 			Node:   node.Parent,
 		}
 	default:
 		return patch{
-			Path:   followedPath,
-			Action: action,
+			Path:   d.patchPath(followedPath),
+			Action: d.patchAction(action),
 			Node:   node,
 		}
 	}
+}
+
+// liveUpdateCheck check for an update modifier for this node.
+func (d *differ) liveUpdateCheck(node *html.Node, followedPath []int) {
+	for _, attr := range node.Attr {
+		if attr.Key != "live-update" {
+			continue
+		}
+		d.updateNode = node
+
+		nextPath := make([]int, len(followedPath))
+		copy(nextPath, followedPath)
+		d.updatePath = nextPath
+
+		switch attr.Val {
+		case "replace":
+			d.updateModifier = Replace
+			d.updatePath = append(d.updatePath, 0)
+		case "ignore":
+			d.updateModifier = Noop
+		case "append":
+			d.updateModifier = Append
+		case "prepend":
+			d.updateModifier = Prepend
+		}
+		break
+	}
+}
+
+// patchAction in the current state of the differ get the patch
+// action.
+func (d *differ) patchAction(action PatchAction) PatchAction {
+	if d.updateNode != nil {
+		return d.updateModifier
+	}
+	return action
+}
+
+// patchPath in the current state of the differ get the patch
+// path.
+func (d *differ) patchPath(path []int) []int {
+	if d.updateNode != nil {
+		return d.updatePath
+	}
+	return path
 }
 
 // nodeRelevant check if this node is relevant.

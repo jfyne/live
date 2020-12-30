@@ -19,6 +19,10 @@ export const EventDestroyed = "live:destroyed";
 export const EventDisconnected = "live:disconnected";
 export const EventReconnected = "live:reconnected";
 
+export const ClassConnected = "live-connected";
+export const ClassDisconnected = "live-disconnected";
+export const ClassError = "live-error";
+
 /**
  * EventDispatch allows the code base to send events
  * to hooked elements. Also handles events coming from
@@ -122,6 +126,8 @@ export class EventDispatch {
             }
             this.callHook(event, element, h.disconnected);
         });
+        document.body.classList.add(ClassDisconnected);
+        document.body.classList.remove(ClassConnected);
     }
 
     /**
@@ -136,6 +142,8 @@ export class EventDispatch {
             }
             this.callHook(event, element, h.reconnected);
         });
+        document.body.classList.remove(ClassDisconnected);
+        document.body.classList.add(ClassConnected);
     }
 
     private static getElementHooks(element: Element): Hook | null {

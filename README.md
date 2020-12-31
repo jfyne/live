@@ -3,6 +3,8 @@
 Real-time user experiences with server-rendered HTML, web apps without the
 javascript.
 
+![](examples/chat.gif)
+
 An attempt to bring something similar to phoenix live views to golang.
 
 Compatible with `net/http`, so will play nicely with middleware etc.

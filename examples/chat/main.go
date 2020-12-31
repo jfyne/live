@@ -51,7 +51,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	view, err := live.NewView(
+	view, err := live.NewHandler(
 		t,
 		"session-key",
 		cookieStore,
@@ -60,7 +60,7 @@ func main() {
 		log.Fatal(err)
 	}
 	// Set the mount function for this view.
-	view.Mount = func(ctx context.Context, v *live.View, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
+	view.Mount = func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
 		// This will initialise the chat for this socket.
 		return NewChatInstance(s), nil
 	}

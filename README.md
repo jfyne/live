@@ -14,11 +14,11 @@ go get github.com/jfyne/live
 
 See the [examples](https://github.com/jfyne/live/blob/master/examples) for usage.
 
-### First view
+### First handler
 
-As of writing, each view expects there to be a `root.html` template which it will render
-into. See any of the [examples](https://github.com/jfyne/live/blob/master/examples) to see 
-this in action.
+As of writing, each handler defaults to rendering a `root.html` template. This can
+be overriden using `WithRootTemplate` and defining another template, the chat example
+does this.
 
 ```html
 <!doctype html>
@@ -50,7 +50,7 @@ And in go
 
 ```go
 t, _ := template.ParseFiles("examples/root.html", "examples/clock/view.html")
-view, _ := live.NewView(t, "session-key", sessionStore)
+h, _ := live.NewHandler(t, "session-key", sessionStore)
 ```
 
 And then just serve like you normallly would
@@ -59,8 +59,8 @@ And then just serve like you normallly would
 // Here we are using `http.Handle` but you could use
 // `gorilla/mux` or whatever you want. 
 
-// Serve the view itself.
-http.Handle("/clock", view)
+// Serve the handler itself.
+http.Handle("/clock", h)
 
 // This serves the javscript for live to work and is required. This is what
 // we referenced in the `root.html`.
@@ -125,7 +125,7 @@ See the [buttons example](https://github.com/jfyne/live/blob/master/examples/but
 
 To handle form changes and submissions, use the `live-change` and `live-submit` events. In general,
 it is preferred to handle input changes at the form level, where all form fields are passed to the
-views event handler given any single input change. For example, to handle real-time form validation
+handler's event handler given any single input change. For example, to handle real-time form validation
 and saving, your template would use both `live-change` and `live-submit` bindings.
 
 See the [form example](https://github.com/jfyne/live/blob/master/examples/form) for usage.
@@ -175,7 +175,7 @@ export interface Hooks {
 export interface Hook {
     /**
      * The element has been added to the DOM and its server
-     * LiveView has finished mounting
+     * LiveHandler has finished mounting
      */
     mounted?: () => void;
 
@@ -205,13 +205,13 @@ export interface Hook {
     destroyed?: () => void;
 
     /**
-     * The element's parent LiveView has disconnected from
+     * The element's parent LiveHandler has disconnected from
      * the server
      */
     disconnected?: () => void;
 
     /**
-     * The element's parent LiveView has reconnected to the
+     * The element's parent LiveHandler has reconnected to the
      * server
      */
     reconnected?: () => void;

@@ -11,7 +11,7 @@ export interface Hooks {
 export interface Hook {
     /**
      * The element has been added to the DOM and its server
-     * LiveView has finished mounting
+     * LiveHandler has finished mounting
      */
     mounted?: () => void;
 
@@ -41,13 +41,13 @@ export interface Hook {
     destroyed?: () => void;
 
     /**
-     * The element's parent LiveView has disconnected from
+     * The element's parent LiveHandler has disconnected from
      * the server
      */
     disconnected?: () => void;
 
     /**
-     * The element's parent LiveView has reconnected to the
+     * The element's parent LiveHandler has reconnected to the
      * server
      */
     reconnected?: () => void;

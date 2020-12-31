@@ -37,7 +37,7 @@ func Example_temperature() {
 
 	// Parsing nil as a template to new view will error if we do not set
 	// a render function ourselves.
-	view, err := NewView(nil, "session-key", cookieStore)
+	view, err := NewHandler(nil, "session-key", cookieStore)
 	if err != nil {
 		log.Fatal("could not create view")
 	}
@@ -64,7 +64,7 @@ func Example_temperature() {
 
 	// Mount function is called on initial HTTP load and then initial web
 	// socket connection.
-	view.Mount = func(ctx context.Context, v *View, r *http.Request, s *Socket, connected bool) (interface{}, error) {
+	view.Mount = func(ctx context.Context, h *Handler, r *http.Request, s *Socket, connected bool) (interface{}, error) {
 		return NewThermoModel(s), nil
 	}
 

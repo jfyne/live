@@ -46,9 +46,9 @@ func (s *Socket) Send(msg Event) {
 	s.msgs <- msg
 }
 
-func (s *Socket) mount(ctx context.Context, view *View, r *http.Request, connected bool) error {
-	// Mount view.
-	data, err := view.Mount(ctx, view, r, s, connected)
+func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request, connected bool) error {
+	// Mount handler.
+	data, err := h.Mount(ctx, h, r, s, connected)
 	if err != nil {
 		return fmt.Errorf("mount error: %w", err)
 	}
@@ -56,13 +56,13 @@ func (s *Socket) mount(ctx context.Context, view *View, r *http.Request, connect
 	return nil
 }
 
-// handleView takes a view and runs a mount and render.
-func (s *Socket) handleView(ctx context.Context, view *View) error {
+// handleHandler takes a handler and runs a mount and render.
+func (s *Socket) handleHandler(ctx context.Context, h *Handler) error {
 	s.dataMu.Lock()
 	defer s.dataMu.Unlock()
 
-	// Render view.
-	output, err := view.Render(ctx, view.t, s.data)
+	// Render handler.
+	output, err := h.Render(ctx, h.t, s.data)
 	if err != nil {
 		return fmt.Errorf("render error: %w", err)
 	}

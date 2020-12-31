@@ -33,7 +33,7 @@ func (c clock) FormattedTime() string {
 	return c.Time.Format("15:04:05")
 }
 
-func mount(ctx context.Context, view *live.View, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
+func mount(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
 	// Take the socket data and tranform it into our view model if it is
 	// available.
 	c := newClock(s)
@@ -43,7 +43,7 @@ func mount(ctx context.Context, view *live.View, r *http.Request, s *live.Socket
 	if connected {
 		go func() {
 			time.Sleep(1 * time.Second)
-			view.Self(s, live.Event{T: tick})
+			h.Self(s, live.Event{T: tick})
 		}()
 	}
 	return c, nil
@@ -60,7 +60,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	view, err := live.NewView(t, "session-key", cookieStore)
+	view, err := live.NewHandler(t, "session-key", cookieStore)
 	if err != nil {
 		log.Fatal(err)
 	}

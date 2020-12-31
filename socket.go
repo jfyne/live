@@ -98,8 +98,8 @@ func NewSocket(s Session) *Socket {
 	}
 }
 
-// AssignSocket to a socket.
-func (c *Socket) AssignWS(ws *websocket.Conn) {
+// assignWS connect a web socket to a socket.
+func (c *Socket) assignWS(ws *websocket.Conn) {
 	c.closeSlow = func() {
 		ws.Close(websocket.StatusPolicyViolation, "socket too slow to keep up with messages")
 	}

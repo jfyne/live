@@ -9,7 +9,6 @@ import (
 
 	"github.com/gorilla/sessions"
 	"github.com/jfyne/live"
-	"github.com/rs/xid"
 )
 
 const (
@@ -32,8 +31,8 @@ func NewChatInstance(s *live.Socket) *ChatInstance {
 	if !ok {
 		return &ChatInstance{
 			Messages: []Message{
-				{ID: "1", User: "Room", Msg: "Welcome to chat"},
-				{ID: "2", User: "Room", Msg: "Start typing to talk to other users who are connected"},
+				{ID: live.NewID(), User: "Room", Msg: "Welcome to chat"},
+				{ID: live.NewID(), User: "Room", Msg: "Start typing to talk to other users who are connected"},
 			},
 		}
 	}
@@ -51,7 +50,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	view, err := live.NewHandler(
+	h, err := live.NewHandler(
 		t,
 		"session-key",
 		cookieStore,
@@ -59,25 +58,25 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Set the mount function for this view.
-	view.Mount = func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
+	// Set the mount function for this handler.
+	h.Mount = func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
 		// This will initialise the chat for this socket.
 		return NewChatInstance(s), nil
 	}
 
 	// Handle user sending a message.
-	view.HandleEvent(send, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+	h.HandleEvent(send, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		m := NewChatInstance(s)
 		msg := live.ParamString(p, "message")
 		if msg == "" {
 			return m, nil
 		}
-		view.Broadcast(live.Event{T: newmessage, Data: map[string]interface{}{"message": Message{ID: xid.New().String(), User: s.Session.ID, Msg: msg}}})
+		h.Broadcast(live.Event{T: newmessage, Data: map[string]interface{}{"message": Message{ID: live.NewID(), User: s.Session.ID, Msg: msg}}})
 		return m, nil
 	})
 
 	// Handle the broadcasted events.
-	view.HandleSelf(newmessage, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+	h.HandleSelf(newmessage, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		m := NewChatInstance(s)
 		data, ok := p["message"]
 		if !ok {
@@ -95,8 +94,8 @@ func main() {
 	})
 
 	// Run the server.
-	http.Handle("/chat", view)
+	http.Handle("/chat", h)
 	http.Handle("/live.js", live.Javascript{})
-	http.Handle("/live.js.map", live.JavascriptMap{})
+	http.Handle("/auto.js.map", live.JavascriptMap{})
 	http.ListenAndServe(":8080", nil)
 }

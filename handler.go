@@ -207,7 +207,7 @@ func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) socket(ctx context.Context, r *http.Request, session Session, c *websocket.Conn) error {
 	// Get the sessions socket and register it with the server.
 	sock := NewSocket(session)
-	sock.AssignWS(c)
+	sock.assignWS(c)
 	h.addSocket(sock)
 	defer h.deleteSocket(sock)
 
@@ -374,6 +374,18 @@ func (h *Handler) sockets() []*Socket {
 	return sockets
 }
 
+// getSocket return a socket, error if it isn't connected or
+// doensn't exist.
+func (h *Handler) getSocket(s *Socket) (*Socket, error) {
+	h.socketsMu.Lock()
+	defer h.socketsMu.Unlock()
+	_, ok := h.socketMap[s]
+	if !ok {
+		return nil, ErrNoSocket
+	}
+	return s, nil
+}
+
 func handleEmmittedEvent(h *Handler, he HandlerEvent) {
 	// If the socket is nil, this is broadcast message.
 	if he.S == nil {
@@ -382,6 +394,9 @@ func handleEmmittedEvent(h *Handler, he HandlerEvent) {
 			_handleEmittedEvent(h, he, socket)
 		}
 	} else {
+		if _, err := h.getSocket(he.S); err != nil {
+			return
+		}
 		_handleEmittedEvent(h, he, he.S)
 	}
 }

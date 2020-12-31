@@ -38,13 +38,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	view, err := live.NewHandler(t, "session-key", cookieStore)
+	h, err := live.NewHandler(t, "session-key", cookieStore)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Set the mount function for this view.
-	view.Mount = func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
+	// Set the mount function for this handler.
+	h.Mount = func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
 		// This will initialise the counter if needed.
 		return newCounter(s), nil
 	}
@@ -52,7 +52,7 @@ func main() {
 	// Client side events.
 
 	// Increment event. Each click will increment the count by one.
-	view.HandleEvent(inc, func(s *live.Socket, _ map[string]interface{}) (interface{}, error) {
+	h.HandleEvent(inc, func(s *live.Socket, _ map[string]interface{}) (interface{}, error) {
 		// Get this sockets counter struct.
 		c := newCounter(s)
 
@@ -64,7 +64,7 @@ func main() {
 	})
 
 	// Decrement event. Each click will increment the count by one.
-	view.HandleEvent(dec, func(s *live.Socket, _ map[string]interface{}) (interface{}, error) {
+	h.HandleEvent(dec, func(s *live.Socket, _ map[string]interface{}) (interface{}, error) {
 		// Get this sockets counter struct.
 		c := newCounter(s)
 
@@ -76,7 +76,7 @@ func main() {
 	})
 
 	// Run the server.
-	http.Handle("/buttons", view)
+	http.Handle("/buttons", h)
 	http.Handle("/live.js", live.Javascript{})
 	http.Handle("/auto.js.map", live.JavascriptMap{})
 	http.ListenAndServe(":8080", nil)

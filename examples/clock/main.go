@@ -60,32 +60,32 @@ func main() {
 		log.Fatal(err)
 	}
 
-	view, err := live.NewHandler(t, "session-key", cookieStore)
+	h, err := live.NewHandler(t, "session-key", cookieStore)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Set the mount function for this view.
-	view.Mount = mount
+	// Set the mount function for this handler.
+	h.Mount = mount
 
 	// Server side events.
 
 	// tick event updates the clock every second.
-	view.HandleSelf(tick, func(s *live.Socket, _ map[string]interface{}) (interface{}, error) {
-		// Get our view model
+	h.HandleSelf(tick, func(s *live.Socket, _ map[string]interface{}) (interface{}, error) {
+		// Get our model
 		c := newClock(s)
 		// Update the time.
 		c.Time = time.Now()
 		// Send ourselves another tick in a second.
-		go func() {
+		go func(sock *live.Socket) {
 			time.Sleep(1 * time.Second)
-			view.Self(s, live.Event{T: tick})
-		}()
+			h.Self(sock, live.Event{T: tick})
+		}(s)
 		return c, nil
 	})
 
 	// Run the server.
-	http.Handle("/clock", view)
+	http.Handle("/clock", h)
 	http.Handle("/live.js", live.Javascript{})
 	http.Handle("/auto.js.map", live.JavascriptMap{})
 	http.ListenAndServe(":8080", nil)

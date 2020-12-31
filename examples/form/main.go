@@ -51,12 +51,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	view, err := live.NewHandler(t, "session-key", cookieStore)
+	h, err := live.NewHandler(t, "session-key", cookieStore)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Set the mount function for this view.
-	view.Mount = func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
+	// Set the mount function for this handler.
+	h.Mount = func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
 		// This will initialise the form.
 		return newModel(s), nil
 	}
@@ -73,7 +73,7 @@ func main() {
 	}
 
 	// Validate the form.
-	view.HandleEvent(validate, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+	h.HandleEvent(validate, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		m := newModel(s)
 		msg := live.ParamString(p, "message")
 		vm := validateMessage(msg)
@@ -84,7 +84,7 @@ func main() {
 	})
 
 	// Handle form saving.
-	view.HandleEvent(save, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+	h.HandleEvent(save, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		m := newModel(s)
 		msg := live.ParamString(p, "message")
 		vm := validateMessage(msg)
@@ -97,7 +97,7 @@ func main() {
 	})
 
 	// Run the server.
-	http.Handle("/form", view)
+	http.Handle("/form", h)
 	http.Handle("/live.js", live.Javascript{})
 	http.Handle("/auto.js.map", live.JavascriptMap{})
 	http.ListenAndServe(":8080", nil)

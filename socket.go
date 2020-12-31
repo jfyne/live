@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	// MaxMessageBufferSize the maximum number of messages per socket in a buffer.
 	MaxMessageBufferSize = 16
 )
 
@@ -99,8 +100,8 @@ func NewSocket(s Session) *Socket {
 }
 
 // assignWS connect a web socket to a socket.
-func (c *Socket) assignWS(ws *websocket.Conn) {
-	c.closeSlow = func() {
+func (s *Socket) assignWS(ws *websocket.Conn) {
+	s.closeSlow = func() {
 		ws.Close(websocket.StatusPolicyViolation, "socket too slow to keep up with messages")
 	}
 }

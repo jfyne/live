@@ -129,11 +129,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Serve the http version of the view.
 		h.serveHTTP(w, r)
 		return
-	} else {
-		// Upgrade to the webscoket version.
-		h.serveWS(w, r)
-		return
 	}
+
+	// Upgrade to the webscoket version.
+	h.serveWS(w, r)
+	return
 }
 
 // serveHTTP serve an http request to the view.
@@ -180,26 +180,34 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 // serveWS serve a websocket request to the view.
 func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
+	// Get the session from the http request.
+	session, err := h.getSession(r)
+	if err != nil {
+		log.Println("get session for ws err", err)
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
 	c, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		log.Println("websocket accept error", err)
 		return
 	}
 	defer c.Close(websocket.StatusInternalError, "")
-
-	// Get the session from the http request.
-	session, err := h.getSession(r)
-	err = h.socket(r.Context(), r, session, c)
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-	if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
-		websocket.CloseStatus(err) == websocket.StatusGoingAway {
-		return
-	}
-	if err != nil {
-		log.Println("websocket failure", err)
-		return
+	{
+		err := h.socket(r.Context(), r, session, c)
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
+			websocket.CloseStatus(err) == websocket.StatusGoingAway {
+			return
+		}
+		if err != nil {
+			log.Println("websocket failure", err)
+			return
+		}
 	}
 }
 
@@ -324,7 +332,7 @@ func (h *Handler) handleEvent(t string, sock *Socket, msg Event) error {
 
 	params, err := msg.Params()
 	if err != nil {
-		return fmt.Errorf("recieved message and could not extract params: %w", err)
+		return fmt.Errorf("received message and could not extract params: %w", err)
 	}
 
 	data, err := handler(sock, params)
@@ -348,7 +356,7 @@ func (h *Handler) handleSelf(t string, sock *Socket, msg Event) error {
 
 	params, err := msg.Params()
 	if err != nil {
-		return fmt.Errorf("recieved self message and could not extract params: %w", err)
+		return fmt.Errorf("received self message and could not extract params: %w", err)
 	}
 
 	data, err := handler(sock, params)

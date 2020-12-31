@@ -16,7 +16,7 @@ func NewSession() Session {
 	return Session{ID: NewID()}
 }
 
-// SessionKey key to find items stored in the session.
+// ValueKey type for session keys.
 type ValueKey string
 
 // Session keys.

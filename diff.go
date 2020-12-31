@@ -12,9 +12,10 @@ import (
 
 const _debug = false
 
-// PatchAction
+// PatchAction available actions to take by a patch.
 type PatchAction uint32
 
+// Actions available.
 const (
 	Noop PatchAction = iota
 	Insert

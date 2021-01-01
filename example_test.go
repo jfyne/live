@@ -7,8 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-
-	"github.com/gorilla/sessions"
 )
 
 // Example_temperature shows a simple temperature control using the
@@ -30,14 +28,9 @@ func Example_temperature() {
 		return m
 	}
 
-	cookieStore := sessions.NewCookieStore([]byte("weak-secret"))
-	cookieStore.Options.HttpOnly = true
-	cookieStore.Options.Secure = true
-	cookieStore.Options.SameSite = http.SameSiteStrictMode
-
 	// Parsing nil as a template to NewHandler will error if we do not set
 	// a render function ourselves.
-	h, err := NewHandler(nil, "session-key", cookieStore)
+	h, err := NewHandler(nil, NewCookieStore("session-name", []byte("weak-secret")))
 	if err != nil {
 		log.Fatal("could not create handler")
 	}

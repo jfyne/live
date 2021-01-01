@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/sessions"
 	"github.com/jfyne/live"
 )
 
@@ -50,17 +49,12 @@ func mount(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket
 }
 
 func main() {
-	cookieStore := sessions.NewCookieStore([]byte("weak-secret"))
-	cookieStore.Options.HttpOnly = true
-	cookieStore.Options.Secure = true
-	cookieStore.Options.SameSite = http.SameSiteStrictMode
-
 	t, err := template.ParseFiles("examples/root.html", "examples/clock/view.html")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	h, err := live.NewHandler(t, "session-key", cookieStore)
+	h, err := live.NewHandler(t, live.NewCookieStore("session-name", []byte("weak-secret")))
 	if err != nil {
 		log.Fatal(err)
 	}

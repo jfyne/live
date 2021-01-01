@@ -11,7 +11,6 @@ Compatible with `net/http`, so will play nicely with middleware and other framew
 
 ## Roadmap
 
-- [ ] Session interface, removes `gorilla/sessions` dependency.
 - [ ] Improve error handling.
 - [ ] Add event classes to the dom, e.g. `live-click-loading` etc.
 - [ ] Release standalone NPM package for JS integration.
@@ -66,7 +65,7 @@ And in go
 
 ```go
 t, _ := template.ParseFiles("examples/root.html", "examples/clock/view.html")
-h, _ := live.NewHandler(t, "session-key", sessionStore)
+h, _ := live.NewHandler(t, sessionStore)
 ```
 
 And then just serve like you normallly would

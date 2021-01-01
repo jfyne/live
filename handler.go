@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/sessions"
 	"golang.org/x/net/html"
 	"golang.org/x/time/rate"
 	"nhooyr.io/websocket"
@@ -37,8 +36,7 @@ type HandlerEvent struct {
 // Handler to be served by an HTTP server.
 type Handler struct {
 	// session store
-	store      sessions.Store
-	sessionKey string
+	sessionStore SessionStore
 
 	// Template for this view.
 	t *template.Template
@@ -69,11 +67,10 @@ type Handler struct {
 }
 
 // NewHandler creates a new live handler.
-func NewHandler(t *template.Template, sessionKey string, store sessions.Store, configs ...HandlerConfig) (*Handler, error) {
+func NewHandler(t *template.Template, store SessionStore, configs ...HandlerConfig) (*Handler, error) {
 	h := &Handler{
 		t:                t,
-		store:            store,
-		sessionKey:       sessionKey,
+		sessionStore:     store,
 		emitter:          make(chan HandlerEvent),
 		broadcastLimiter: rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
 		eventHandlers:    make(map[string]EventHandler),
@@ -171,7 +168,7 @@ func (h *Handler) HandleSelf(t string, handler EventHandler) {
 // serveHTTP serve an http request to the view.
 func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get session.
-	session, err := h.getSession(r)
+	session, err := h.sessionStore.Get(r)
 	if err != nil {
 		log.Println("session get err", err)
 		w.WriteHeader(500)
@@ -199,7 +196,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	var rendered bytes.Buffer
 	html.Render(&rendered, sock.currentRender)
 
-	if err := h.saveSession(w, r, session); err != nil {
+	if err := h.sessionStore.Save(w, r, session); err != nil {
 		log.Println("session save err", err)
 		w.WriteHeader(500)
 		w.Write([]byte(err.Error()))
@@ -213,7 +210,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 // serveWS serve a websocket request to the view.
 func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 	// Get the session from the http request.
-	session, err := h.getSession(r)
+	session, err := h.sessionStore.Get(r)
 	if err != nil {
 		log.Println("get session for ws err", err)
 		w.WriteHeader(500)
@@ -420,36 +417,36 @@ func _handleEmittedEvent(h *Handler, he HandlerEvent, socket *Socket) {
 	}
 }
 
-func (h *Handler) getSession(r *http.Request) (Session, error) {
-	var sess Session
-	session, err := h.store.Get(r, h.sessionKey)
-	if err != nil {
-		return NewSession(), err
-	}
-
-	vals, ok := session.Values[SessionKey]
-	if !ok {
-		// Create new connection.
-		ns := NewSession()
-		sess = ns
-	}
-	sess, ok = vals.(Session)
-	if !ok {
-		// Create new connection and set.
-		ns := NewSession()
-		sess = ns
-	}
-	return sess, nil
-}
-
-func (h *Handler) saveSession(w http.ResponseWriter, r *http.Request, session Session) error {
-	c, err := h.store.Get(r, h.sessionKey)
-	if err != nil {
-		return err
-	}
-	c.Values[SessionKey] = session
-	return c.Save(r, w)
-}
+//func (h *Handler) getSession(r *http.Request) (Session, error) {
+//	var sess Session
+//	session, err := h.store.Get(r, h.sessionKey)
+//	if err != nil {
+//		return NewSession(), err
+//	}
+//
+//	vals, ok := session.Values[SessionKey]
+//	if !ok {
+//		// Create new connection.
+//		ns := NewSession()
+//		sess = ns
+//	}
+//	sess, ok = vals.(Session)
+//	if !ok {
+//		// Create new connection and set.
+//		ns := NewSession()
+//		sess = ns
+//	}
+//	return sess, nil
+//}
+//
+//func (h *Handler) saveSession(w http.ResponseWriter, r *http.Request, session Session) error {
+//	c, err := h.store.Get(r, h.sessionKey)
+//	if err != nil {
+//		return err
+//	}
+//	c.Values[SessionKey] = session
+//	return c.Save(r, w)
+//}
 
 func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn, msg Event) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)

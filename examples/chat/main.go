@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gorilla/sessions"
 	"github.com/jfyne/live"
 )
 
@@ -39,21 +38,12 @@ func NewChatInstance(s *live.Socket) *ChatInstance {
 }
 
 func main() {
-	cookieStore := sessions.NewCookieStore([]byte("weak-secret"))
-	cookieStore.Options.HttpOnly = true
-	cookieStore.Options.Secure = true
-	cookieStore.Options.SameSite = http.SameSiteStrictMode
-
 	t, err := template.ParseFiles("examples/chat/layout.html", "examples/chat/view.html")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	h, err := live.NewHandler(
-		t,
-		"session-key",
-		cookieStore,
-		live.WithRootTemplate("layout.html"))
+	h, err := live.NewHandler(t, live.NewCookieStore("session-name", []byte("weak-secret")), live.WithRootTemplate("layout.html"))
 	if err != nil {
 		log.Fatal(err)
 	}

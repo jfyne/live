@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gorilla/sessions"
 	"github.com/jfyne/live"
 )
 
@@ -28,17 +27,12 @@ func newCounter(s *live.Socket) *counter {
 }
 
 func main() {
-	cookieStore := sessions.NewCookieStore([]byte("weak-secret"))
-	cookieStore.Options.HttpOnly = true
-	cookieStore.Options.Secure = true
-	cookieStore.Options.SameSite = http.SameSiteStrictMode
-
 	t, err := template.ParseFiles("examples/root.html", "examples/buttons/view.html")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	h, err := live.NewHandler(t, "session-key", cookieStore)
+	h, err := live.NewHandler(t, live.NewCookieStore("session-name", []byte("weak-secret")))
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -1,11 +1,12 @@
 # live
 
-Real-time user experiences with server-rendered HTML, web apps without the
-javascript in Go.
+Real-time user experiences with server-rendered HTML in Go. Inspired by and
+borrowing from Phoenix LiveViews.
+
+Live is intended as a replacement for React, Vue, Angular etc. You can write
+an interactive web app just using Go and its templates.
 
 ![](examples/chat.gif)
-
-An attempt to bring something similar to phoenix live views to golang.
 
 Compatible with `net/http`, so will play nicely with middleware and other frameworks.
 

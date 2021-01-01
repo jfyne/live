@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	// MaxMessageBufferSize the maximum number of messages per socket in a buffer.
-	MaxMessageBufferSize = 16
+	// maxMessageBufferSize the maximum number of messages per socket in a buffer.
+	maxMessageBufferSize = 16
 )
 
 // Socket describes a socket from the outside.
@@ -27,6 +27,14 @@ type Socket struct {
 	dataMu sync.Mutex
 }
 
+// NewSocket creates a new socket.
+func NewSocket(s Session) *Socket {
+	return &Socket{
+		Session: s,
+		msgs:    make(chan Event, maxMessageBufferSize),
+	}
+}
+
 // Assigns returns the data currently assigned to this
 // socket.
 func (s *Socket) Assigns() interface{} {
@@ -35,7 +43,8 @@ func (s *Socket) Assigns() interface{} {
 	return s.data
 }
 
-// Assign assigns data to this socket.
+// Assign set data to this socket. This will happen automatically
+// if you return data from and `EventHander`.
 func (s *Socket) Assign(data interface{}) {
 	s.dataMu.Lock()
 	defer s.dataMu.Unlock()
@@ -44,11 +53,16 @@ func (s *Socket) Assign(data interface{}) {
 
 // Send an event to this socket.
 func (s *Socket) Send(msg Event) {
-	s.msgs <- msg
+	select {
+	case s.msgs <- msg:
+	default:
+		go s.closeSlow()
+	}
 }
 
+// mount passes this socket to the handlers mount func. This returns data
+// which we then set to the socket to store.
 func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request, connected bool) error {
-	// Mount handler.
 	data, err := h.Mount(ctx, h, r, s, connected)
 	if err != nil {
 		return fmt.Errorf("mount error: %w", err)
@@ -57,8 +71,10 @@ func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request, connect
 	return nil
 }
 
-// handleHandler takes a handler and runs a mount and render.
-func (s *Socket) handleHandler(ctx context.Context, h *Handler) error {
+// render passes this socket to the handlers render func. This generates
+// the HTML we should be showing to the socket. A diff is then run against
+// previosuly generated HTML and patches sent to the socket.
+func (s *Socket) render(ctx context.Context, h *Handler) error {
 	s.dataMu.Lock()
 	defer s.dataMu.Unlock()
 
@@ -83,20 +99,12 @@ func (s *Socket) handleHandler(ctx context.Context, h *Handler) error {
 				T:    EventPatch,
 				Data: patches,
 			}
-			s.msgs <- msg
+			s.Send(msg)
 		}
 	}
 	s.currentRender = node
 
 	return nil
-}
-
-// NewSocket creates a new socket.
-func NewSocket(s Session) *Socket {
-	return &Socket{
-		Session: s,
-		msgs:    make(chan Event, MaxMessageBufferSize),
-	}
 }
 
 // assignWS connect a web socket to a socket.

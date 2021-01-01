@@ -1,13 +1,24 @@
 # live
 
 Real-time user experiences with server-rendered HTML, web apps without the
-javascript.
+javascript in Go.
 
 ![](examples/chat.gif)
 
 An attempt to bring something similar to phoenix live views to golang.
 
-Compatible with `net/http`, so will play nicely with middleware etc.
+Compatible with `net/http`, so will play nicely with middleware and other frameworks.
+
+## Roadmap
+
+- [ ] Session interface, removes `gorilla/sessions` dependency.
+- [ ] Improve error handling.
+- [ ] Add event classes to the dom, e.g. `live-click-loading` etc.
+- [ ] Release standalone NPM package for JS integration.
+- [ ] Implement any missing phx events that make sense.
+- [ ] Enable persisting state across visits?
+- [ ] File uploads.
+- [ ] Think about how live components could work.
 
 ## Getting Started
 

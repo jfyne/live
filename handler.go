@@ -104,7 +104,9 @@ func NewHandler(t *template.Template, sessionKey string, store sessions.Store, c
 	return h, nil
 }
 
-// StartHandler run a handler so that it' events can be dealt with.
+// StartHandler run a handler so that it's events can be dealt with.
+// This is called by `NewHandler` so is only required if you are manually
+// creating a handler.
 func StartHandler(h *Handler) {
 	for {
 		select {
@@ -136,6 +138,36 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// Self sends a message to the socket on this view.
+func (h *Handler) Self(sock *Socket, msg Event) {
+	h.emitter <- HandlerEvent{
+		S:   sock,
+		Msg: msg,
+	}
+}
+
+// Broadcast send a message to all sockets connected to this view.
+func (h *Handler) Broadcast(msg Event) {
+	ctx := context.Background()
+	h.broadcastLimiter.Wait(ctx)
+
+	h.emitter <- HandlerEvent{
+		Msg: msg,
+	}
+}
+
+// HandleEvent handles an event that comes from the client. For example a click
+// from `live-click="myevent"`.
+func (h *Handler) HandleEvent(t string, handler EventHandler) {
+	h.eventHandlers[t] = handler
+}
+
+// HandleSelf handles an event that comes from the view. For example calling
+// view.Self(socket, msg) will be handled here.
+func (h *Handler) HandleSelf(t string, handler EventHandler) {
+	h.selfHandlers[t] = handler
+}
+
 // serveHTTP serve an http request to the view.
 func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get session.
@@ -157,7 +189,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := sock.handleHandler(r.Context(), h); err != nil {
+	if err := sock.render(r.Context(), h); err != nil {
 		log.Println("socket handle view err", err)
 		w.WriteHeader(500)
 		w.Write([]byte(err.Error()))
@@ -196,7 +228,7 @@ func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close(websocket.StatusInternalError, "")
 	{
-		err := h.socket(r.Context(), r, session, c)
+		err := h._serveWS(r.Context(), r, session, c)
 		if errors.Is(err, context.Canceled) {
 			return
 		}
@@ -211,8 +243,8 @@ func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// socket implement the handler for a socket.
-func (h *Handler) socket(ctx context.Context, r *http.Request, session Session, c *websocket.Conn) error {
+// _serveWS implement the logic for a web socket connection.
+func (h *Handler) _serveWS(ctx context.Context, r *http.Request, session Session, c *websocket.Conn) error {
 	// Get the sessions socket and register it with the server.
 	sock := NewSocket(session)
 	sock.assignWS(c)
@@ -223,7 +255,7 @@ func (h *Handler) socket(ctx context.Context, r *http.Request, session Session, 
 		return fmt.Errorf("socket mount error: %w", err)
 	}
 
-	if err := sock.handleHandler(ctx, h); err != nil {
+	if err := sock.render(ctx, h); err != nil {
 		return fmt.Errorf("socket handle error: %w", err)
 	}
 
@@ -251,7 +283,7 @@ func (h *Handler) socket(ctx context.Context, r *http.Request, session Session, 
 						log.Println("event error", m, err)
 					}
 				}
-				if err := sock.handleHandler(ctx, h); err != nil {
+				if err := sock.render(ctx, h); err != nil {
 					readError <- fmt.Errorf("socket handle error: %w", err)
 				}
 			case websocket.MessageBinary:
@@ -291,36 +323,6 @@ func (h *Handler) deleteSocket(sock *Socket) {
 	h.socketsMu.Lock()
 	defer h.socketsMu.Unlock()
 	delete(h.socketMap, sock)
-}
-
-// Self sends a message to the socket on this view.
-func (h *Handler) Self(sock *Socket, msg Event) {
-	h.emitter <- HandlerEvent{
-		S:   sock,
-		Msg: msg,
-	}
-}
-
-// Broadcast send a message to all sockets connected to this view.
-func (h *Handler) Broadcast(msg Event) {
-	ctx := context.Background()
-	h.broadcastLimiter.Wait(ctx)
-
-	h.emitter <- HandlerEvent{
-		Msg: msg,
-	}
-}
-
-// HandleEvent handles an event that comes from the client. For example a click
-// from `live-click="myevent"`.
-func (h *Handler) HandleEvent(t string, handler EventHandler) {
-	h.eventHandlers[t] = handler
-}
-
-// HandleSelf handles an event that comes from the view. For example calling
-// view.Self(socket, msg) will be handled here.
-func (h *Handler) HandleSelf(t string, handler EventHandler) {
-	h.selfHandlers[t] = handler
 }
 
 // handleEvent route an event to the correct handler.
@@ -382,16 +384,16 @@ func (h *Handler) sockets() []*Socket {
 	return sockets
 }
 
-// getSocket return a socket, error if it isn't connected or
+// hasSocket check a socket is there error if it isn't connected or
 // doensn't exist.
-func (h *Handler) getSocket(s *Socket) (*Socket, error) {
+func (h *Handler) hasSocket(s *Socket) error {
 	h.socketsMu.Lock()
 	defer h.socketsMu.Unlock()
 	_, ok := h.socketMap[s]
 	if !ok {
-		return nil, ErrNoSocket
+		return ErrNoSocket
 	}
-	return s, nil
+	return nil
 }
 
 func handleEmmittedEvent(h *Handler, he HandlerEvent) {
@@ -402,7 +404,7 @@ func handleEmmittedEvent(h *Handler, he HandlerEvent) {
 			_handleEmittedEvent(h, he, socket)
 		}
 	} else {
-		if _, err := h.getSocket(he.S); err != nil {
+		if err := h.hasSocket(he.S); err != nil {
 			return
 		}
 		_handleEmittedEvent(h, he, he.S)
@@ -413,7 +415,7 @@ func _handleEmittedEvent(h *Handler, he HandlerEvent, socket *Socket) {
 	if err := h.handleSelf(he.Msg.T, socket, he.Msg); err != nil {
 		log.Println("server event error", err)
 	}
-	if err := socket.handleHandler(context.Background(), h); err != nil {
+	if err := socket.render(context.Background(), h); err != nil {
 		log.Println("socket handleView error", err)
 	}
 }
@@ -459,19 +461,4 @@ func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn,
 	}
 
 	return c.Write(ctx, websocket.MessageText, data)
-}
-
-// WithRootTemplate set the renderer to use a different root template. This changes the handlers
-// Render function.
-func WithRootTemplate(rootTemplate string) HandlerConfig {
-	return func(h *Handler) error {
-		h.Render = func(ctx context.Context, t *template.Template, data interface{}) (io.Reader, error) {
-			var buf bytes.Buffer
-			if err := t.ExecuteTemplate(&buf, rootTemplate, data); err != nil {
-				return nil, err
-			}
-			return &buf, nil
-		}
-		return nil
-	}
 }

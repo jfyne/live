@@ -4,9 +4,10 @@ package live
 // be set to the socket after handling.
 type EventHandler func(*Socket, map[string]interface{}) (interface{}, error)
 
-// Live events.
 const (
+	// EventError indicates an error has occured.
 	EventError = "err"
+	// EventPatch a patch event containing a diff.
 	EventPatch = "patch"
 )
 

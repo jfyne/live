@@ -35,16 +35,17 @@ func Example_temperature() {
 	cookieStore.Options.Secure = true
 	cookieStore.Options.SameSite = http.SameSiteStrictMode
 
-	// Parsing nil as a template to new view will error if we do not set
+	// Parsing nil as a template to NewHandler will error if we do not set
 	// a render function ourselves.
-	view, err := NewHandler(nil, "session-key", cookieStore)
+	h, err := NewHandler(nil, "session-key", cookieStore)
 	if err != nil {
-		log.Fatal("could not create view")
+		log.Fatal("could not create handler")
 	}
 
-	// By default the view will automatically render any template degined in the
-	// NewView function. However you can override and
-	view.Render = func(ctc context.Context, t *template.Template, data interface{}) (io.Reader, error) {
+	// By default the handler will automatically render any template parsed into the
+	// NewHandler function. However you can override and render an HTML string like
+	// this.
+	h.Render = func(ctc context.Context, t *template.Template, data interface{}) (io.Reader, error) {
 		tmpl, err := template.New("thermo").Parse(`
             <div>{{.C}}</div>
             <button live-click="temp-up">+</button>
@@ -63,24 +64,31 @@ func Example_temperature() {
 	}
 
 	// Mount function is called on initial HTTP load and then initial web
+	// socket connection. This should be used to create the initial state,
+	// the connected variable will be true if the mount call is on a web
 	// socket connection.
-	view.Mount = func(ctx context.Context, h *Handler, r *http.Request, s *Socket, connected bool) (interface{}, error) {
+	h.Mount = func(ctx context.Context, h *Handler, r *http.Request, s *Socket, connected bool) (interface{}, error) {
 		return NewThermoModel(s), nil
 	}
 
-	view.HandleEvent("temp-up", func(s *Socket, _ map[string]interface{}) (interface{}, error) {
+	// This handles the `live-click="temp-up"` button. First we load the model from
+	// the socket, increment the temperature, and then return the new state of the
+	// model. Live will now calculate the diff between the last time it rendered and now,
+	// produce a set of diffs and push them to the browser to update.
+	h.HandleEvent("temp-up", func(s *Socket, _ map[string]interface{}) (interface{}, error) {
 		model := NewThermoModel(s)
 		model.C += 0.1
 		return model, nil
 	})
 
-	view.HandleEvent("temp-down", func(s *Socket, _ map[string]interface{}) (interface{}, error) {
+	// This handles the `live-click="temp-down"` button.
+	h.HandleEvent("temp-down", func(s *Socket, _ map[string]interface{}) (interface{}, error) {
 		model := NewThermoModel(s)
 		model.C -= 0.1
 		return model, nil
 	})
 
-	http.Handle("/thermostat", view)
+	http.Handle("/thermostat", h)
 
 	// This serves the JS needed to make live work.
 	http.Handle("/live.js", Javascript{})

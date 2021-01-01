@@ -26,7 +26,6 @@ export class Patch {
             throw "could not find html node";
         }
 
-        //let parent: Element = html;
         let siblings = html.childNodes;
         let target: Element | undefined = undefined;
 

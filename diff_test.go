@@ -56,6 +56,14 @@ func TestNodeAppend(t *testing.T) {
 func TestNodeDeletion(t *testing.T) {
 	runDiffTest(diffTest{
 		root:     `<div>Hello</div><div>World</div>`,
+		proposed: `<div>World</div>`,
+		patches: []Patch{
+			{Path: []int{1, 0}, Action: Replace, HTML: "<div>World</div>"},
+			{Path: []int{1, 1}, Action: Replace, HTML: ""},
+		},
+	}, t)
+	runDiffTest(diffTest{
+		root:     `<div>Hello</div><div>World</div>`,
 		proposed: `<div>Hello</div>`,
 		patches: []Patch{
 			{Path: []int{1, 1}, Action: Replace, HTML: ""},
@@ -112,20 +120,50 @@ func TestDoc(t *testing.T) {
 	}, t)
 }
 
+func TestEarlyChildDeletion(t *testing.T) {
+	tests := []diffTest{
+		{
+			root: `
+		    <form>
+		        <div>1</div>
+		        <div>2</div>
+		        <div>3</div>
+		        <input type="text"/>
+		        <input type="submit"/>
+		    </form>`,
+			proposed: `
+		    <form>
+		        <input type="text"/>
+		        <input type="submit"/>
+		    </form>`,
+			patches: []Patch{
+				{Path: []int{1, 0, 1}, Action: Replace, HTML: `<input type="text"/>`},
+				{Path: []int{1, 0, 3}, Action: Replace, HTML: `<input type="submit"/>`},
+				{Path: []int{1, 0, 5}, Action: Replace, HTML: ``},
+				{Path: []int{1, 0, 7}, Action: Replace, HTML: ``},
+				{Path: []int{1, 0, 9}, Action: Replace, HTML: ``},
+			},
+		},
+	}
+	for _, d := range tests {
+		runDiffTest(d, t)
+	}
+}
+
 func TestInsignificantWhitespace(t *testing.T) {
 	tests := []diffTest{
 		{
 			root: `
-            <form>
-                <input type="text"/>
-                <input type="submit"/>
-            </form>`,
+		    <form>
+		        <input type="text"/>
+		        <input type="submit"/>
+		    </form>`,
 			proposed: `
-            <form>
-            <div>Extra</div>
-            <input type="text"/>
-            <input type="submit"/>
-            </form>`,
+		    <form>
+		    <div>Extra</div>
+		    <input type="text"/>
+		    <input type="submit"/>
+		    </form>`,
 			patches: []Patch{
 				{Path: []int{1, 0, 1}, Action: Replace, HTML: `<div>Extra</div>`},
 				{Path: []int{1, 0, 3}, Action: Replace, HTML: `<input type="text"/>`},
@@ -148,6 +186,19 @@ func TestLiveUpdate(t *testing.T) {
 			},
 		},
 		{
+			root: `
+            <div live-update="append">
+                <div>Hello</div>
+            </div>`,
+			proposed: `
+            <div live-update="append">
+                <div>World</div>
+            </div>`,
+			patches: []Patch{
+				{Path: []int{1, 0}, Action: Append, HTML: `<div>World</div>`},
+			},
+		},
+		{
 			root:     `<div live-update="prepend"><div>Hello</div></div>`,
 			proposed: `<div live-update="prepend"><div>World</div></div>`,
 			patches: []Patch{
@@ -164,7 +215,9 @@ func TestLiveUpdate(t *testing.T) {
 		{
 			root:     `<div live-update="ignore"><div>Hello</div></div>`,
 			proposed: `<div live-update="ignore"><div>World</div></div>`,
-			patches:  []Patch{},
+			patches: []Patch{
+				{Path: []int{1, 0}, Action: Noop, HTML: `<div>World</div>`},
+			},
 		},
 	}
 	for _, d := range tests {
@@ -189,25 +242,25 @@ func runDiffTest(tt diffTest, t *testing.T) {
 		return
 	}
 
-	t.Log("Patches", patches)
+	t.Log("Patches ", patches)
 	t.Log("Expected", tt.patches)
-	for _, expectedPatch := range tt.patches {
-		matched := false
-		for _, proposedPatch := range patches {
-			if expectedPatch.HTML == proposedPatch.HTML {
-				if reflect.DeepEqual(expectedPatch.Path, proposedPatch.Path) {
-					if expectedPatch.Action == proposedPatch.Action {
-						matched = true
-					} else {
-						t.Error("html match, path matched, but action did not", expectedPatch.Action, proposedPatch.Action)
-					}
-				} else {
-					t.Error("html matched, but path did not", expectedPatch.Path, proposedPatch.Path)
-				}
-			}
+
+	if len(patches) != len(tt.patches) {
+		t.Error("different amount of patches", "expected", len(tt.patches), "got", len(patches))
+		return
+	}
+
+	for pidx, expectedPatch := range tt.patches {
+		if expectedPatch.HTML != patches[pidx].HTML {
+			t.Error("patch html does not match", "expected", expectedPatch.HTML, "got", patches[pidx].HTML)
+			return
 		}
-		if !matched {
-			t.Error("no match found for expected patch")
+		if !reflect.DeepEqual(expectedPatch.Path, patches[pidx].Path) {
+			t.Error("patch patch does not match", "expected", expectedPatch.Path, "got", patches[pidx].Path)
+			return
+		}
+		if expectedPatch.Action != patches[pidx].Action {
+			t.Error("patch action does not match", "expected", expectedPatch.Action, "got", patches[pidx].Action)
 			return
 		}
 	}

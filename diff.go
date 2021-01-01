@@ -99,6 +99,9 @@ func (d *differ) compareNodes(oldNode, newNode *html.Node, followedPath []int) [
 
 	// If newNode does not exist, we need to patch a removal.
 	if newNode == nil {
+		if !nodeRelevant(oldNode) {
+			return []patch{}
+		}
 		return append(patches, d.generatePatch(newNode, followedPath, Replace))
 	}
 

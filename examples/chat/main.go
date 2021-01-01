@@ -31,8 +31,7 @@ func NewChatInstance(s *live.Socket) *ChatInstance {
 	if !ok {
 		return &ChatInstance{
 			Messages: []Message{
-				{ID: live.NewID(), User: "Room", Msg: "Welcome to chat"},
-				{ID: live.NewID(), User: "Room", Msg: "Start typing to talk to other users who are connected"},
+				{ID: live.NewID(), User: "Room", Msg: "Welcome to chat " + s.Session.ID},
 			},
 		}
 	}

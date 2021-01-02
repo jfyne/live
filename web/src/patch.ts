@@ -31,6 +31,10 @@ export class Patch {
 
         for (let i = 0; i < e.Path.length; i++) {
             target = siblings[e.Path[i]] as Element;
+            if (target === undefined) {
+                console.warn("unhandled patch, path target undefined", e);
+                return;
+            }
             if (target.childNodes.length) {
                 siblings = target.childNodes;
             }
@@ -74,7 +78,7 @@ export class Patch {
         html = html.trim();
         template.innerHTML = html;
         if (template.content.firstChild === null) {
-            throw `${html} node not generated`;
+            return document.createTextNode(html);
         }
         return template.content.firstChild;
     }

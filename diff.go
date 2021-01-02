@@ -94,7 +94,12 @@ func (d *differ) compareNodes(oldNode, newNode *html.Node, followedPath []int) [
 		if !nodeRelevant(newNode) {
 			return []patch{}
 		}
-		return append(patches, d.generatePatch(newNode, followedPath[:len(followedPath)-1], Append))
+		return append(
+			patches,
+			d.generatePatch(newNode, followedPath[:len(followedPath)-1], Append),
+			// The browser will need a text node to track the append.
+			d.generatePatch(&html.Node{Type: html.TextNode, Data: "\n"}, followedPath, Append),
+		)
 	}
 
 	// If newNode does not exist, we need to patch a removal.
@@ -277,11 +282,11 @@ func debugNodeLog(msg string, node *html.Node) {
 	}
 
 	if node == nil {
-		log.Println(msg, nil, nil, "")
+		log.Println(msg, nil, nil, `""`)
 		return
 	}
 
 	var d bytes.Buffer
 	html.Render(&d, node)
-	log.Println(msg, node.Type, node.Data, d.String())
+	log.Println(msg, node.Type, `s"`+node.Data+`"e`, `s"`+d.String()+`"e`)
 }

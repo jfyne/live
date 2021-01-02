@@ -42,6 +42,7 @@ func TestNodeAppend(t *testing.T) {
 		patches: []Patch{
 			{Path: []int{1, 0}, Action: Replace, HTML: "<div>Hello</div>"},
 			{Path: []int{1}, Action: Append, HTML: "<div>World</div>"},
+			{Path: []int{1}, Action: Append, HTML: ""},
 		},
 	}, t)
 	runDiffTest(diffTest{
@@ -49,6 +50,7 @@ func TestNodeAppend(t *testing.T) {
 		proposed: `<div>Hello</div><div>World</div>`,
 		patches: []Patch{
 			{Path: []int{1}, Action: Append, HTML: "<div>World</div>"},
+			{Path: []int{1}, Action: Append, HTML: ""},
 		},
 	}, t)
 }
@@ -101,6 +103,7 @@ func TestNestedAppend(t *testing.T) {
 				{Path: []int{1, 0, 0}, Action: Replace, HTML: `<div>Extra</div>`},
 				{Path: []int{1, 0, 1}, Action: Replace, HTML: `<input type="text"/>`},
 				{Path: []int{1, 0}, Action: Append, HTML: `<input type="submit"/>`},
+				{Path: []int{1, 0}, Action: Append, HTML: ``},
 			},
 		},
 	}
@@ -168,6 +171,7 @@ func TestInsignificantWhitespace(t *testing.T) {
 				{Path: []int{1, 0, 1}, Action: Replace, HTML: `<div>Extra</div>`},
 				{Path: []int{1, 0, 3}, Action: Replace, HTML: `<input type="text"/>`},
 				{Path: []int{1, 0}, Action: Append, HTML: `<input type="submit"/>`},
+				{Path: []int{1, 0}, Action: Append, HTML: ``},
 			},
 		},
 	}
@@ -225,6 +229,97 @@ func TestLiveUpdate(t *testing.T) {
 	}
 }
 
+func TestIssue6(t *testing.T) {
+	tests := []diffTest{
+		{
+			root: `
+		    <form>
+		        <input type="text"/>
+		        <input type="submit"/>
+		    </form>
+
+            <script src="./live.js"></script>
+            `,
+			proposed: `
+		    <form>
+                <input type="text"/>
+                <input type="submit"/>
+		    </form>
+
+            <pre>1</pre>
+
+            <script src="./live.js"></script>
+            `,
+			patches: []Patch{
+				{Path: []int{1, 2}, Action: Replace, HTML: `<pre>1</pre>`},
+				{Path: []int{1}, Action: Append, HTML: `<script src="./live.js"></script>`},
+				{Path: []int{1}, Action: Append, HTML: ``},
+			},
+		},
+		{
+			root: `
+		    <form>
+                <input type="text"/>
+                <input type="submit"/>
+		    </form>
+
+            <pre>1</pre>
+
+            <script src="./live.js"></script>
+            `,
+			proposed: `
+		    <form>
+                <input type="text"/>
+                <input type="submit"/>
+		    </form>
+
+            <pre>1</pre>
+            <pre>2</pre>
+
+            <script src="./live.js"></script>
+            `,
+			patches: []Patch{
+				{Path: []int{1, 4}, Action: Replace, HTML: `<pre>2</pre>`},
+				{Path: []int{1}, Action: Append, HTML: `<script src="./live.js"></script>`},
+				{Path: []int{1}, Action: Append, HTML: ``},
+			},
+		},
+		{
+			root: `
+		    <form>
+                <input type="text"/>
+                <input type="submit"/>
+		    </form>
+
+            <pre>1</pre>
+            <pre>2</pre>
+
+            <script src="./live.js"></script>
+            `,
+			proposed: `
+		    <form>
+                <input type="text"/>
+                <input type="submit"/>
+		    </form>
+
+            <pre>1</pre>
+            <pre>2</pre>
+            <pre>3</pre>
+
+            <script src="./live.js"></script>
+            `,
+			patches: []Patch{
+				{Path: []int{1, 6}, Action: Replace, HTML: `<pre>3</pre>`},
+				{Path: []int{1}, Action: Append, HTML: `<script src="./live.js"></script>`},
+				{Path: []int{1}, Action: Append, HTML: ``},
+			},
+		},
+	}
+	for _, d := range tests {
+		runDiffTest(d, t)
+	}
+}
+
 func runDiffTest(tt diffTest, t *testing.T) {
 	rootNode, err := html.Parse(strings.NewReader(tt.root))
 	if err != nil {
@@ -252,7 +347,7 @@ func runDiffTest(tt diffTest, t *testing.T) {
 
 	for pidx, expectedPatch := range tt.patches {
 		if expectedPatch.HTML != patches[pidx].HTML {
-			t.Error("patch html does not match", "expected", expectedPatch.HTML, "got", patches[pidx].HTML)
+			t.Error("patch html does not match", "expected", `"`+expectedPatch.HTML+`"`, "got", `"`+patches[pidx].HTML+`"`)
 			return
 		}
 		if !reflect.DeepEqual(expectedPatch.Path, patches[pidx].Path) {

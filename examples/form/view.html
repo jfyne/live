@@ -9,9 +9,7 @@
     <input type="submit">
 </form>
 
-<div>
     {{ range $msg := .Messages }}
     <pre>{{$msg}}</pre>
     {{ end }}
-</div>
 {{ end }}

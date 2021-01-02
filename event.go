@@ -43,6 +43,23 @@ func ParamString(params map[string]interface{}, key string) string {
 	return out
 }
 
+// ParamCheckbox helper to return a boolean from params referring to
+// a checkbox input.
+func ParamCheckbox(params map[string]interface{}, name string) bool {
+	v, ok := params[name]
+	if !ok {
+		return false
+	}
+	out, ok := v.(string)
+	if !ok {
+		return false
+	}
+	if out == "on" {
+		return true
+	}
+	return false
+}
+
 // ParamInt helper to return an int from the params.
 func ParamInt(params map[string]interface{}, key string) int {
 	v, ok := params[key]

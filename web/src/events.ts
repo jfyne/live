@@ -248,6 +248,7 @@ class Submit extends LiveHandler {
     protected handler(element: HTMLElement, values: LiveValues): EventListener {
         return (e: Event) => {
             if (e.preventDefault) e.preventDefault();
+            var vals = { ...values };
 
             const t = element?.getAttribute(this.attribute);
             if (t === null) {
@@ -255,9 +256,9 @@ class Submit extends LiveHandler {
             }
             const data = new FormData(element as HTMLFormElement);
             data.forEach((value: any, name: string) => {
-                values[name] = value;
+                vals[name] = value;
             });
-            Socket.send({ t: t, d: values });
+            Socket.send({ t: t, d: vals });
 
             return false;
         };

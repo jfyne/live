@@ -13,15 +13,22 @@ import (
 const (
 	validate = "validate"
 	save     = "save"
+	done     = "done"
 )
 
 type form struct {
 	Errors map[string]string
 }
 
+type task struct {
+	ID       string
+	Name     string
+	Complete bool
+}
+
 type model struct {
-	Messages []string
-	Form     form
+	Tasks []task
+	Form  form
 }
 
 func newModel(s *live.Socket) *model {
@@ -61,7 +68,7 @@ func main() {
 			return fmt.Sprintf("Length of 10 required, have %d", len(msg))
 		}
 		if len(msg) > 20 {
-			return fmt.Sprintf("Your message is too long > 20, have %d", len(msg))
+			return fmt.Sprintf("Your task name is too long > 20, have %d", len(msg))
 		}
 		return ""
 	}
@@ -69,8 +76,8 @@ func main() {
 	// Validate the form.
 	h.HandleEvent(validate, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		m := newModel(s)
-		msg := live.ParamString(p, "message")
-		vm := validateMessage(msg)
+		t := live.ParamString(p, "task")
+		vm := validateMessage(t)
 		if vm != "" {
 			m.Form.Errors["message"] = vm
 		}
@@ -80,12 +87,31 @@ func main() {
 	// Handle form saving.
 	h.HandleEvent(save, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		m := newModel(s)
-		msg := live.ParamString(p, "message")
-		vm := validateMessage(msg)
+		ts := live.ParamString(p, "task")
+		complete := live.ParamCheckbox(p, "complete")
+		vm := validateMessage(ts)
 		if vm != "" {
 			m.Form.Errors["message"] = vm
 		} else {
-			m.Messages = append(m.Messages, msg)
+			t := task{
+				ID:       live.NewID(),
+				Name:     ts,
+				Complete: complete,
+			}
+			m.Tasks = append(m.Tasks, t)
+		}
+		return m, nil
+	})
+
+	// Handle completing tasks.
+	h.HandleEvent(done, func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+		m := newModel(s)
+		ID := live.ParamString(p, "id")
+		for idx, t := range m.Tasks {
+			if t.ID != ID {
+				continue
+			}
+			m.Tasks[idx].Complete = !m.Tasks[idx].Complete
 		}
 		return m, nil
 	})

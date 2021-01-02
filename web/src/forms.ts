@@ -62,9 +62,16 @@ export class Forms {
                 if (input === null) {
                     return;
                 }
-                input.value = i.value;
-                if (i.focus === true) {
-                    input.focus();
+                switch (input.type) {
+                    case "checkbox":
+                        if (i.value === "on") {
+                            input.checked = true;
+                        }
+                    default:
+                        input.value = i.value;
+                        if (i.focus === true) {
+                            input.focus();
+                        }
                 }
             });
         });

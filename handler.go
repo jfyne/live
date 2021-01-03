@@ -224,6 +224,7 @@ func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.Close(websocket.StatusInternalError, "")
+	writeTimeout(r.Context(), time.Second*5, c, Event{T: EventHello, Data: struct{}{}})
 	{
 		err := h._serveWS(r.Context(), r, session, c)
 		if errors.Is(err, context.Canceled) {
@@ -416,37 +417,6 @@ func _handleEmittedEvent(h *Handler, he HandlerEvent, socket *Socket) {
 		log.Println("socket handleView error", err)
 	}
 }
-
-//func (h *Handler) getSession(r *http.Request) (Session, error) {
-//	var sess Session
-//	session, err := h.store.Get(r, h.sessionKey)
-//	if err != nil {
-//		return NewSession(), err
-//	}
-//
-//	vals, ok := session.Values[SessionKey]
-//	if !ok {
-//		// Create new connection.
-//		ns := NewSession()
-//		sess = ns
-//	}
-//	sess, ok = vals.(Session)
-//	if !ok {
-//		// Create new connection and set.
-//		ns := NewSession()
-//		sess = ns
-//	}
-//	return sess, nil
-//}
-//
-//func (h *Handler) saveSession(w http.ResponseWriter, r *http.Request, session Session) error {
-//	c, err := h.store.Get(r, h.sessionKey)
-//	if err != nil {
-//		return err
-//	}
-//	c.Values[SessionKey] = session
-//	return c.Save(r, w)
-//}
 
 func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn, msg Event) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)

@@ -9,6 +9,9 @@ const (
 	EventError = "err"
 	// EventPatch a patch event containing a diff.
 	EventPatch = "patch"
+	// EventHello sent as soon as the server accepts the
+	// WS connection.
+	EventHello = "hello"
 )
 
 // Event messages that are sent and received by the

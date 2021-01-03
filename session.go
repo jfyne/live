@@ -39,7 +39,7 @@ func init() {
 
 // CookieStore a `gorilla/sessions` based cookie store.
 type CookieStore struct {
-	store       *sessions.CookieStore
+	Store       *sessions.CookieStore
 	sessionName string // session name.
 }
 
@@ -47,11 +47,11 @@ type CookieStore struct {
 func NewCookieStore(sessionName string, keyPairs ...[]byte) *CookieStore {
 	s := sessions.NewCookieStore(keyPairs...)
 	s.Options.HttpOnly = true
-	s.Options.Secure = true
+	s.Options.Secure = false
 	s.Options.SameSite = http.SameSiteStrictMode
 
 	return &CookieStore{
-		store:       s,
+		Store:       s,
 		sessionName: sessionName,
 	}
 }
@@ -59,7 +59,7 @@ func NewCookieStore(sessionName string, keyPairs ...[]byte) *CookieStore {
 // Get get a session.
 func (c CookieStore) Get(r *http.Request) (Session, error) {
 	var sess Session
-	session, err := c.store.Get(r, c.sessionName)
+	session, err := c.Store.Get(r, c.sessionName)
 	if err != nil {
 		return NewSession(), err
 	}
@@ -80,7 +80,7 @@ func (c CookieStore) Get(r *http.Request) (Session, error) {
 
 // Save a session.
 func (c CookieStore) Save(w http.ResponseWriter, r *http.Request, session Session) error {
-	s, err := c.store.Get(r, c.sessionName)
+	s, err := c.Store.Get(r, c.sessionName)
 	if err != nil {
 		return err
 	}

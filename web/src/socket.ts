@@ -16,7 +16,9 @@ export class Socket {
 
     static dial() {
         console.debug("Socket.dial called");
-        this.conn = new WebSocket(`ws://${location.host}${location.pathname}`);
+        this.conn = new WebSocket(
+            `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${location.pathname}`
+        );
         this.conn.addEventListener("close", (ev) => {
             this.ready = false;
             console.warn(

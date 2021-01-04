@@ -251,6 +251,11 @@ func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type eventError struct {
+	Source Event  `json:"source"`
+	Err    string `json:"err"`
+}
+
 // _serveWS implement the logic for a web socket connection.
 func (h *Handler) _serveWS(ctx context.Context, r *http.Request, session Session, c *websocket.Conn) error {
 	// Get the sessions socket and register it with the server.
@@ -259,38 +264,44 @@ func (h *Handler) _serveWS(ctx context.Context, r *http.Request, session Session
 	h.addSocket(sock)
 	defer h.deleteSocket(sock)
 
+	// Internal errors.
+	internalErrors := make(chan error)
+
+	// Event errors.
+	eventErrors := make(chan eventError)
+
 	// Handle events coming from the websocket connection.
-	readError := make(chan error)
 	go func() {
 		for {
 			t, d, err := c.Read(ctx)
 			if err != nil {
-				readError <- err
+				internalErrors <- err
 				break
 			}
 			switch t {
 			case websocket.MessageText:
 				var m Event
 				if err := json.Unmarshal(d, &m); err != nil {
-					readError <- err
+					internalErrors <- err
 					break
 				}
 				if err := h.handleEvent(m.T, sock, m); err != nil {
-					if !errors.Is(err, ErrNoEventHandler) {
-						readError <- err
-						break
-					} else {
+					switch {
+					case errors.Is(err, ErrNoEventHandler):
 						log.Println("event error", m, err)
+					default:
+						eventErrors <- eventError{Source: m, Err: err.Error()}
 					}
 				}
 				if err := sock.render(ctx, h); err != nil {
-					readError <- fmt.Errorf("socket handle error: %w", err)
+					internalErrors <- fmt.Errorf("socket handle error: %w", err)
 				}
 			case websocket.MessageBinary:
 				log.Println("binary messages unhandled")
 			}
 		}
-		close(readError)
+		close(internalErrors)
+		close(eventErrors)
 	}()
 
 	// Run mount again now that eh socket is connected, passing true indicating
@@ -309,15 +320,22 @@ func (h *Handler) _serveWS(ctx context.Context, r *http.Request, session Session
 	// Send events to the websocket connection.
 	for {
 		select {
-		case err := <-readError:
-			if err != nil {
-				writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: err.Error()})
-				return fmt.Errorf("read error: %w", err)
-			}
 		case msg := <-sock.msgs:
 			if err := writeTimeout(ctx, time.Second*5, c, msg); err != nil {
-				return err
+				return fmt.Errorf("writing to socket error: %w", err)
 			}
+		case ee := <-eventErrors:
+			if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: ee}); err != nil {
+				return fmt.Errorf("writing to socket error: %w", err)
+			}
+		case err := <-internalErrors:
+			if err != nil {
+				if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: err.Error()}); err != nil {
+					return fmt.Errorf("writing to socket error: %w", err)
+				}
+			}
+			// Something catastrophic has happened.
+			return fmt.Errorf("read error: %w", err)
 		case <-ctx.Done():
 			return nil
 		}
@@ -352,7 +370,7 @@ func (h *Handler) handleEvent(t string, sock *Socket, msg Event) error {
 
 	data, err := handler(sock, params)
 	if err != nil {
-		return fmt.Errorf("view event handler error [%s]: %w", t, err)
+		return err
 	}
 	sock.Assign(data)
 

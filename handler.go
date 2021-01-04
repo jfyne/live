@@ -239,12 +239,13 @@ func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, context.Canceled) {
 			return
 		}
-		if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
-			websocket.CloseStatus(err) == websocket.StatusGoingAway {
+		switch websocket.CloseStatus(err) {
+		case websocket.StatusNormalClosure:
 			return
-		}
-		if err != nil {
-			h.Error(r.Context(), w, r, err)
+		case websocket.StatusGoingAway:
+			return
+		default:
+			log.Println(fmt.Errorf("ws closed with status (%d): %w", websocket.CloseStatus(err), err))
 			return
 		}
 	}

@@ -18,11 +18,18 @@ import (
 	"nhooyr.io/websocket"
 )
 
-// MountHandler when mount is reached.
+// MountHandler the func that is called by a handler to gather data to
+// be rendered in a template. This is called on first GET and then later when
+// the web socket first connects.
 type MountHandler func(ctx context.Context, h *Handler, r *http.Request, c *Socket, connected bool) (interface{}, error)
 
-// RenderHandler when the view is asked to render.
+// RenderHandler the func that is called to render the current state of the
+// data for the socket.
 type RenderHandler func(ctx context.Context, t *template.Template, data interface{}) (io.Reader, error)
+
+// ErrorHandler if an error occurs during the mount and render cycle
+// a handler of this type will be called.
+type ErrorHandler func(ctx context.Context, w http.ResponseWriter, r *http.Request, err error)
 
 // HandlerConfig applies config to a handler.
 type HandlerConfig func(h *Handler) error
@@ -35,6 +42,19 @@ type HandlerEvent struct {
 
 // Handler to be served by an HTTP server.
 type Handler struct {
+	// Mount a user should provide the mount function. This is what
+	// is called on initial GET request and later when the websocket connects.
+	// Data to render the view should be fetched here and returned.
+	Mount MountHandler
+
+	// Render is called to generate the HTML of a Socket. It is defined
+	// by default and will render any template provided.
+	Render RenderHandler
+
+	// Error is called when an error occurs during the mount and render
+	// stages of the handler lifecycle.
+	Error ErrorHandler
+
 	// session store
 	sessionStore SessionStore
 
@@ -44,25 +64,20 @@ type Handler struct {
 	// emitter is a channel to send messages back to the socket.
 	emitter chan HandlerEvent
 
-	// broadcastLimiter controls the rate limit applied to broadcasting
-	// messages endpoint.
-	// Defaults to one publish every 100ms with a burst of 8.
+	// broadcastLimiter limit broadcast rate.
 	broadcastLimiter *rate.Limiter
 
-	// eventHandlers the map of event handlers.
+	// eventHandlers the map of client event handlers.
 	eventHandlers map[string]EventHandler
 
-	// selfHandlers handle messages send to this view by server-side
-	// entities.
+	// selfHandlers the map of handler event handlers.
 	selfHandlers map[string]EventHandler
-
-	Mount  MountHandler
-	Render RenderHandler
 
 	// All of our current sockets.
 	socketsMu sync.Mutex
 	socketMap map[*Socket]struct{}
 
+	// event lock.
 	eventMu sync.Mutex
 }
 
@@ -87,6 +102,10 @@ func NewHandler(t *template.Template, store SessionStore, configs ...HandlerConf
 				return nil, err
 			}
 			return &buf, nil
+		},
+		Error: func(ctx context.Context, w http.ResponseWriter, r *http.Request, err error) {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
 		},
 		socketMap: make(map[*Socket]struct{}),
 	}
@@ -160,7 +179,7 @@ func (h *Handler) HandleEvent(t string, handler EventHandler) {
 }
 
 // HandleSelf handles an event that comes from the view. For example calling
-// view.Self(socket, msg) will be handled here.
+// h.Self(socket, msg) will be handled here.
 func (h *Handler) HandleSelf(t string, handler EventHandler) {
 	h.selfHandlers[t] = handler
 }
@@ -170,9 +189,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get session.
 	session, err := h.sessionStore.Get(r)
 	if err != nil {
-		log.Println("session get err", err)
-		w.WriteHeader(500)
-		w.Write([]byte(err.Error()))
+		h.Error(r.Context(), w, r, err)
 		return
 	}
 
@@ -180,16 +197,12 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	sock := NewSocket(session)
 
 	if err := sock.mount(r.Context(), h, r, false); err != nil {
-		log.Println("socket mount err", err)
-		w.WriteHeader(500)
-		w.Write([]byte(err.Error()))
+		h.Error(r.Context(), w, r, err)
 		return
 	}
 
 	if err := sock.render(r.Context(), h); err != nil {
-		log.Println("socket handle view err", err)
-		w.WriteHeader(500)
-		w.Write([]byte(err.Error()))
+		h.Error(r.Context(), w, r, err)
 		return
 	}
 
@@ -197,9 +210,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	html.Render(&rendered, sock.currentRender)
 
 	if err := h.sessionStore.Save(w, r, session); err != nil {
-		log.Println("session save err", err)
-		w.WriteHeader(500)
-		w.Write([]byte(err.Error()))
+		h.Error(r.Context(), w, r, err)
 		return
 	}
 
@@ -212,15 +223,13 @@ func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 	// Get the session from the http request.
 	session, err := h.sessionStore.Get(r)
 	if err != nil {
-		log.Println("get session for ws err", err)
-		w.WriteHeader(500)
-		w.Write([]byte(err.Error()))
+		h.Error(r.Context(), w, r, err)
 		return
 	}
 
 	c, err := websocket.Accept(w, r, nil)
 	if err != nil {
-		log.Println("websocket accept error", err)
+		h.Error(r.Context(), w, r, err)
 		return
 	}
 	defer c.Close(websocket.StatusInternalError, "")
@@ -230,15 +239,21 @@ func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, context.Canceled) {
 			return
 		}
-		if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
-			websocket.CloseStatus(err) == websocket.StatusGoingAway {
+		switch websocket.CloseStatus(err) {
+		case websocket.StatusNormalClosure:
 			return
-		}
-		if err != nil {
-			log.Println("websocket failure", err)
+		case websocket.StatusGoingAway:
+			return
+		default:
+			log.Println(fmt.Errorf("ws closed with status (%d): %w", websocket.CloseStatus(err), err))
 			return
 		}
 	}
+}
+
+type eventError struct {
+	Source Event  `json:"source"`
+	Err    string `json:"err"`
 }
 
 // _serveWS implement the logic for a web socket connection.
@@ -249,60 +264,78 @@ func (h *Handler) _serveWS(ctx context.Context, r *http.Request, session Session
 	h.addSocket(sock)
 	defer h.deleteSocket(sock)
 
-	if err := sock.mount(ctx, h, r, true); err != nil {
-		return fmt.Errorf("socket mount error: %w", err)
-	}
+	// Internal errors.
+	internalErrors := make(chan error)
 
-	if err := sock.render(ctx, h); err != nil {
-		return fmt.Errorf("socket handle error: %w", err)
-	}
+	// Event errors.
+	eventErrors := make(chan eventError)
 
 	// Handle events coming from the websocket connection.
-	readError := make(chan error)
 	go func() {
 		for {
 			t, d, err := c.Read(ctx)
 			if err != nil {
-				readError <- err
+				internalErrors <- err
 				break
 			}
 			switch t {
 			case websocket.MessageText:
 				var m Event
 				if err := json.Unmarshal(d, &m); err != nil {
-					readError <- err
+					internalErrors <- err
 					break
 				}
 				if err := h.handleEvent(m.T, sock, m); err != nil {
-					if !errors.Is(err, ErrNoEventHandler) {
-						readError <- err
-						break
-					} else {
+					switch {
+					case errors.Is(err, ErrNoEventHandler):
 						log.Println("event error", m, err)
+					default:
+						eventErrors <- eventError{Source: m, Err: err.Error()}
 					}
 				}
 				if err := sock.render(ctx, h); err != nil {
-					readError <- fmt.Errorf("socket handle error: %w", err)
+					internalErrors <- fmt.Errorf("socket handle error: %w", err)
 				}
 			case websocket.MessageBinary:
 				log.Println("binary messages unhandled")
 			}
 		}
-		close(readError)
+		close(internalErrors)
+		close(eventErrors)
 	}()
+
+	// Run mount again now that eh socket is connected, passing true indicating
+	// a connection has been made.
+	if err := sock.mount(ctx, h, r, true); err != nil {
+		return fmt.Errorf("socket mount error: %w", err)
+	}
+
+	// Run render now that we are connected for the first time and we have just
+	// mounted again. This will generate and send any patches if there have
+	// been changes.
+	if err := sock.render(ctx, h); err != nil {
+		return fmt.Errorf("socket render error: %w", err)
+	}
 
 	// Send events to the websocket connection.
 	for {
 		select {
-		case err := <-readError:
-			if err != nil {
-				writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: err.Error()})
-				return fmt.Errorf("read error: %w", err)
-			}
 		case msg := <-sock.msgs:
 			if err := writeTimeout(ctx, time.Second*5, c, msg); err != nil {
-				return err
+				return fmt.Errorf("writing to socket error: %w", err)
 			}
+		case ee := <-eventErrors:
+			if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: ee}); err != nil {
+				return fmt.Errorf("writing to socket error: %w", err)
+			}
+		case err := <-internalErrors:
+			if err != nil {
+				if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: err.Error()}); err != nil {
+					return fmt.Errorf("writing to socket error: %w", err)
+				}
+			}
+			// Something catastrophic has happened.
+			return fmt.Errorf("read error: %w", err)
 		case <-ctx.Done():
 			return nil
 		}
@@ -337,7 +370,7 @@ func (h *Handler) handleEvent(t string, sock *Socket, msg Event) error {
 
 	data, err := handler(sock, params)
 	if err != nil {
-		return fmt.Errorf("view event handler error [%s]: %w", t, err)
+		return err
 	}
 	sock.Assign(data)
 

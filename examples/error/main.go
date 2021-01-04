@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"log"
@@ -22,6 +23,11 @@ func main() {
 	h, err := live.NewHandler(t, live.NewCookieStore("session-name", []byte("weak-secret")))
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	h.Error = func(ctx context.Context, w http.ResponseWriter, r *http.Request, err error) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("this is a bad request"))
 	}
 
 	h.HandleEvent(problem, func(s *live.Socket, _ map[string]interface{}) (interface{}, error) {

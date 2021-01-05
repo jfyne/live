@@ -1,6 +1,6 @@
 import { Socket } from "./socket";
 import { LiveValues, LiveElement } from "./element";
-import { EventDispatch } from "./event";
+import { EventDispatch, LiveEvent } from "./event";
 
 /**
  * Standard event handler class. Clicks, focus and blur.
@@ -28,6 +28,9 @@ class LiveHandler {
                     this.event,
                     this.handler(element as HTMLElement, values)
                 );
+                element.addEventListener("ack", (_) => {
+                    element.classList.remove(`${this.attribute}-loading`);
+                });
             });
     }
 
@@ -43,6 +46,9 @@ class LiveHandler {
                     this.event,
                     this.handler(element as HTMLElement, values)
                 );
+                window.addEventListener("ack", (_) => {
+                    element.classList.remove(`${this.attribute}-loading`);
+                });
             });
     }
 
@@ -52,7 +58,11 @@ class LiveHandler {
             if (t === null) {
                 return;
             }
-            Socket.send({ t: t, d: values });
+            element.classList.add(`${this.attribute}-loading`);
+            Socket.sendAndTrack(
+                new LiveEvent(t, values, LiveEvent.GetID()),
+                element
+            );
         };
     }
 }
@@ -74,6 +84,7 @@ export class KeyHandler extends LiveHandler {
                     return;
                 }
             }
+            element.classList.add(`${this.attribute}-loading`);
             const keyData = {
                 key: ke.key,
                 altKey: ke.altKey,
@@ -81,7 +92,10 @@ export class KeyHandler extends LiveHandler {
                 shiftKey: ke.shiftKey,
                 metaKey: ke.metaKey,
             };
-            Socket.send({ t: t, d: { ...values, ...keyData } });
+            Socket.sendAndTrack(
+                new LiveEvent(t, { ...values, ...keyData }, LiveEvent.GetID()),
+                element
+            );
         };
     }
 }
@@ -203,6 +217,9 @@ class Change {
         document
             .querySelectorAll(`form[${this.attribute}]`)
             .forEach((element: Element) => {
+                element.addEventListener("ack", (_) => {
+                    element.classList.remove(`${this.attribute}-loading`);
+                });
                 element
                     .querySelectorAll("input,select,textarea")
                     .forEach((childElement: Element) => {
@@ -233,7 +250,11 @@ class Change {
             }
             values[key].push(value);
         });
-        Socket.send({ t: t, d: values });
+        element.classList.add(`${this.attribute}-loading`);
+        Socket.sendAndTrack(
+            new LiveEvent(t, values, LiveEvent.GetID()),
+            element
+        );
     }
 }
 
@@ -258,7 +279,11 @@ class Submit extends LiveHandler {
             data.forEach((value: any, name: string) => {
                 vals[name] = value;
             });
-            Socket.send({ t: t, d: vals });
+            element.classList.add(`${this.attribute}-loading`);
+            Socket.sendAndTrack(
+                new LiveEvent(t, vals, LiveEvent.GetID()),
+                element
+            );
 
             return false;
         };

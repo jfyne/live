@@ -12,7 +12,6 @@ Compatible with `net/http`, so will play nicely with middleware and other framew
 
 ## Roadmap
 
-- Add event classes to the dom, e.g. `live-click-loading` etc.
 - Release standalone NPM package for JS integration.
 - Implement any missing phx events that make sense.
 - Enable persisting state across visits?
@@ -262,3 +261,31 @@ re-rendering.
 If you return an error in the event handler live will send an `"err"` event
 to the socket. You can handle this with a hook. An example of this can be
 seen in the [error example](https://github.com/jfyne/live/tree/master/examples/error).
+
+##  Loading state and errors
+
+By default, the following classes are applied to the LiveView's parent container:
+
+- `live-connected` - applied when the view has connected to the server
+- `live-disconnected` - applied when the view is not connected to the server
+- `live-error` - applied when an error occurs on the server. Note, this class will be applied in conjunction with `live-disconnected` if connection to the server is lost.
+
+All `live-` event bindings apply their own css classes when pushed. For example the following markup:
+
+```html
+<button live-click="clicked" live-window-keydown="key">...</button>
+```
+
+On click, would receive the `live-click-loading` class, and on keydown would 
+receive the `live-keydown-loading` class. The css loading classes are maintained
+until an acknowledgement is received on the client for the pushed event.
+
+The following events receive css loading classes:
+
+- `live-click` - `live-click-loading`
+- `live-change` - `live-change-loading`
+- `live-submit` - `live-submit-loading`
+- `live-focus` - `live-focus-loading`
+- `live-blur` - `live-blur-loading`
+- `live-window-keydown` - `live-keydown-loading`
+- `live-window-keyup` - `live-keyup-loading`

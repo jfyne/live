@@ -1,4 +1,4 @@
-import { Event, EventDispatch } from "./event";
+import { LiveEvent, EventDispatch } from "./event";
 import { Forms } from "./forms";
 
 interface PatchEvent {
@@ -11,10 +11,10 @@ interface PatchEvent {
  * Handle patches from the backend.
  */
 export class Patch {
-    static handle(event: Event) {
+    static handle(event: LiveEvent) {
         Forms.dehydrate();
 
-        const patches = event.d;
+        const patches = event.data;
         patches.map(Patch.applyPatch);
 
         Forms.hydrate();

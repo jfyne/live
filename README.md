@@ -264,7 +264,7 @@ seen in the [error example](https://github.com/jfyne/live/tree/master/examples/e
 
 ##  Loading state and errors
 
-By default, the following classes are applied to the LiveView's parent container:
+By default, the following classes are applied to the handlers body:
 
 - `live-connected` - applied when the view has connected to the server
 - `live-disconnected` - applied when the view is not connected to the server

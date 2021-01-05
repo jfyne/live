@@ -233,7 +233,7 @@ func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.Close(websocket.StatusInternalError, "")
-	writeTimeout(r.Context(), time.Second*5, c, Event{T: EventHello, Data: struct{}{}})
+	writeTimeout(r.Context(), time.Second*5, c, Event{T: EventHello})
 	{
 		err := h._serveWS(r.Context(), r, session, c)
 		if errors.Is(err, context.Canceled) {
@@ -296,6 +296,7 @@ func (h *Handler) _serveWS(ctx context.Context, r *http.Request, session Session
 				if err := sock.render(ctx, h); err != nil {
 					internalErrors <- fmt.Errorf("socket handle error: %w", err)
 				}
+				sock.Send(Event{T: EventAck, ID: m.ID})
 			case websocket.MessageBinary:
 				log.Println("binary messages unhandled")
 			}

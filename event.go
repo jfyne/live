@@ -9,6 +9,8 @@ const (
 	EventError = "err"
 	// EventPatch a patch event containing a diff.
 	EventPatch = "patch"
+	// EventAck sent when an event is ackknowledged.
+	EventAck = "ack"
 	// EventHello sent as soon as the server accepts the
 	// WS connection.
 	EventHello = "hello"
@@ -18,7 +20,8 @@ const (
 // socket.
 type Event struct {
 	T    string      `json:"t"`
-	Data interface{} `json:"d"`
+	ID   int         `json:"i,omitempty"`
+	Data interface{} `json:"d,omitempty"`
 }
 
 // Params extract params from inbound message.

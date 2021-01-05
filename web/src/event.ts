@@ -2,15 +2,6 @@ import { Socket } from "./socket";
 import { LiveElement } from "./element";
 import { Hook, Hooks } from "./interop";
 
-/**
- * Represents an event we both receive and
- * send over the socket.
- */
-export interface Event {
-    t: string;
-    d: any;
-}
-
 export const EventMounted = "live:mounted";
 export const EventBeforeUpdate = "live:beforeupdate";
 export const EventUpdated = "live:updated";
@@ -22,6 +13,53 @@ export const EventReconnected = "live:reconnected";
 export const ClassConnected = "live-connected";
 export const ClassDisconnected = "live-disconnected";
 export const ClassError = "live-error";
+
+/**
+ * LiveEvent an event that is being passed back and forth
+ * between the frontend and server.
+ */
+export class LiveEvent {
+    public typ: string;
+    public id: number;
+    public data: any;
+    private static sequence: number = 1;
+
+    constructor(typ: string, data: any, id?: number) {
+        this.typ = typ;
+        this.data = data;
+        if (id !== undefined) {
+            this.id = id;
+        } else {
+            this.id = 0;
+        }
+    }
+
+    /**
+     * Get an ID for an event.
+     */
+    public static GetID(): number {
+        return this.sequence++;
+    }
+
+    /**
+     * Convert the event onto our wire format
+     */
+    public serialize(): string {
+        return JSON.stringify({
+            t: this.typ,
+            i: this.id,
+            d: this.data,
+        });
+    }
+
+    /**
+     * From an incoming message create a live event.
+     */
+    public static fromMessage(data: any): LiveEvent {
+        const e = JSON.parse(data);
+        return new LiveEvent(e.t, e.d, e.i);
+    }
+}
 
 /**
  * EventDispatch allows the code base to send events
@@ -45,12 +83,12 @@ export class EventDispatch {
     /**
      * Handle an event pushed from the server.
      */
-    static handleEvent(ev: Event) {
-        if (!(ev.t in this.eventHandlers)) {
+    static handleEvent(ev: LiveEvent) {
+        if (!(ev.typ in this.eventHandlers)) {
             return;
         }
-        this.eventHandlers[ev.t].map((h) => {
-            h(ev.d);
+        this.eventHandlers[ev.typ].map((h) => {
+            h(ev.data);
         });
     }
 
@@ -146,6 +184,13 @@ export class EventDispatch {
         document.body.classList.add(ClassConnected);
     }
 
+    /**
+     * Handle an error event.
+     */
+    static error() {
+        document.body.classList.add(ClassError);
+    }
+
     private static getElementHooks(element: Element): Hook | null {
         const val = LiveElement.hook(element as HTMLElement);
         if (val === null) {
@@ -156,13 +201,13 @@ export class EventDispatch {
 
     private static callHook(
         event: CustomEvent,
-        element: Element,
+        el: Element,
         f: (() => void) | undefined
     ) {
         if (f === undefined) {
             return;
         }
-        const pushEvent = (e: Event) => {
+        const pushEvent = (e: LiveEvent) => {
             Socket.send(e);
         };
         const handleEvent = (e: string, cb: (d: any) => void) => {
@@ -171,7 +216,7 @@ export class EventDispatch {
             }
             this.eventHandlers[e].push(cb);
         };
-        f.bind({ el: element, pushEvent, handleEvent })();
-        element.dispatchEvent(event);
+        f.bind({ el, pushEvent, handleEvent })();
+        el.dispatchEvent(event);
     }
 }

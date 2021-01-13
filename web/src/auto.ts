@@ -14,4 +14,5 @@ document.addEventListener("DOMContentLoaded", (_) => {
     }
     const hooks = window.Hooks || {};
     window.Live = new Live(hooks);
+    window.Live.init();
 });

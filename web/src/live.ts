@@ -4,7 +4,9 @@ import { EventDispatch } from "./event";
 import { Hooks } from "./interop";
 
 export class Live {
-    constructor(private hooks: Hooks) {
+    constructor(private hooks: Hooks) {}
+
+    public init() {
         // Initialise the event dispatch.
         EventDispatch.init(this.hooks);
 

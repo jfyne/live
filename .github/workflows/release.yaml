@@ -12,7 +12,7 @@ jobs:
           node-version: "15.x"
           registry-url: "https://registry.npmjs.org"
       - run: npm install
-      - run: npm version ${{ github.event.release.tag_name }}
+      - run: npm --no-git-tag-version version ${{ github.event.release.tag_name }}
       - run: npm run-script build
       - run: npm publish
         env:

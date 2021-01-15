@@ -268,7 +268,8 @@ live.init();
 ```
 
 This allows more control over how hooks are passed to live, and when it should be initialised. It is expected
-that you would then build your compiled javsacript and serve it.
+that you would then build your compiled javsacript and serve it. See the
+[npm example](https://github.com/jfyne/live/tree/master/examples/npm).
 
 ## Errors and exceptions
 

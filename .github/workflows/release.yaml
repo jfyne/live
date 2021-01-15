@@ -1,0 +1,19 @@
+on:
+  release:
+    types: [published]
+name: Test
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: "15.x"
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install
+      - run: npm version ${{ github.event.release.tag_name }}
+      - run: npm run-script build
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

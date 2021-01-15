@@ -1,15 +1,27 @@
 {
-    "name": "web",
-    "version": "1.0.0",
-    "description": "",
-    "main": "live.js",
+    "name": "@jfyne/live",
+    "type": "module",
+    "version": "0.0.0",
+    "description": "Go live handler sibling package",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
     "scripts": {
         "test": "npx jest",
-        "build": "npx tsc -noemit && npx esbuild --bundle src/auto.ts --outfile=dist/auto.js --minify --sourcemap"
+        "build": "npx tsc -noemit && npx esbuild --bundle src/auto.ts --outfile=browser/auto.js --minify --sourcemap",
+        "prepublish": "npx tsc"
     },
-    "keywords": [],
-    "author": "",
-    "license": "ISC",
+    "keywords": [
+        "serverside",
+        "liveview",
+        "golang",
+        "go"
+    ],
+    "author": "jfyne",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/jfyne/live"
+    },
     "devDependencies": {
         "@types/jest": "^26.0.15",
         "esbuild": "^0.7.20",

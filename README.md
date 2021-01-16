@@ -28,9 +28,8 @@ See the [examples](https://github.com/jfyne/live/tree/master/examples) for usage
 
 ### First handler
 
-As of writing, each handler defaults to rendering a `root.html` template. This can
-be overriden using `WithRootTemplate` and defining another template, the chat example
-does this.
+Live can render any kind of template you want to give it, however we will start
+with an `html/template` example.
 
 ```html
 <!doctype html>
@@ -47,7 +46,9 @@ does this.
 ```
 
 Notice the `script` tag. Live's javascript is embedded within the library for ease of use, and
-is required to be included for it to work.
+is required to be included for it to work. You can also use the companion
+[npm package](https://www.npmjs.com/package/@jfyne/live) to add to any existing web app build
+pipeline.
 
 We would then define a view like this (from the clock example):
 
@@ -62,7 +63,7 @@ And in go
 
 ```go
 t, _ := template.ParseFiles("examples/root.html", "examples/clock/view.html")
-h, _ := live.NewHandler(t, sessionStore)
+h, _ := live.NewHandler(sessionStore, live.WithTemplateRenderer(t))
 ```
 
 And then just serve like you normallly would
@@ -74,7 +75,7 @@ And then just serve like you normallly would
 // Serve the handler itself.
 http.Handle("/clock", h)
 
-// This serves the javscript for live to work and is required. This is what
+// This serves the javscript for live to work. This is what
 // we referenced in the `root.html`.
 http.Handle("/live.js", live.Javascript{})
 

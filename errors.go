@@ -2,6 +2,9 @@ package live
 
 import "errors"
 
+// ErrNoRenderer returned when no renderer has been set on the handler.
+var ErrNoRenderer = errors.New("no renderer has been set on the handler")
+
 // ErrNoEventHandler returned when a handler has no event handler for that event.
 var ErrNoEventHandler = errors.New("view missing event handler")
 

@@ -54,7 +54,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	h, err := live.NewHandler(t, live.NewCookieStore("session-name", []byte("weak-secret")))
+	h, err := live.NewHandler(live.NewCookieStore("session-name", []byte("weak-secret")), live.WithTemplateRenderer(t))
 	if err != nil {
 		log.Fatal(err)
 	}

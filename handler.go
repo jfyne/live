@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -25,7 +24,7 @@ type MountHandler func(ctx context.Context, h *Handler, r *http.Request, c *Sock
 
 // RenderHandler the func that is called to render the current state of the
 // data for the socket.
-type RenderHandler func(ctx context.Context, t *template.Template, data interface{}) (io.Reader, error)
+type RenderHandler func(ctx context.Context, data interface{}) (io.Reader, error)
 
 // ErrorHandler if an error occurs during the mount and render cycle
 // a handler of this type will be called.
@@ -46,20 +45,15 @@ type Handler struct {
 	// is called on initial GET request and later when the websocket connects.
 	// Data to render the view should be fetched here and returned.
 	Mount MountHandler
-
 	// Render is called to generate the HTML of a Socket. It is defined
 	// by default and will render any template provided.
 	Render RenderHandler
-
 	// Error is called when an error occurs during the mount and render
 	// stages of the handler lifecycle.
 	Error ErrorHandler
 
 	// session store
 	sessionStore SessionStore
-
-	// Template for this view.
-	t *template.Template
 
 	// emitter is a channel to send messages back to the socket.
 	emitter chan HandlerEvent
@@ -82,9 +76,8 @@ type Handler struct {
 }
 
 // NewHandler creates a new live handler.
-func NewHandler(t *template.Template, store SessionStore, configs ...HandlerConfig) (*Handler, error) {
+func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) {
 	h := &Handler{
-		t:                t,
 		sessionStore:     store,
 		emitter:          make(chan HandlerEvent),
 		broadcastLimiter: rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
@@ -93,15 +86,8 @@ func NewHandler(t *template.Template, store SessionStore, configs ...HandlerConf
 		Mount: func(ctx context.Context, hd *Handler, r *http.Request, c *Socket, connected bool) (interface{}, error) {
 			return nil, nil
 		},
-		Render: func(ctx context.Context, t *template.Template, data interface{}) (io.Reader, error) {
-			var buf bytes.Buffer
-			if t == nil {
-				return nil, fmt.Errorf("default renderer: no template defined")
-			}
-			if err := t.ExecuteTemplate(&buf, "root.html", data); err != nil {
-				return nil, err
-			}
-			return &buf, nil
+		Render: func(ctx context.Context, data interface{}) (io.Reader, error) {
+			return nil, ErrNoRenderer
 		},
 		Error: func(ctx context.Context, w http.ResponseWriter, r *http.Request, err error) {
 			w.WriteHeader(500)

@@ -28,17 +28,14 @@ func Example_temperature() {
 		return m
 	}
 
-	// Parsing nil as a template to NewHandler will error if we do not set
-	// a render function ourselves.
-	h, err := NewHandler(nil, NewCookieStore("session-name", []byte("weak-secret")))
+	// Setup the handler.
+	h, err := NewHandler(NewCookieStore("session-name", []byte("weak-secret")))
 	if err != nil {
 		log.Fatal("could not create handler")
 	}
 
-	// By default the handler will automatically render any template parsed into the
-	// NewHandler function. However you can override and render an HTML string like
-	// this.
-	h.Render = func(ctc context.Context, t *template.Template, data interface{}) (io.Reader, error) {
+	// Provide a render function.
+	h.Render = func(ctc context.Context, data interface{}) (io.Reader, error) {
 		tmpl, err := template.New("thermo").Parse(`
             <div>{{.C}}</div>
             <button live-click="temp-up">+</button>

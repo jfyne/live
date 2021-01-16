@@ -7,13 +7,12 @@ import (
 	"io"
 )
 
-// WithRootTemplate set the renderer to use a different root template. This changes the handlers
-// Render function.
-func WithRootTemplate(rootTemplate string) HandlerConfig {
+// WithTemplateRenderer set the handler to use an `html/template` renderer.
+func WithTemplateRenderer(t *template.Template) HandlerConfig {
 	return func(h *Handler) error {
-		h.Render = func(ctx context.Context, t *template.Template, data interface{}) (io.Reader, error) {
+		h.Render = func(ctx context.Context, data interface{}) (io.Reader, error) {
 			var buf bytes.Buffer
-			if err := t.ExecuteTemplate(&buf, rootTemplate, data); err != nil {
+			if err := t.Execute(&buf, data); err != nil {
 				return nil, err
 			}
 			return &buf, nil

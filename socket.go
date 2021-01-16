@@ -79,7 +79,7 @@ func (s *Socket) render(ctx context.Context, h *Handler) error {
 	defer s.dataMu.Unlock()
 
 	// Render handler.
-	output, err := h.Render(ctx, h.t, s.data)
+	output, err := h.Render(ctx, s.data)
 	if err != nil {
 		return fmt.Errorf("render error: %w", err)
 	}

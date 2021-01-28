@@ -11,9 +11,9 @@ const (
 	EventPatch = "patch"
 	// EventAck sent when an event is ackknowledged.
 	EventAck = "ack"
-	// EventHello sent as soon as the server accepts the
+	// EventConnect sent as soon as the server accepts the
 	// WS connection.
-	EventHello = "hello"
+	EventConnect = "connect"
 )
 
 // Event messages that are sent and received by the

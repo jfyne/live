@@ -6,7 +6,7 @@ borrowing from Phoenix LiveViews.
 Live is intended as a replacement for React, Vue, Angular etc. You can write
 an interactive web app just using Go and its templates.
 
-![](examples/chat.gif)
+![](https://github.com/jfyne/live-examples/blob/main/chat.gif)
 
 Compatible with `net/http`, so will play nicely with middleware and other frameworks.
 
@@ -14,7 +14,6 @@ Compatible with `net/http`, so will play nicely with middleware and other framew
 
 - Implement any missing phx events that make sense.
 - File uploads.
-- Think about how live components could work.
 
 ## Getting Started
 
@@ -24,7 +23,7 @@ Compatible with `net/http`, so will play nicely with middleware and other framew
 go get github.com/jfyne/live
 ```
 
-See the [examples](https://github.com/jfyne/live/tree/master/examples) for usage.
+See the [examples](https://github.com/jfyne/live-examples) for usage.
 
 ### First handler
 
@@ -96,7 +95,7 @@ The `live-click` binding is used to send click events to the server.
 <div live-click="inc" live-value-myvar1="val1" live-value-myvar2="val2"></div>
 ```
 
-See the [buttons example](https://github.com/jfyne/live/tree/master/examples/buttons) for usage.
+See the [buttons example](https://github.com/jfyne/live-examples/tree/main/buttons) for usage.
 
 ### Focus / Blur Events
 
@@ -125,7 +124,7 @@ bindings. Each binding supports a `live-key` attribute, which triggers the event
 specific key press. If no `live-key` is provided, the event is triggered for any key press.
 When pushed, the value sent to the server will contain the "key" that was pressed.
 
-See the [buttons example](https://github.com/jfyne/live/tree/master/examples/buttons) for usage.
+See the [buttons example](https://github.com/jfyne/live-examples/tree/main/buttons) for usage.
 
 ### Form Events
 
@@ -141,7 +140,7 @@ it is preferred to handle input changes at the form level, where all form fields
 handler's event handler given any single input change. For example, to handle real-time form validation
 and saving, your template would use both `live-change` and `live-submit` bindings.
 
-See the [form example](https://github.com/jfyne/live/tree/master/examples/form) for usage.
+See the [form example](https://github.com/jfyne/live-examples/tree/main/todo) for usage.
 
 ### Rate Limiting
 
@@ -166,7 +165,7 @@ interop with existing libraries that do their own DOM operations. The following
 When using `live-update` If using "append" or "prepend", a DOM ID must be set
 for each child.
 
-See the [chat example](https://github.com/jfyne/live/tree/master/examples/chat) for usage.
+See the [chat example](https://github.com/jfyne/live-examples/tree/main/chat) for usage.
 
 ### JS Interop
 
@@ -240,7 +239,7 @@ In scope when these functions are called:
 - `pushEvent(event: { t: string, d: any })` - method to push an event from the client to the Live server
 - `handleEvent(event: string, cb: ((payload: any) => void))` - method to handle an event pushed from the server.
 
-See the [chat example](https://github.com/jfyne/live/tree/master/examples/chat) for usage.
+See the [chat example](https://github.com/jfyne/live-examples/tree/main/chat) for usage.
 
 ### Integrating with your app
 
@@ -248,7 +247,7 @@ There are two ways to inegrate javascript into your applications. The first is t
 in javascript handler. This includes client side code to initialise the live handler and automatically looks for
 hooks at `window.Hooks`. All of the examples use this method.
 
-See the [chat example](https://github.com/jfyne/live/tree/master/examples/chat) for usage.
+See the [chat example](https://github.com/jfyne/live-examples/tree/main/chat) for usage.
 
 The second method is suited for more complex apps, there is a companion package published on npm. The version
 should be kept in sync with the current go version.
@@ -270,7 +269,7 @@ live.init();
 
 This allows more control over how hooks are passed to live, and when it should be initialised. It is expected
 that you would then build your compiled javsacript and serve it. See the
-[npm example](https://github.com/jfyne/live/tree/master/examples/npm).
+[npm example](https://github.com/jfyne/live-examples/tree/main/npm).
 
 ## Errors and exceptions
 
@@ -292,7 +291,7 @@ re-rendering.
 
 If you return an error in the event handler live will send an `"err"` event
 to the socket. You can handle this with a hook. An example of this can be
-seen in the [error example](https://github.com/jfyne/live/tree/master/examples/error).
+seen in the [error example](https://github.com/jfyne/live-examples/tree/main/error).
 
 ##  Loading state and errors
 

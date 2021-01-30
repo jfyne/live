@@ -87,6 +87,7 @@ func (s *Socket) render(ctx context.Context, h *Handler) error {
 	if err != nil {
 		return fmt.Errorf("html parse error: %w", err)
 	}
+	pruneTree(node)
 
 	// Get diff
 	if s.currentRender != nil {

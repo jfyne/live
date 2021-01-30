@@ -31,6 +31,24 @@ type Patch struct {
 	HTML   string
 }
 
+func (p Patch) String() string {
+	action := ""
+	switch p.Action {
+	case Noop:
+		action = "NO"
+	case Insert:
+		action = "IN"
+	case Replace:
+		action = "RE"
+	case Append:
+		action = "AP"
+	case Prepend:
+		action = "PR"
+	}
+
+	return fmt.Sprintf("%v %s %s", p.Path, action, p.HTML)
+}
+
 // Diff compare two node states and return patches.
 func Diff(current, proposed *html.Node) ([]Patch, error) {
 	patches := diffTrees(current, proposed)
@@ -76,7 +94,26 @@ type differ struct {
 // diffTrees compares two html Nodes and outputs patches.
 func diffTrees(current, proposed *html.Node) []patch {
 	d := &differ{}
+	pruneTree(current)
+	pruneTree(proposed)
 	return d.compareNodes(current, proposed, []int{0})
+}
+
+func pruneTree(root *html.Node) {
+	// Check this node.
+	if root.NextSibling != nil {
+		pruneTree(root.NextSibling)
+	}
+	if root.FirstChild != nil {
+		pruneTree(root.FirstChild)
+	}
+	debugNodeLog("checking", root)
+	if !nodeRelevant(root) {
+		if root.Parent != nil {
+			debugNodeLog("removingNode", root)
+			root.Parent.RemoveChild(root)
+		}
+	}
 }
 
 func (d *differ) compareNodes(oldNode, newNode *html.Node, followedPath []int) []patch {
@@ -97,8 +134,6 @@ func (d *differ) compareNodes(oldNode, newNode *html.Node, followedPath []int) [
 		return append(
 			patches,
 			d.generatePatch(newNode, followedPath[:len(followedPath)-1], Append),
-			// The browser will need a text node to track the append.
-			d.generatePatch(&html.Node{Type: html.TextNode, Data: "\n"}, followedPath, Append),
 		)
 	}
 
@@ -212,6 +247,9 @@ func (d *differ) patchPath(path []int) []int {
 
 // nodeRelevant check if this node is relevant.
 func nodeRelevant(node *html.Node) bool {
+	if node.Type == html.TextNode {
+		debugNodeLog("textNode", node)
+	}
 	if node.Type == html.TextNode && len(strings.TrimSpace(node.Data)) == 0 {
 		return false
 	}

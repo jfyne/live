@@ -81,6 +81,12 @@ http.Handle("/live.js", live.Javascript{})
 http.ListenAndServe(":8080", nil)
 ```
 
+### Live components
+
+Live can also render components. These are an easy way to encapsulate event logic and make it repeatable across a page.
+The [components examples](https://github.com/jfyne/live-examples/tree/main/components) show how to create
+components. Those are then used in the [world clocks example](https://github.com/jfyne/live-examples/tree/main/clocks).
+
 ## Features
 
 ### Click Events

@@ -1,18 +1,13 @@
-package component
+package page
 
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"io"
 	"net/http"
 
 	"github.com/jfyne/live"
 )
-
-var _ RegisterHandler = defaultRegister
-var _ MountHandler = defaultMount
-var _ RenderHandler = defaultRender
 
 // RegisterHandler the first part of the component lifecycle, this is called during component creation
 // and is used to register any events that the component handles.
@@ -33,7 +28,8 @@ type ComponentConstructor func(ctx context.Context, h *live.Handler, r *http.Req
 
 // Component a self contained component on the page.
 type Component struct {
-	// ID identifies the component on the page.
+	// ID identifies the component on the page. This should be something stable, so that during the mount
+	// it can be found again by the socket.
 	ID string
 
 	// Handler a reference to the host handler.
@@ -43,16 +39,21 @@ type Component struct {
 	// is scoped too.
 	Socket *live.Socket
 
-	// Register the
+	// Register the component. This should be used to setup event handling.
 	Register RegisterHandler
-	Mount    MountHandler
-	Render   RenderHandler
-	// State
+
+	// Mount the component, this should be used to setup the components initial state.
+	Mount MountHandler
+
+	// Render the component, this should be used to describe how to render the component.
+	Render RenderHandler
+
+	// State the components state.
 	State interface{}
 }
 
-// New creates a new component and returns it. It does not register it or mount it.
-func New(ID string, h *live.Handler, s *live.Socket, configurations ...ComponentConfig) (Component, error) {
+// NewComponent creates a new component and returns it. It does not register it or mount it.
+func NewComponent(ID string, h *live.Handler, s *live.Socket, configurations ...ComponentConfig) (Component, error) {
 	c := Component{
 		ID:       ID,
 		Handler:  h,
@@ -70,7 +71,7 @@ func New(ID string, h *live.Handler, s *live.Socket, configurations ...Component
 	return c, nil
 }
 
-// Insit takes a ComponentConstructor and then registers and mounts the component.
+// Init takes a constructor and then registers and mounts the component.
 func Init(ctx context.Context, construct func() (Component, error)) (Component, error) {
 	comp, err := construct()
 	if err != nil {
@@ -88,13 +89,13 @@ func Init(ctx context.Context, construct func() (Component, error)) (Component, 
 // Self sends an event scoped not only to this socket, but to this specific component instance. Or any
 // components sharing the same ID.
 func (c *Component) Self(s *live.Socket, event live.Event) {
-	event.T = c.EventPrefix(event.T)
+	event.T = c.Event(event.T)
 	c.Handler.Self(s, event)
 }
 
 // HandleSelf handles scoped incoming events send by a components Self function.
 func (c *Component) HandleSelf(event string, handler EventHandler) {
-	c.Handler.HandleSelf(c.EventPrefix(event), func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+	c.Handler.HandleSelf(c.Event(event), func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		state, err := handler(p)
 		if err != nil {
 			return s.Assigns(), err
@@ -106,7 +107,7 @@ func (c *Component) HandleSelf(event string, handler EventHandler) {
 
 // HandleEvent handles a component event sent from a connected socket.
 func (c *Component) HandleEvent(event string, handler EventHandler) {
-	c.Handler.HandleEvent(c.EventPrefix(event), func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+	c.Handler.HandleEvent(c.Event(event), func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
 		state, err := handler(p)
 		if err != nil {
 			return s.Assigns(), err
@@ -116,28 +117,10 @@ func (c *Component) HandleEvent(event string, handler EventHandler) {
 	})
 }
 
-// EventPrefix is the prefix applied to an event in order to scope it correctly in the
-// live.Handler lifecycle.
-func (c *Component) EventPrefix(event string) string {
+// Event scopes an event string so that it applies to this instance of this component
+// only.
+func (c *Component) Event(event string) string {
 	return c.Socket.Session.ID + "--" + c.ID + "--" + event
-}
-
-func (c *Component) HTML(layout string) Node {
-	t := template.Must(template.New("").Funcs(templateFuncs(c.ID, c.Socket.Session.ID)).Parse(layout))
-	return NodeFunc(func(w io.Writer) error {
-		if err := t.Execute(w, c.State); err != nil {
-			return err
-		}
-		return nil
-	})
-}
-
-func templateFuncs(componentID, socketID string) template.FuncMap {
-	return template.FuncMap{
-		"E": func(event string) string {
-			return socketID + "--" + componentID + "--" + event
-		},
-	}
 }
 
 // defaultRegister is the default register handler which does nothing.
@@ -156,18 +139,6 @@ func defaultRender(w io.Writer, c *Component) error {
 	return err
 }
 
-type Node interface {
-	Render(w io.Writer) error
-}
-
-type NodeFunc func(io.Writer) error
-
-func (n NodeFunc) Render(w io.Writer) error {
-	return n(w)
-}
-
-func RenderComponent(c Component) NodeFunc {
-	return NodeFunc(func(w io.Writer) error {
-		return c.Render(w, &c)
-	})
-}
+var _ RegisterHandler = defaultRegister
+var _ MountHandler = defaultMount
+var _ RenderHandler = defaultRender

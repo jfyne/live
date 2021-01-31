@@ -12,6 +12,7 @@ Compatible with `net/http`, so will play nicely with middleware and other framew
 
 ## Roadmap
 
+- Navigation
 - Implement any missing phx events that make sense.
 - File uploads.
 
@@ -86,6 +87,43 @@ http.ListenAndServe(":8080", nil)
 Live can also render components. These are an easy way to encapsulate event logic and make it repeatable across a page.
 The [components examples](https://github.com/jfyne/live-examples/tree/main/components) show how to create
 components. Those are then used in the [world clocks example](https://github.com/jfyne/live-examples/tree/main/clocks).
+
+```go
+// NewGreeter creates a component that says hello to someone.
+func NewGreeter(ID string, h *live.Handler, s *live.Socket, name string) (page.Component, error) {
+    return page.NewComponent(
+        ID,
+        h,
+        s,
+        page.WithMount(func(ctx context.Context, c *page.Component, r *http.Request, connected bool) error {
+            c.State = name
+        }),
+        page.WithRender(func(w io.Writer, c *page.Component) error {
+            // Render the greeter, here we are including the script just to make this toy example work.
+            return page.HTML(`
+                <div class="greeter">Hello {{.}}</div>
+                <script src="/live.js"></script>
+            `, c).Render(w)
+        }),
+}
+
+func main() {
+    h, err := live.NewHandler(
+        live.NewCookieStore("session-name", []byte("weak-secret")),
+        page.WithComponentMount(func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket) (page.Component, error) {
+            return NewGreeter("hello-id", h, s, "World!")
+        }),
+        page.WithComponentRenderer(),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    http.Handle("/", h)
+    http.Handle("/live.js", live.Javascript{})
+    http.ListenAndServe(":8080", nil)
+}
+```
 
 ## Features
 

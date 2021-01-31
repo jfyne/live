@@ -10,12 +10,6 @@ an interactive web app just using Go and its templates.
 
 Compatible with `net/http`, so will play nicely with middleware and other frameworks.
 
-## Roadmap
-
-- Navigation
-- Implement any missing phx events that make sense.
-- File uploads.
-
 ## Getting Started
 
 ### Install

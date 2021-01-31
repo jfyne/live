@@ -321,3 +321,7 @@ The following events receive css loading classes:
 - `live-blur` - `live-blur-loading`
 - `live-window-keydown` - `live-keydown-loading`
 - `live-window-keyup` - `live-keyup-loading`
+
+## Other approaches
+
+- [brendonmatos/golive](https://github.com/brendonmatos/golive)

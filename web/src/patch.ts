@@ -11,6 +11,8 @@ interface PatchEvent {
  * Handle patches from the backend.
  */
 export class Patch {
+    private static frame?: number;
+
     static handle(event: LiveEvent) {
         Forms.dehydrate();
 
@@ -44,33 +46,46 @@ export class Patch {
             return;
         }
 
-        switch (e.Action) {
-            case 0: // NOOP
-                return;
-            case 1: // INSERT
-                if (target.parentNode === null) {
-                    return;
-                }
-                EventDispatch.beforeUpdate(target);
-                target.parentNode.insertBefore(Patch.html2Node(e.HTML), target);
-                EventDispatch.updated(target);
-                break;
-            case 2: // REPLACE
-                EventDispatch.beforeDestroy(target);
-                target.outerHTML = e.HTML;
-                EventDispatch.destroyed(target);
-                break;
-            case 3: // APPEND
-                EventDispatch.beforeUpdate(target);
-                target.append(Patch.html2Node(e.HTML));
-                EventDispatch.updated(target);
-                break;
-            case 4: // PREPEND
-                EventDispatch.beforeUpdate(target);
-                target.prepend(Patch.html2Node(e.HTML));
-                EventDispatch.updated(target);
-                break;
+        if (Patch.frame) {
+            cancelAnimationFrame(Patch.frame);
         }
+
+        Patch.frame = requestAnimationFrame(Patch.render(target, e));
+    }
+
+    private static render(target: Element, e: PatchEvent): () => void {
+        return () => {
+            switch (e.Action) {
+                case 0: // NOOP
+                    return;
+                case 1: // INSERT
+                    if (target.parentNode === null) {
+                        return;
+                    }
+                    EventDispatch.beforeUpdate(target);
+                    target.parentNode.insertBefore(
+                        Patch.html2Node(e.HTML),
+                        target
+                    );
+                    EventDispatch.updated(target);
+                    break;
+                case 2: // REPLACE
+                    EventDispatch.beforeDestroy(target);
+                    target.outerHTML = e.HTML;
+                    EventDispatch.destroyed(target);
+                    break;
+                case 3: // APPEND
+                    EventDispatch.beforeUpdate(target);
+                    target.append(Patch.html2Node(e.HTML));
+                    EventDispatch.updated(target);
+                    break;
+                case 4: // PREPEND
+                    EventDispatch.beforeUpdate(target);
+                    target.prepend(Patch.html2Node(e.HTML));
+                    EventDispatch.updated(target);
+                    break;
+            }
+        };
     }
 
     private static html2Node(html: string): Node {

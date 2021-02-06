@@ -2,3 +2,4 @@
 set -e
 go generate web/build.go
 go generate internal/embed/embed.go
+embedmd -w README.md

@@ -82,40 +82,54 @@ Live can also render components. These are an easy way to encapsulate event logi
 The [components examples](https://github.com/jfyne/live-examples/tree/main/components) show how to create
 components. Those are then used in the [world clocks example](https://github.com/jfyne/live-examples/tree/main/clocks).
 
+[embedmd]:# (page/example_test.go)
 ```go
-// NewGreeter creates a component that says hello to someone.
-func NewGreeter(ID string, h *live.Handler, s *live.Socket, name string) (page.Component, error) {
-    return page.NewComponent(
-        ID,
-        h,
-        s,
-        page.WithMount(func(ctx context.Context, c *page.Component, r *http.Request, connected bool) error {
-            c.State = name
-        }),
-        page.WithRender(func(w io.Writer, c *page.Component) error {
-            // Render the greeter, here we are including the script just to make this toy example work.
-            return page.HTML(`
+package page
+
+import (
+	"context"
+	"io"
+	"log"
+	"net/http"
+
+	"github.com/jfyne/live"
+)
+
+// NewGreeter creates a new greeter component.
+func NewGreeter(ID string, h *live.Handler, s *live.Socket, name string) (Component, error) {
+	return NewComponent(
+		ID,
+		h,
+		s,
+		WithMount(func(ctx context.Context, c *Component, r *http.Request, connected bool) error {
+			c.State = name
+			return nil
+		}),
+		WithRender(func(w io.Writer, c *Component) error {
+			// Render the greeter, here we are including the script just to make this toy example work.
+			return HTML(`
                 <div class="greeter">Hello {{.}}</div>
                 <script src="/live.js"></script>
             `, c).Render(w)
-        }),
+		}),
+	)
 }
 
-func main() {
-    h, err := live.NewHandler(
-        live.NewCookieStore("session-name", []byte("weak-secret")),
-        page.WithComponentMount(func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket) (page.Component, error) {
-            return NewGreeter("hello-id", h, s, "World!")
-        }),
-        page.WithComponentRenderer(),
-    )
-    if err != nil {
-        log.Fatal(err)
-    }
+func Example() {
+	h, err := live.NewHandler(
+		live.NewCookieStore("session-name", []byte("weak-secret")),
+		WithComponentMount(func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket) (Component, error) {
+			return NewGreeter("hello-id", h, s, "World!")
+		}),
+		WithComponentRenderer(),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-    http.Handle("/", h)
-    http.Handle("/live.js", live.Javascript{})
-    http.ListenAndServe(":8080", nil)
+	http.Handle("/", h)
+	http.Handle("/live.js", live.Javascript{})
+	http.ListenAndServe(":8080", nil)
 }
 ```
 
@@ -214,7 +228,8 @@ See the [chat example](https://github.com/jfyne/live-examples/tree/main/chat) fo
 Hooks take the following form. They allow additional javscript to be during a
 page lifecycle.
 
-```typescript
+[embedmd]:# (web/src/interop.ts)
+```ts
 /**
  * Hooks supplied for interop.
  */

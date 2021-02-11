@@ -1,6 +1,5 @@
 {
     "name": "@jfyne/live",
-    "type": "module",
     "version": "0.0.0",
     "description": "Go live handler sibling package",
     "main": "dist/index.js",
@@ -10,12 +9,7 @@
         "build": "npx tsc -noemit && npx esbuild --bundle src/auto.ts --outfile=browser/auto.js --minify --sourcemap",
         "prepublish": "npx tsc"
     },
-    "keywords": [
-        "serverside",
-        "liveview",
-        "golang",
-        "go"
-    ],
+    "keywords": ["serverside", "liveview", "golang", "go"],
     "author": "jfyne",
     "license": "MIT",
     "repository": {

@@ -181,7 +181,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get socket.
-	sock := NewSocket(session)
+	sock := NewSocket(r.Context(), session)
 
 	if err := sock.mount(r.Context(), h, r, false); err != nil {
 		h.Error(r.Context(), w, r, err)
@@ -222,7 +222,7 @@ func (h *Handler) serveWS(w http.ResponseWriter, r *http.Request) {
 	defer c.Close(websocket.StatusInternalError, "")
 	writeTimeout(r.Context(), time.Second*5, c, Event{T: EventConnect})
 	{
-		err := h._serveWS(r.Context(), r, session, c)
+		err := h._serveWS(r, session, c)
 		if errors.Is(err, context.Canceled) {
 			return
 		}
@@ -244,9 +244,10 @@ type eventError struct {
 }
 
 // _serveWS implement the logic for a web socket connection.
-func (h *Handler) _serveWS(ctx context.Context, r *http.Request, session Session, c *websocket.Conn) error {
+func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) error {
+	ctx := r.Context()
 	// Get the sessions socket and register it with the server.
-	sock := NewSocket(session)
+	sock := NewSocket(ctx, session)
 	sock.assignWS(c)
 	h.addSocket(sock)
 	defer h.deleteSocket(sock)

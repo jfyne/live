@@ -25,13 +25,16 @@ type Socket struct {
 
 	data   interface{}
 	dataMu sync.Mutex
+
+	ctx context.Context
 }
 
 // NewSocket creates a new socket.
-func NewSocket(s Session) *Socket {
+func NewSocket(ctx context.Context, s Session) *Socket {
 	return &Socket{
 		Session: s,
 		msgs:    make(chan Event, maxMessageBufferSize),
+		ctx:     ctx,
 	}
 }
 
@@ -58,6 +61,11 @@ func (s *Socket) Send(msg Event) {
 	default:
 		go s.closeSlow()
 	}
+}
+
+// Context get the sockets context.
+func (s *Socket) Context() context.Context {
+	return s.ctx
 }
 
 // mount passes this socket to the handlers mount func. This returns data

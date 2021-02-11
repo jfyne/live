@@ -162,12 +162,14 @@ func (d *differ) compareNodes(oldNode, newNode *html.Node, followedPath []int) [
 		nextPath := make([]int, len(followedPath))
 		copy(nextPath, followedPath)
 
-		nextPath = append(nextPath, i)
 		if i >= len(newChildren) {
+			nextPath = append(nextPath, len(newChildren))
 			patches = append(patches, d.compareNodes(oldChildren[i], nil, nextPath)...)
 		} else if i >= len(oldChildren) {
+			nextPath = append(nextPath, i)
 			patches = append(patches, d.compareNodes(nil, newChildren[i], nextPath)...)
 		} else {
+			nextPath = append(nextPath, i)
 			patches = append(patches, d.compareNodes(oldChildren[i], newChildren[i], nextPath)...)
 		}
 	}

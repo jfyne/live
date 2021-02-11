@@ -71,6 +71,20 @@ func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request, connect
 	return nil
 }
 
+// params passes this socket to the handlers params func. This returns data
+// which we then set to the socket to store.
+func (s *Socket) params(ctx context.Context, h *Handler, r *http.Request, connected bool) error {
+	if h.paramsHandler == nil {
+		return nil
+	}
+	data, err := h.paramsHandler(s, ParamsFromRequest(r))
+	if err != nil {
+		return fmt.Errorf("params error: %w", err)
+	}
+	s.Assign(data)
+	return nil
+}
+
 // render passes this socket to the handlers render func. This generates
 // the HTML we should be showing to the socket. A diff is then run against
 // previosuly generated HTML and patches sent to the socket.

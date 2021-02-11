@@ -133,6 +133,11 @@ func Example() {
 }
 ```
 
+## Navigation
+
+Live provides functionality to use the browsers pushState API to update the location search
+path.
+
 ## Features
 
 ### Click Events

@@ -7,6 +7,10 @@ export class Live {
     constructor(private hooks: Hooks) {}
 
     public init() {
+        // Check that this document has been rendered by live.
+        if (document.querySelector(`[live-rendered]`) === null) {
+            return;
+        }
         // Initialise the event dispatch.
         EventDispatch.init(this.hooks);
 

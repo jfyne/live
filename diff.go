@@ -12,6 +12,9 @@ import (
 
 const _debug = false
 
+// LiveRendered an attribute key to show that a DOM has been rendered by live.
+const LiveRendered = "live-rendered"
+
 // PatchAction available actions to take by a patch.
 type PatchAction uint32
 
@@ -94,19 +97,35 @@ type differ struct {
 // diffTrees compares two html Nodes and outputs patches.
 func diffTrees(current, proposed *html.Node) []patch {
 	d := &differ{}
-	pruneTree(current)
-	pruneTree(proposed)
+	shapeTree(current)
+	shapeTree(proposed)
 	return d.compareNodes(current, proposed, []int{0})
 }
 
-func pruneTree(root *html.Node) {
+func shapeTree(root *html.Node) {
 	// Check this node.
 	if root.NextSibling != nil {
-		pruneTree(root.NextSibling)
+		shapeTree(root.NextSibling)
 	}
 	if root.FirstChild != nil {
-		pruneTree(root.FirstChild)
+		shapeTree(root.FirstChild)
 	}
+
+	// Live is rendering this DOM tree so indicate that it has done so
+	// so that the client side knows to attempt to connect.
+	if root.Type == html.ElementNode && root.Data == "body" {
+		hasFlag := false
+		for _, a := range root.Attr {
+			if a.Key == LiveRendered {
+				hasFlag = true
+				break
+			}
+		}
+		if hasFlag == false {
+			root.Attr = append(root.Attr, html.Attribute{Key: LiveRendered})
+		}
+	}
+
 	debugNodeLog("checking", root)
 	if !nodeRelevant(root) {
 		if root.Parent != nil {

@@ -10,7 +10,7 @@ import (
 )
 
 func TestHandler(t *testing.T) {
-	output := "<html><head></head><body>test</body></html>"
+	output := `<html><head></head><body live-rendered="">test</body></html>`
 
 	h, err := NewHandler(NewTestStore("test"))
 	if err != nil {

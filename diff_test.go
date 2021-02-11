@@ -149,7 +149,7 @@ func TestDoc(t *testing.T) {
 	}, t)
 }
 
-func TestTreePrune(t *testing.T) {
+func TestTreeShape(t *testing.T) {
 	h := `<html>
             <head></head>
             <body>
@@ -163,12 +163,12 @@ func TestTreePrune(t *testing.T) {
             </body>
         </html>
     `
-	e := `<html><head></head><body><form><div>1</div><div>2</div><div>3</div><input type="text"/><input type="submit"/></form></body></html>`
+	e := `<html><head></head><body live-rendered=""><form><div>1</div><div>2</div><div>3</div><input type="text"/><input type="submit"/></form></body></html>`
 	tree, err := html.Parse(strings.NewReader(h))
 	if err != nil {
 		t.Fatal(err)
 	}
-	pruneTree(tree)
+	shapeTree(tree)
 
 	var d bytes.Buffer
 	html.Render(&d, tree)

@@ -1,4 +1,5 @@
 {
     "preset": "ts-jest",
-    "testEnvironment": "jsdom"
+    "testEnvironment": "jsdom",
+    "roots": ["./src"]
 }

@@ -7,9 +7,14 @@
     "scripts": {
         "test": "npx jest",
         "build": "npx tsc -noemit && npx esbuild --bundle src/auto.ts --outfile=browser/auto.js --minify --sourcemap",
-        "prepublish": "npx tsc"
+        "prepublishOnly": "npx tsc"
     },
-    "keywords": ["serverside", "liveview", "golang", "go"],
+    "keywords": [
+        "serverside",
+        "liveview",
+        "golang",
+        "go"
+    ],
     "author": "jfyne",
     "license": "MIT",
     "repository": {

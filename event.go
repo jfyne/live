@@ -1,5 +1,10 @@
 package live
 
+import (
+	"net/http"
+	"strconv"
+)
+
 // EventHandler a function to handle events, returns the data that should
 // be set to the socket after handling.
 type EventHandler func(*Socket, map[string]interface{}) (interface{}, error)
@@ -14,6 +19,9 @@ const (
 	// EventConnect sent as soon as the server accepts the
 	// WS connection.
 	EventConnect = "connect"
+	// EventParams sent for a URL parameter update. Can be
+	// sent both directions.
+	EventParams = "params"
 )
 
 // Event messages that are sent and received by the
@@ -72,11 +80,17 @@ func ParamInt(params map[string]interface{}, key string) int {
 	if !ok {
 		return 0
 	}
-	out, ok := v.(int)
-	if !ok {
-		return 0
+	switch out := v.(type) {
+	case int:
+		return out
+	case string:
+		i, err := strconv.Atoi(out)
+		if err != nil {
+			return 0
+		}
+		return i
 	}
-	return out
+	return 0
 }
 
 // ParamFloat32 helper to return a float32 from the params.
@@ -85,9 +99,29 @@ func ParamFloat32(params map[string]interface{}, key string) float32 {
 	if !ok {
 		return 0.0
 	}
-	out, ok := v.(float32)
-	if !ok {
-		return 0.0
+	switch out := v.(type) {
+	case float32:
+		return out
+	case string:
+		f, err := strconv.ParseFloat(out, 32)
+		if err != nil {
+			return 0.0
+		}
+		return float32(f)
+	}
+	return 0.0
+}
+
+// ParamsFromRequest given an *http.Request extract the params.
+func ParamsFromRequest(r *http.Request) map[string]interface{} {
+	out := map[string]interface{}{}
+	values := r.URL.Query()
+	for k, v := range values {
+		if len(v) == 1 {
+			out[k] = v[0]
+		} else {
+			out[k] = v
+		}
 	}
 	return out
 }

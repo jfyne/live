@@ -24,7 +24,7 @@ export class Socket {
         this.conn = new WebSocket(
             `${location.protocol === "https:" ? "wss" : "ws"}://${
                 location.host
-            }${location.pathname}`
+            }${location.pathname}${location.search}${location.hash}`
         );
         this.conn.addEventListener("close", (ev) => {
             this.ready = false;

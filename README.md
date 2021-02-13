@@ -10,6 +10,9 @@ an interactive web app just using Go and its templates.
 
 Compatible with `net/http`, so will play nicely with middleware and other frameworks.
 
+I am starting to use this in production where I work. As such, I will be fixing any issues
+I find and changing the API surface to make it as easy to use as possible.
+
 ## Getting Started
 
 ### Install
@@ -132,6 +135,40 @@ func Example() {
 	http.ListenAndServe(":8080", nil)
 }
 ```
+
+## Navigation
+
+Live provides functionality to use the browsers pushState API to update its query parameters. This can be done from
+both the client side and the server side.
+
+### Client side
+
+The `live-patch` handler should be placed on an `a` tag element as it reads the `href` attribute in order to apply
+the URL patch.
+
+```html
+<a live-patch href="?page=2">Next page</a>
+```
+
+Clicking on this tag will result in the browser URL being updated, and then an event sent to the backend which will
+trigger the handler's `HandleParams` callback. With the query string being available in the params map of the handler.
+
+```go
+h.HandleParams(func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+    ...
+    page := live.ParamInt(p, "page")
+    ...
+})
+```
+
+### Server side
+
+Using the Socket's `PatchURL` func the serverside can make the client update the browsers URL, which will then trigger the `HandleParams` func.
+
+### Redirect
+
+The server can also trigger a redirect if the Socket's `Redirect` func is called. This will simulate an HTTP redirect
+using `window.location.replace`.
 
 ## Features
 
@@ -373,7 +410,3 @@ The following events receive css loading classes:
 - `live-blur` - `live-blur-loading`
 - `live-window-keydown` - `live-keydown-loading`
 - `live-window-keyup` - `live-keyup-loading`
-
-## Other approaches
-
-- [brendonmatos/golive](https://github.com/brendonmatos/golive)

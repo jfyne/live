@@ -68,6 +68,9 @@ type Handler struct {
 	// selfHandlers the map of handler event handlers.
 	selfHandlers map[string]EventHandler
 
+	// paramsHandlers a slice of handlers which respond to a change in URL parameters.
+	paramsHandlers []EventHandler
+
 	// All of our current sockets.
 	socketsMu sync.Mutex
 	socketMap map[*Socket]struct{}
@@ -94,7 +97,8 @@ func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) 
 			w.WriteHeader(500)
 			w.Write([]byte(err.Error()))
 		},
-		socketMap: make(map[*Socket]struct{}),
+		socketMap:      make(map[*Socket]struct{}),
+		paramsHandlers: []EventHandler{},
 	}
 
 	for _, conf := range configs {
@@ -171,6 +175,12 @@ func (h *Handler) HandleSelf(t string, handler EventHandler) {
 	h.selfHandlers[t] = handler
 }
 
+// HandleParams handles a URL query parameter change. This is useful for handling
+// things like pagincation, or some filtering.
+func (h *Handler) HandleParams(handler EventHandler) {
+	h.paramsHandlers = append(h.paramsHandlers, handler)
+}
+
 // serveHTTP serve an http request to the view.
 func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get session.
@@ -183,11 +193,19 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get socket.
 	sock := NewSocket(r.Context(), session)
 
+	// Run mount, this generates the data for the page we are on.
 	if err := sock.mount(r.Context(), h, r, false); err != nil {
 		h.Error(r.Context(), w, r, err)
 		return
 	}
 
+	// Handle any query parameters that are on the page.
+	if err := sock.params(r.Context(), h, r, false); err != nil {
+		h.Error(r.Context(), w, r, err)
+		return
+	}
+
+	// Render the HTML to display the page.
 	if err := sock.render(r.Context(), h); err != nil {
 		h.Error(r.Context(), w, r, err)
 		return
@@ -273,12 +291,24 @@ func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) 
 					internalErrors <- err
 					break
 				}
-				if err := h.handleEvent(m.T, sock, m); err != nil {
-					switch {
-					case errors.Is(err, ErrNoEventHandler):
-						log.Println("event error", m, err)
-					default:
-						eventErrors <- eventError{Source: m, Err: err.Error()}
+				switch m.T {
+				case EventParams:
+					if err := h.handleParams(sock, m); err != nil {
+						switch {
+						case errors.Is(err, ErrNoEventHandler):
+							log.Println("event error", m, err)
+						default:
+							eventErrors <- eventError{Source: m, Err: err.Error()}
+						}
+					}
+				default:
+					if err := h.handleEvent(m.T, sock, m); err != nil {
+						switch {
+						case errors.Is(err, ErrNoEventHandler):
+							log.Println("event error", m, err)
+						default:
+							eventErrors <- eventError{Source: m, Err: err.Error()}
+						}
 					}
 				}
 				if err := sock.render(ctx, h); err != nil {
@@ -297,6 +327,11 @@ func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) 
 	// a connection has been made.
 	if err := sock.mount(ctx, h, r, true); err != nil {
 		return fmt.Errorf("socket mount error: %w", err)
+	}
+
+	// Run params again now that the socket is connected.
+	if err := sock.params(r.Context(), h, r, true); err != nil {
+		return fmt.Errorf("socket params error: %w", err)
 	}
 
 	// Run render now that we are connected for the first time and we have just
@@ -399,6 +434,24 @@ func (h *Handler) handleSelf(t string, sock *Socket, msg Event) error {
 		return fmt.Errorf("view self event handler error [%s]: %w", t, err)
 	}
 	sock.Assign(data)
+
+	return nil
+}
+
+// handleParams on params change run the handler.
+func (h *Handler) handleParams(sock *Socket, msg Event) error {
+	params, err := msg.Params()
+	if err != nil {
+		return fmt.Errorf("received params message and could not extract params: %w", err)
+	}
+
+	for _, ph := range h.paramsHandlers {
+		data, err := ph(sock, params)
+		if err != nil {
+			return fmt.Errorf("view params handler error: %w", err)
+		}
+		sock.Assign(data)
+	}
 
 	return nil
 }

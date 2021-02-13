@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 
 	"golang.org/x/net/html"
@@ -63,6 +64,20 @@ func (s *Socket) Send(msg Event) {
 	}
 }
 
+// PatchURL sends an event to the client to update the
+// query params in the URL.
+func (s *Socket) PatchURL(values url.Values) {
+	e := Event{T: EventParams, Data: values.Encode()}
+	s.Send(e)
+}
+
+// Redirect sends a redirect event to the client. This will trigger the browser to
+// redirect to a URL.
+func (s *Socket) Redirect(u *url.URL) {
+	e := Event{T: EventRedirect, Data: u.String()}
+	s.Send(e)
+}
+
 // Context get the sockets context.
 func (s *Socket) Context() context.Context {
 	return s.ctx
@@ -76,6 +91,19 @@ func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request, connect
 		return fmt.Errorf("mount error: %w", err)
 	}
 	s.Assign(data)
+	return nil
+}
+
+// params passes this socket to the handlers params func. This returns data
+// which we then set to the socket to store.
+func (s *Socket) params(ctx context.Context, h *Handler, r *http.Request, connected bool) error {
+	for _, ph := range h.paramsHandlers {
+		data, err := ph(s, ParamsFromRequest(r))
+		if err != nil {
+			return fmt.Errorf("params error: %w", err)
+		}
+		s.Assign(data)
+	}
 	return nil
 }
 

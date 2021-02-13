@@ -13,7 +13,7 @@ I am very open to discussing the design of the API and what can be made better. 
 
 ## TODO List
 
-- Navigation. I will be probably modelling this on how Phoenix LiveView does it.
+- Change the handlers to have proper context from the request.
 - Missing events, throttle, debounce etc.
 - File uploads
 - Tests... Lots of tests

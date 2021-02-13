@@ -1,5 +1,5 @@
 import { Socket } from "./socket";
-import { LiveValues, LiveElement } from "./element";
+import { UpdateURLParams, GetParams, GetURLParams, Params } from "./params";
 import { EventDispatch, LiveEvent } from "./event";
 
 /**
@@ -23,10 +23,10 @@ class LiveHandler {
                 if (this.isWired(element) == true) {
                     return;
                 }
-                const values = LiveElement.values(element as HTMLElement);
+                const params = GetParams(element as HTMLElement);
                 element.addEventListener(
                     this.event,
-                    this.handler(element as HTMLElement, values)
+                    this.handler(element as HTMLElement, params)
                 );
                 element.addEventListener("ack", (_) => {
                     element.classList.remove(`${this.attribute}-loading`);
@@ -41,10 +41,10 @@ class LiveHandler {
                 if (this.isWired(element) === true) {
                     return;
                 }
-                const values = LiveElement.values(element as HTMLElement);
+                const params = GetParams(element as HTMLElement);
                 window.addEventListener(
                     this.event,
-                    this.handler(element as HTMLElement, values)
+                    this.handler(element as HTMLElement, params)
                 );
                 window.addEventListener("ack", (_) => {
                     element.classList.remove(`${this.attribute}-loading`);
@@ -52,7 +52,7 @@ class LiveHandler {
             });
     }
 
-    protected handler(element: HTMLElement, values: LiveValues): EventListener {
+    protected handler(element: HTMLElement, params: Params): EventListener {
         return (_: Event) => {
             const t = element?.getAttribute(this.attribute);
             if (t === null) {
@@ -60,7 +60,7 @@ class LiveHandler {
             }
             element.classList.add(`${this.attribute}-loading`);
             Socket.sendAndTrack(
-                new LiveEvent(t, values, LiveEvent.GetID()),
+                new LiveEvent(t, params, LiveEvent.GetID()),
                 element
             );
         };
@@ -71,7 +71,7 @@ class LiveHandler {
  * KeyHandler handle key events.
  */
 export class KeyHandler extends LiveHandler {
-    protected handler(element: HTMLElement, values: LiveValues): EventListener {
+    protected handler(element: HTMLElement, params: Params): EventListener {
         return (ev: Event) => {
             const ke = ev as KeyboardEvent;
             const t = element?.getAttribute(this.attribute);
@@ -93,7 +93,7 @@ export class KeyHandler extends LiveHandler {
                 metaKey: ke.metaKey,
             };
             Socket.sendAndTrack(
-                new LiveEvent(t, { ...values, ...keyData }, LiveEvent.GetID()),
+                new LiveEvent(t, { ...params, ...keyData }, LiveEvent.GetID()),
                 element
             );
         };
@@ -266,10 +266,10 @@ class Submit extends LiveHandler {
         super("submit", "live-submit");
     }
 
-    protected handler(element: HTMLElement, values: LiveValues): EventListener {
+    protected handler(element: HTMLElement, params: Params): EventListener {
         return (e: Event) => {
             if (e.preventDefault) e.preventDefault();
-            var vals = { ...values };
+            var vals = { ...params };
 
             const t = element?.getAttribute(this.attribute);
             if (t === null) {
@@ -311,6 +311,27 @@ class Hook extends LiveHandler {
 }
 
 /**
+ * live-patch event handler.
+ */
+class Patch extends LiveHandler {
+    constructor() {
+        super("click", "live-patch");
+    }
+
+    protected handler(element: HTMLElement, _: Params): EventListener {
+        return (e: Event) => {
+            if (e.preventDefault) e.preventDefault();
+            const path = element.getAttribute("href");
+            if (path === null) {
+                return;
+            }
+            UpdateURLParams(path, element);
+            return false;
+        };
+    }
+}
+
+/**
  * Handle all events.
  */
 export class Events {
@@ -326,6 +347,7 @@ export class Events {
     private static change: Change;
     private static submit: Submit;
     private static hook: Hook;
+    private static patch: Patch;
 
     /**
      * Initialise all the event wiring.
@@ -343,6 +365,9 @@ export class Events {
         this.change = new Change();
         this.submit = new Submit();
         this.hook = new Hook();
+        this.patch = new Patch();
+
+        this.handleBrowserNav();
     }
 
     /**
@@ -361,5 +386,22 @@ export class Events {
         this.change.attach();
         this.submit.attach();
         this.hook.attach();
+        this.patch.attach();
+    }
+
+    /**
+     * Watch the browser popstate so that we can send a params
+     * change event to the server.
+     */
+    private static handleBrowserNav() {
+        window.onpopstate = function (_: any) {
+            Socket.send(
+                new LiveEvent(
+                    "params",
+                    GetURLParams(document.location.search),
+                    LiveEvent.GetID()
+                )
+            );
+        };
     }
 }

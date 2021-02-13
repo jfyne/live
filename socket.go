@@ -71,6 +71,13 @@ func (s *Socket) PatchURL(values url.Values) {
 	s.Send(e)
 }
 
+// Redirect sends a redirect event to the client. This will trigger the browser to
+// redirect to a URL.
+func (s *Socket) Redirect(u *url.URL) {
+	e := Event{T: EventRedirect, Data: u.String()}
+	s.Send(e)
+}
+
 // Context get the sockets context.
 func (s *Socket) Context() context.Context {
 	return s.ctx

@@ -22,6 +22,9 @@ const (
 	// EventParams sent for a URL parameter update. Can be
 	// sent both directions.
 	EventParams = "params"
+	// EventRedirect sent in order to trigger a browser
+	// redirect.
+	EventRedirect = "redirect"
 )
 
 // Event messages that are sent and received by the

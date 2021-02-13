@@ -62,6 +62,9 @@ export class Socket {
                 case "params":
                     UpdateURLParams(`${window.location.pathname}?${e.data}`);
                     break;
+                case "redirect":
+                    window.location.replace(e.data);
+                    break;
                 case "ack":
                     this.ack(e);
                     break;

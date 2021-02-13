@@ -34,13 +34,6 @@ type ErrorHandler func(ctx context.Context, w http.ResponseWriter, r *http.Reque
 // HandlerConfig applies config to a handler.
 type HandlerConfig func(h *Handler) error
 
-// HandlerEvent an event sent by the handler.
-type HandlerEvent struct {
-	Ctx context.Context
-	S   *Socket
-	Msg Event
-}
-
 // Handler to be served by an HTTP server.
 type Handler struct {
 	// Mount a user should provide the mount function. This is what
@@ -56,9 +49,6 @@ type Handler struct {
 
 	// session store
 	sessionStore SessionStore
-
-	// emitter is a channel to send messages back to the socket.
-	emitter chan HandlerEvent
 
 	// broadcastLimiter limit broadcast rate.
 	broadcastLimiter *rate.Limiter
@@ -84,7 +74,6 @@ type Handler struct {
 func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) {
 	h := &Handler{
 		sessionStore:     store,
-		emitter:          make(chan HandlerEvent),
 		broadcastLimiter: rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
 		eventHandlers:    make(map[string]EventHandler),
 		selfHandlers:     make(map[string]EventHandler),
@@ -108,20 +97,7 @@ func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) 
 		}
 	}
 
-	go StartHandler(h)
 	return h, nil
-}
-
-// StartHandler run a handler so that it's events can be dealt with.
-// This is called by `NewHandler` so is only required if you are manually
-// creating a handler.
-func StartHandler(h *Handler) {
-	for {
-		select {
-		case m := <-h.emitter:
-			go handleEmmittedEvent(h, m)
-		}
-	}
 }
 
 // ServeHTTP serves this handler.
@@ -148,22 +124,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Self sends a message to the socket on this view.
 func (h *Handler) Self(ctx context.Context, sock *Socket, msg Event) {
-	h.emitter <- HandlerEvent{
-		Ctx: ctx,
-		S:   sock,
-		Msg: msg,
-	}
+	handleEmittedEvent(ctx, h, sock, msg)
 }
 
 // Broadcast send a message to all sockets connected to this view.
 func (h *Handler) Broadcast(msg Event) {
 	ctx := context.Background()
 	h.broadcastLimiter.Wait(ctx)
-
-	h.emitter <- HandlerEvent{
-		Ctx: context.Background(),
-		Msg: msg,
-	}
+	handleEmittedEvent(ctx, h, nil, msg)
 }
 
 // HandleEvent handles an event that comes from the client. For example a click
@@ -485,26 +453,26 @@ func (h *Handler) hasSocket(s *Socket) error {
 	return nil
 }
 
-func handleEmmittedEvent(h *Handler, he HandlerEvent) {
+func handleEmittedEvent(ctx context.Context, h *Handler, s *Socket, msg Event) {
 	// If the socket is nil, this is broadcast message.
-	if he.S == nil {
+	if s == nil {
 		sockets := h.sockets()
 		for _, socket := range sockets {
-			_handleEmittedEvent(h, he, socket)
+			_handleEmittedEvent(ctx, h, socket, msg)
 		}
 	} else {
-		if err := h.hasSocket(he.S); err != nil {
+		if err := h.hasSocket(s); err != nil {
 			return
 		}
-		_handleEmittedEvent(h, he, he.S)
+		_handleEmittedEvent(ctx, h, s, msg)
 	}
 }
 
-func _handleEmittedEvent(h *Handler, he HandlerEvent, socket *Socket) {
-	if err := h.handleSelf(he.Ctx, he.Msg.T, socket, he.Msg); err != nil {
+func _handleEmittedEvent(ctx context.Context, h *Handler, s *Socket, msg Event) {
+	if err := h.handleSelf(ctx, msg.T, s, msg); err != nil {
 		log.Println("server event error", err)
 	}
-	if err := socket.render(he.Ctx, h); err != nil {
+	if err := s.render(ctx, h); err != nil {
 		log.Println("socket handleView error", err)
 	}
 }

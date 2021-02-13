@@ -65,14 +65,14 @@ func Example_temperature() {
 	// the socket, increment the temperature, and then return the new state of the
 	// model. Live will now calculate the diff between the last time it rendered and now,
 	// produce a set of diffs and push them to the browser to update.
-	h.HandleEvent("temp-up", func(s *Socket, _ map[string]interface{}) (interface{}, error) {
+	h.HandleEvent("temp-up", func(ctx context.Context, s *Socket, _ map[string]interface{}) (interface{}, error) {
 		model := NewThermoModel(s)
 		model.C += 0.1
 		return model, nil
 	})
 
 	// This handles the `live-click="temp-down"` button.
-	h.HandleEvent("temp-down", func(s *Socket, _ map[string]interface{}) (interface{}, error) {
+	h.HandleEvent("temp-down", func(ctx context.Context, s *Socket, _ map[string]interface{}) (interface{}, error) {
 		model := NewThermoModel(s)
 		model.C -= 0.1
 		return model, nil

@@ -1,13 +1,14 @@
 package live
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 )
 
 // EventHandler a function to handle events, returns the data that should
 // be set to the socket after handling.
-type EventHandler func(*Socket, map[string]interface{}) (interface{}, error)
+type EventHandler func(context.Context, *Socket, map[string]interface{}) (interface{}, error)
 
 const (
 	// EventError indicates an error has occured.

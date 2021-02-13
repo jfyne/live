@@ -26,16 +26,13 @@ type Socket struct {
 
 	data   interface{}
 	dataMu sync.Mutex
-
-	ctx context.Context
 }
 
 // NewSocket creates a new socket.
-func NewSocket(ctx context.Context, s Session) *Socket {
+func NewSocket(s Session) *Socket {
 	return &Socket{
 		Session: s,
 		msgs:    make(chan Event, maxMessageBufferSize),
-		ctx:     ctx,
 	}
 }
 
@@ -78,11 +75,6 @@ func (s *Socket) Redirect(u *url.URL) {
 	s.Send(e)
 }
 
-// Context get the sockets context.
-func (s *Socket) Context() context.Context {
-	return s.ctx
-}
-
 // mount passes this socket to the handlers mount func. This returns data
 // which we then set to the socket to store.
 func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request, connected bool) error {
@@ -98,7 +90,7 @@ func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request, connect
 // which we then set to the socket to store.
 func (s *Socket) params(ctx context.Context, h *Handler, r *http.Request, connected bool) error {
 	for _, ph := range h.paramsHandlers {
-		data, err := ph(s, ParamsFromRequest(r))
+		data, err := ph(ctx, s, ParamsFromRequest(r))
 		if err != nil {
 			return fmt.Errorf("params error: %w", err)
 		}

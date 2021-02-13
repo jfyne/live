@@ -117,6 +117,18 @@ func (c *Component) HandleEvent(event string, handler EventHandler) {
 	})
 }
 
+// HandleParams handles parameter changes. Caution these handlers are not scoped to a specific component.
+func (c *Component) HandleParams(handler EventHandler) {
+	c.Handler.HandleParams(func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+		state, err := handler(p)
+		if err != nil {
+			return s.Assigns(), err
+		}
+		c.State = state
+		return s.Assigns(), nil
+	})
+}
+
 // Event scopes an event string so that it applies to this instance of this component
 // only.
 func (c *Component) Event(event string) string {

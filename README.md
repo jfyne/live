@@ -135,8 +135,32 @@ func Example() {
 
 ## Navigation
 
-Live provides functionality to use the browsers pushState API to update the location search
-path.
+Live provides functionality to use the browsers pushState API to update its query parameters. This can be done from
+both the client side and the server side.
+
+### Client side
+
+The `live-patch` handler should be placed on an `a` tag element as it reads the `href` attribute in order to apply
+the URL patch.
+
+```html
+<a live-patch href="?page=2">Next page</a>
+```
+
+Clicking on this tag will result in the browser URL being updated, and then an event sent to the backend which will
+trigger the handler's `HandleParams` callback. With the query string being available in the params map of the handler.
+
+```go
+h.HandleParams(func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+    ...
+    page := live.ParamInt(p, "page")
+    ...
+})
+```
+
+### Server side
+
+Using the Socket's `PatchURL` func the serverside can make the client update the browsers URL, which will then trigger the `HandleParams` func.
 
 ## Features
 

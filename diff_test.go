@@ -16,33 +16,6 @@ type diffTest struct {
 	patches  []Patch
 }
 
-func TestListReplace(t *testing.T) {
-	runDiffTest(diffTest{
-		root: `
-        <table>
-            <tbody>
-                <tr><td>1</td><td>Thinger 1</td></tr>
-                <tr><td>2</td><td>Thinger 2</td></tr>
-                <tr><td>3</td><td>Thinger 3</td></tr>
-            </tbody>
-        </table>
-        `,
-		proposed: `
-        <table>
-            <tbody>
-                <tr><td colspan="2">No thingers</td></tr>
-            </tbody>
-        </table>
-        `,
-		patches: []Patch{
-			{Path: []int{1, 0, 0, 0, 0}, Action: Replace, HTML: `<td colspan="2">No thingers</td>`},
-			{Path: []int{1, 0, 0, 0, 1}, Action: Replace, HTML: ``},
-			{Path: []int{1, 0, 0, 1}, Action: Replace, HTML: ``},
-			{Path: []int{1, 0, 0, 1}, Action: Replace, HTML: ``},
-		},
-	}, t)
-}
-
 func TestSingleTextChange(t *testing.T) {
 	runDiffTest(diffTest{
 		root:     "<div>Hello</div>",
@@ -392,6 +365,33 @@ func TestIssue6(t *testing.T) {
 	for _, d := range tests {
 		runDiffTest(d, t)
 	}
+}
+
+func TestListReplace(t *testing.T) {
+	runDiffTest(diffTest{
+		root: `
+        <table>
+            <tbody>
+                <tr><td>1</td><td>Thinger 1</td></tr>
+                <tr><td>2</td><td>Thinger 2</td></tr>
+                <tr><td>3</td><td>Thinger 3</td></tr>
+            </tbody>
+        </table>
+        `,
+		proposed: `
+        <table>
+            <tbody>
+                <tr><td colspan="2">No thingers</td></tr>
+            </tbody>
+        </table>
+        `,
+		patches: []Patch{
+			{Path: []int{1, 0, 0, 0, 0}, Action: Replace, HTML: `<td colspan="2">No thingers</td>`},
+			{Path: []int{1, 0, 0, 0, 1}, Action: Replace, HTML: ``},
+			{Path: []int{1, 0, 0, 1}, Action: Replace, HTML: ``},
+			{Path: []int{1, 0, 0, 1}, Action: Replace, HTML: ``},
+		},
+	}, t)
 }
 
 func runDiffTest(tt diffTest, t *testing.T) {

@@ -68,8 +68,8 @@ type Handler struct {
 	// selfHandlers the map of handler event handlers.
 	selfHandlers map[string]EventHandler
 
-	// paramsHandler the handle a change in URL parameters.
-	paramsHandler EventHandler
+	// paramsHandlers a slice of handlers which respond to a change in URL parameters.
+	paramsHandlers []EventHandler
 
 	// All of our current sockets.
 	socketsMu sync.Mutex
@@ -97,7 +97,8 @@ func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) 
 			w.WriteHeader(500)
 			w.Write([]byte(err.Error()))
 		},
-		socketMap: make(map[*Socket]struct{}),
+		socketMap:      make(map[*Socket]struct{}),
+		paramsHandlers: []EventHandler{},
 	}
 
 	for _, conf := range configs {
@@ -177,7 +178,7 @@ func (h *Handler) HandleSelf(t string, handler EventHandler) {
 // HandleParams handles a URL query parameter change. This is useful for handling
 // things like pagincation, or some filtering.
 func (h *Handler) HandleParams(handler EventHandler) {
-	h.paramsHandler = handler
+	h.paramsHandlers = append(h.paramsHandlers, handler)
 }
 
 // serveHTTP serve an http request to the view.
@@ -444,11 +445,13 @@ func (h *Handler) handleParams(sock *Socket, msg Event) error {
 		return fmt.Errorf("received params message and could not extract params: %w", err)
 	}
 
-	data, err := h.paramsHandler(sock, params)
-	if err != nil {
-		return fmt.Errorf("view params handler error: %w", err)
+	for _, ph := range h.paramsHandlers {
+		data, err := ph(sock, params)
+		if err != nil {
+			return fmt.Errorf("view params handler error: %w", err)
+		}
+		sock.Assign(data)
 	}
-	sock.Assign(data)
 
 	return nil
 }

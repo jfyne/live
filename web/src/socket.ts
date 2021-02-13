@@ -1,6 +1,7 @@
 import { EventDispatch, LiveEvent } from "./event";
 import { Patch } from "./patch";
 import { Events } from "./events";
+import { UpdateURLParams } from "./params";
 
 /**
  * Represents the websocket connection to
@@ -57,6 +58,9 @@ export class Socket {
                 case "patch":
                     Patch.handle(e);
                     Events.rewire();
+                    break;
+                case "params":
+                    UpdateURLParams(`${window.location.pathname}?${e.data}`);
                     break;
                 case "ack":
                     this.ack(e);

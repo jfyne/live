@@ -46,13 +46,6 @@ type Handler struct {
 	// is called on initial GET request and later when the websocket connects.
 	// Data to render the view should be fetched here and returned.
 	Mount MountHandler
-	//// Params is called after mount in order to handle any URL parameters
-	//// such as pagination etc. Generally mount should be used to load
-	//// data on the page that doesn't change due to query strings, and params
-	//// should be used to load data that does. Whilst the mount handler only
-	//// gets called once per connection, the params handler will be called
-	//// when the URL query string changes.
-	//Params MountHandler
 	// Render is called to generate the HTML of a Socket. It is defined
 	// by default and will render any template provided.
 	Render RenderHandler
@@ -97,11 +90,6 @@ func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) 
 		Mount: func(ctx context.Context, hd *Handler, r *http.Request, c *Socket, connected bool) (interface{}, error) {
 			return nil, nil
 		},
-		//Params: func(ctx context.Context, hd *Handler, r *http.Request, c *Socket, connected bool) (interface{}, error) {
-		//	// By default we want to just return the data that has already
-		//	// been assigned by the mount function.
-		//	return c.data, nil
-		//},
 		Render: func(ctx context.Context, data interface{}) (io.Reader, error) {
 			return nil, ErrNoRenderer
 		},
@@ -186,7 +174,8 @@ func (h *Handler) HandleSelf(t string, handler EventHandler) {
 	h.selfHandlers[t] = handler
 }
 
-// HandleParams handles a URL parameter change. For example updating some paginations.
+// HandleParams handles a URL query parameter change. This is useful for handling
+// things like pagincation, or some filtering.
 func (h *Handler) HandleParams(handler EventHandler) {
 	h.paramsHandler = handler
 }
@@ -203,16 +192,19 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get socket.
 	sock := NewSocket(r.Context(), session)
 
+	// Run mount, this generates the data for the page we are on.
 	if err := sock.mount(r.Context(), h, r, false); err != nil {
 		h.Error(r.Context(), w, r, err)
 		return
 	}
 
+	// Handle any query parameters that are on the page.
 	if err := sock.params(r.Context(), h, r, false); err != nil {
 		h.Error(r.Context(), w, r, err)
 		return
 	}
 
+	// Render the HTML to display the page.
 	if err := sock.render(r.Context(), h); err != nil {
 		h.Error(r.Context(), w, r, err)
 		return

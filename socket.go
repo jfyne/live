@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 
 	"golang.org/x/net/html"
@@ -61,6 +62,13 @@ func (s *Socket) Send(msg Event) {
 	default:
 		go s.closeSlow()
 	}
+}
+
+// PatchURL sends an event to the client to update the
+// query params in the URL.
+func (s *Socket) PatchURL(values url.Values) {
+	e := Event{T: EventParams, Data: values.Encode()}
+	s.Send(e)
 }
 
 // Context get the sockets context.

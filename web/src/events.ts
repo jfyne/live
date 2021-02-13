@@ -1,5 +1,5 @@
 import { Socket } from "./socket";
-import { GetParams, GetURLParams, Params } from "./params";
+import { UpdateURLParams, GetParams, GetURLParams, Params } from "./params";
 import { EventDispatch, LiveEvent } from "./event";
 
 /**
@@ -318,22 +318,14 @@ class Patch extends LiveHandler {
         super("click", "live-patch");
     }
 
-    protected handler(element: HTMLElement, params: Params): EventListener {
+    protected handler(element: HTMLElement, _: Params): EventListener {
         return (e: Event) => {
             if (e.preventDefault) e.preventDefault();
             const path = element.getAttribute("href");
             if (path === null) {
                 return;
             }
-            window.history.pushState({}, "", path);
-            Socket.sendAndTrack(
-                new LiveEvent(
-                    "params",
-                    { ...params, ...GetURLParams(path) },
-                    LiveEvent.GetID()
-                ),
-                element
-            );
+            UpdateURLParams(path, element);
             return false;
         };
     }

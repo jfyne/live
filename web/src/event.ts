@@ -1,5 +1,4 @@
 import { Socket } from "./socket";
-import { LiveElement } from "./element";
 import { Hook, Hooks } from "./interop";
 
 export const EventMounted = "live:mounted";
@@ -192,7 +191,10 @@ export class EventDispatch {
     }
 
     private static getElementHooks(element: Element): Hook | null {
-        const val = LiveElement.hook(element as HTMLElement);
+        if (element.getAttribute === undefined) {
+            return null;
+        }
+        const val = element.getAttribute("live-hook");
         if (val === null) {
             return val;
         }

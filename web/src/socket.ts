@@ -1,5 +1,5 @@
 import { EventDispatch, LiveEvent } from "./event";
-import { Patch } from "./patch";
+import { HandleDomPatch } from "./patch";
 import { Events } from "./events";
 import { UpdateURLParams } from "./params";
 
@@ -56,7 +56,7 @@ export class Socket {
             const e = LiveEvent.fromMessage(ev.data);
             switch (e.typ) {
                 case "patch":
-                    Patch.handle(e);
+                    HandleDomPatch(e);
                     Events.rewire();
                     break;
                 case "params":

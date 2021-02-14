@@ -1,4 +1,4 @@
-import { Patch } from "./patch";
+import { HandleDomPatch } from "./patch";
 import { LiveEvent } from "./event";
 
 test("simple replace", () => {
@@ -11,7 +11,7 @@ test("simple replace", () => {
         },
     ]);
 
-    Patch.handle(event);
+    HandleDomPatch(event);
     expect(document.body.innerHTML).toEqual("<div>World</div>");
 });
 
@@ -29,7 +29,7 @@ test("double update", () => {
             HTML: "<div>Hello</div>",
         },
     ]);
-    Patch.handle(p);
+    HandleDomPatch(p);
     expect(document.body.innerHTML).toEqual("<div>World</div><div>Hello</div>");
 });
 
@@ -42,7 +42,7 @@ test("nested update", () => {
             HTML: "<div>Error</div>",
         },
     ]);
-    Patch.handle(p);
+    HandleDomPatch(p);
 
     expect(document.body.innerHTML).toEqual(
         '<form id="test"><div>Error</div><input type="text"></form>'
@@ -58,7 +58,7 @@ test("head update", () => {
             HTML: "<title>2</title>",
         },
     ]);
-    Patch.handle(p);
+    HandleDomPatch(p);
 
     expect(document.head.innerHTML).toEqual("<title>2</title>");
 });

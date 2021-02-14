@@ -25,59 +25,120 @@ See the [examples](https://github.com/jfyne/live-examples) for usage.
 
 ### First handler
 
-Live can render any kind of template you want to give it, however we will start
-with an `html/template` example.
+Here is an example demonstrating how we would make a simple thermostat. Live is compatible
+with `net/http`.
 
-```html
-<!doctype html>
-<html>
-    <head>
-        <title>{{ template "title" . }}</title>
-    </head>
-    <body>
-        {{ template "view" . }}
-        <!-- This is embedded in the library and enables live to work -->
-        <script type="text/javascript" src="/live.js"></script>
-    </body>
-</html>
+[embedmd]:# (example_test.go)
+```go
+package live
+
+import (
+	"bytes"
+	"context"
+	"html/template"
+	"io"
+	"log"
+	"net/http"
+)
+
+// Model of our thermostat.
+type ThermoModel struct {
+	C float32
+}
+
+// Helper function to get the model from the socket data.
+func NewThermoModel(s *Socket) *ThermoModel {
+	m, ok := s.Assigns().(*ThermoModel)
+	// If we haven't already initialised set up.
+	if !ok {
+		m = &ThermoModel{
+			C: 19.5,
+		}
+	}
+	return m
+}
+
+// thermoMount initialises the thermostat state. Data returned in the mount function will
+// automatically be assigned to the socket.
+func thermoMount(ctx context.Context, r *http.Request, s *Socket) (interface{}, error) {
+	return NewThermoModel(s), nil
+}
+
+// tempUp on the temp up event, increase the thermostat temperature by .1 C. An EventHandler function
+// is called with the original request context of the socket, the socket itself containing the current
+// state and and params that came from the event. Params contain query string parameters and any
+// `live-value-` bindings.
+func tempUp(ctx context.Context, s *Socket, params map[string]interface{}) (interface{}, error) {
+	model := NewThermoModel(s)
+	model.C += 0.1
+	return model, nil
+}
+
+// tempDown on the temp down event, decrease the thermostat temperature by .1 C.
+func tempDown(ctx context.Context, s *Socket, params map[string]interface{}) (interface{}, error) {
+	model := NewThermoModel(s)
+	model.C -= 0.1
+	return model, nil
+}
+
+// Example shows a simple temperature control using the
+// "live-click" event.
+func Example() {
+
+	// Setup the handler.
+	h, err := NewHandler(NewCookieStore("session-name", []byte("weak-secret")))
+	if err != nil {
+		log.Fatal("could not create handler")
+	}
+
+	// Mount function is called on initial HTTP load and then initial web
+	// socket connection. This should be used to create the initial state,
+	// the socket Connected func will be true if the mount call is on a web
+	// socket connection.
+	h.Mount = thermoMount
+
+	// Provide a render function. Here we are doing it manually, but there is a
+	// provided WithTemplateRenderer which can be used to work with `html/template`
+	h.Render = func(ctx context.Context, data interface{}) (io.Reader, error) {
+		tmpl, err := template.New("thermo").Parse(`
+            <div>{{.C}}</div>
+            <button live-click="temp-up">+</button>
+            <button live-click="temp-down">-</button>
+            <!-- Include to make live work -->
+            <script src="/live.js"></script>
+        `)
+		if err != nil {
+			return nil, err
+		}
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, data); err != nil {
+			return nil, err
+		}
+		return &buf, nil
+	}
+
+	// This handles the `live-click="temp-up"` button. First we load the model from
+	// the socket, increment the temperature, and then return the new state of the
+	// model. Live will now calculate the diff between the last time it rendered and now,
+	// produce a set of diffs and push them to the browser to update.
+	h.HandleEvent("temp-up", tempUp)
+
+	// This handles the `live-click="temp-down"` button.
+	h.HandleEvent("temp-down", tempDown)
+
+	http.Handle("/thermostat", h)
+
+	// This serves the JS needed to make live work.
+	http.Handle("/live.js", Javascript{})
+
+	http.ListenAndServe(":8080", nil)
+}
 ```
 
 Notice the `script` tag. Live's javascript is embedded within the library for ease of use, and
 is required to be included for it to work. You can also use the companion
 [npm package](https://www.npmjs.com/package/@jfyne/live) to add to any existing web app build
 pipeline.
-
-We would then define a view like this (from the clock example):
-
-```html
-{{ define "title" }} {{.FormattedTime}} {{ end }}
-{{ define "view" }}
-<time>{{.FormattedTime}}</time>
-{{ end }}
-```
-
-And in go
-
-```go
-t, _ := template.ParseFiles("examples/root.html", "examples/clock/view.html")
-h, _ := live.NewHandler(sessionStore, live.WithTemplateRenderer(t))
-```
-
-And then just serve like you normallly would
-
-```go
-// Here we are using `http.Handle` but you could use
-// `gorilla/mux` or whatever you want. 
-
-// Serve the handler itself.
-http.Handle("/clock", h)
-
-// This serves the javscript for live to work. This is what
-// we referenced in the `root.html`.
-http.Handle("/live.js", live.Javascript{})
-
-http.ListenAndServe(":8080", nil)
-```
 
 ### Live components
 

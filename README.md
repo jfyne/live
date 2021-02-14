@@ -104,7 +104,7 @@ func NewGreeter(ID string, h *live.Handler, s *live.Socket, name string) (Compon
 		ID,
 		h,
 		s,
-		WithMount(func(ctx context.Context, c *Component, r *http.Request, connected bool) error {
+		WithMount(func(ctx context.Context, c *Component, r *http.Request) error {
 			c.State = name
 			return nil
 		}),

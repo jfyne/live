@@ -55,9 +55,9 @@ func Example_temperature() {
 
 	// Mount function is called on initial HTTP load and then initial web
 	// socket connection. This should be used to create the initial state,
-	// the connected variable will be true if the mount call is on a web
+	// the socket Connectedi func will be true if the mount call is on a web
 	// socket connection.
-	h.Mount = func(ctx context.Context, h *Handler, r *http.Request, s *Socket, connected bool) (interface{}, error) {
+	h.Mount = func(ctx context.Context, r *http.Request, s *Socket) (interface{}, error) {
 		return NewThermoModel(s), nil
 	}
 

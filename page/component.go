@@ -14,7 +14,7 @@ import (
 type RegisterHandler func(c *Component) error
 
 // MountHandler the components mount function called on first GET request and again when the socket connects.
-type MountHandler func(ctx context.Context, c *Component, r *http.Request, connected bool) error
+type MountHandler func(ctx context.Context, c *Component, r *http.Request) error
 
 // RenderHandler ths component.
 type RenderHandler func(w io.Writer, c *Component) error
@@ -80,7 +80,7 @@ func Init(ctx context.Context, construct func() (Component, error)) (Component, 
 	if err := comp.Register(&comp); err != nil {
 		return Component{}, fmt.Errorf("could not install component on register: %w", err)
 	}
-	if err := comp.Mount(ctx, &comp, nil, true); err != nil {
+	if err := comp.Mount(ctx, &comp, nil); err != nil {
 		return Component{}, fmt.Errorf("could not install component on mount: %w", err)
 	}
 	return comp, nil
@@ -90,7 +90,7 @@ func Init(ctx context.Context, construct func() (Component, error)) (Component, 
 // components sharing the same ID.
 func (c *Component) Self(ctx context.Context, s *live.Socket, event live.Event) {
 	event.T = c.Event(event.T)
-	c.Handler.Self(ctx, s, event)
+	s.Self(ctx, event)
 }
 
 // HandleSelf handles scoped incoming events send by a components Self function.
@@ -141,7 +141,7 @@ func defaultRegister(c *Component) error {
 }
 
 // defaultMount is the default mount handler which does nothing.
-func defaultMount(ctx context.Context, c *Component, r *http.Request, connected bool) error {
+func defaultMount(ctx context.Context, c *Component, r *http.Request) error {
 	return nil
 }
 

@@ -21,7 +21,7 @@ import (
 // MountHandler the func that is called by a handler to gather data to
 // be rendered in a template. This is called on first GET and then later when
 // the web socket first connects.
-type MountHandler func(ctx context.Context, h *Handler, r *http.Request, c *Socket, connected bool) (interface{}, error)
+type MountHandler func(ctx context.Context, r *http.Request, c *Socket) (interface{}, error)
 
 // RenderHandler the func that is called to render the current state of the
 // data for the socket.
@@ -77,7 +77,7 @@ func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) 
 		broadcastLimiter: rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
 		eventHandlers:    make(map[string]EventHandler),
 		selfHandlers:     make(map[string]EventHandler),
-		Mount: func(ctx context.Context, hd *Handler, r *http.Request, c *Socket, connected bool) (interface{}, error) {
+		Mount: func(ctx context.Context, r *http.Request, c *Socket) (interface{}, error) {
 			return nil, nil
 		},
 		Render: func(ctx context.Context, data interface{}) (io.Reader, error) {
@@ -122,11 +122,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-// Self sends a message to the socket on this view.
-func (h *Handler) Self(ctx context.Context, sock *Socket, msg Event) {
-	handleEmittedEvent(ctx, h, sock, msg)
-}
-
 // Broadcast send a message to all sockets connected to this view.
 func (h *Handler) Broadcast(msg Event) {
 	ctx := context.Background()
@@ -140,7 +135,7 @@ func (h *Handler) HandleEvent(t string, handler EventHandler) {
 	h.eventHandlers[t] = handler
 }
 
-// HandleSelf handles an event that comes from the view. For example calling
+// HandleSelf handles an event that comes from the server side socket. For example calling
 // h.Self(socket, msg) will be handled here.
 func (h *Handler) HandleSelf(t string, handler EventHandler) {
 	h.selfHandlers[t] = handler
@@ -150,6 +145,11 @@ func (h *Handler) HandleSelf(t string, handler EventHandler) {
 // things like pagincation, or some filtering.
 func (h *Handler) HandleParams(handler EventHandler) {
 	h.paramsHandlers = append(h.paramsHandlers, handler)
+}
+
+// self sends a message to the socket on this view.
+func (h *Handler) self(ctx context.Context, sock *Socket, msg Event) {
+	handleEmittedEvent(ctx, h, sock, msg)
 }
 
 // serveHTTP serve an http request to the view.
@@ -162,16 +162,16 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get socket.
-	sock := NewSocket(session)
+	sock := NewSocket(session, h, false)
 
 	// Run mount, this generates the data for the page we are on.
-	if err := sock.mount(r.Context(), h, r, false); err != nil {
+	if err := sock.mount(r.Context(), h, r); err != nil {
 		h.Error(r.Context(), w, r, err)
 		return
 	}
 
 	// Handle any query parameters that are on the page.
-	if err := sock.params(r.Context(), h, r, false); err != nil {
+	if err := sock.params(r.Context(), h, r); err != nil {
 		h.Error(r.Context(), w, r, err)
 		return
 	}
@@ -236,7 +236,7 @@ type eventError struct {
 func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) error {
 	ctx := r.Context()
 	// Get the sessions socket and register it with the server.
-	sock := NewSocket(session)
+	sock := NewSocket(session, h, true)
 	sock.assignWS(c)
 	h.addSocket(sock)
 	defer h.deleteSocket(sock)
@@ -296,12 +296,12 @@ func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) 
 
 	// Run mount again now that eh socket is connected, passing true indicating
 	// a connection has been made.
-	if err := sock.mount(ctx, h, r, true); err != nil {
+	if err := sock.mount(ctx, h, r); err != nil {
 		return fmt.Errorf("socket mount error: %w", err)
 	}
 
 	// Run params again now that the socket is connected.
-	if err := sock.params(r.Context(), h, r, true); err != nil {
+	if err := sock.params(r.Context(), h, r); err != nil {
 		return fmt.Errorf("socket params error: %w", err)
 	}
 

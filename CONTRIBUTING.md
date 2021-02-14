@@ -13,7 +13,7 @@ I am very open to discussing the design of the API and what can be made better. 
 
 ## TODO List
 
-- Change the handlers to have proper context from the request.
+- Make the javascript interop better than the Phoenix design.
 - Missing events, throttle, debounce etc.
 - File uploads
 - Tests... Lots of tests

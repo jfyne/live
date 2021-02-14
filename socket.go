@@ -18,24 +18,26 @@ const (
 
 // Socket describes a socket from the outside.
 type Socket struct {
+	// The session for this socket.
 	Session Session
 
+	handler       *Handler
+	connected     bool
 	currentRender *html.Node
 	msgs          chan Event
 	closeSlow     func()
 
 	data   interface{}
 	dataMu sync.Mutex
-
-	ctx context.Context
 }
 
 // NewSocket creates a new socket.
-func NewSocket(ctx context.Context, s Session) *Socket {
+func NewSocket(s Session, h *Handler, connected bool) *Socket {
 	return &Socket{
-		Session: s,
-		msgs:    make(chan Event, maxMessageBufferSize),
-		ctx:     ctx,
+		Session:   s,
+		handler:   h,
+		connected: connected,
+		msgs:      make(chan Event, maxMessageBufferSize),
 	}
 }
 
@@ -55,7 +57,23 @@ func (s *Socket) Assign(data interface{}) {
 	s.data = data
 }
 
-// Send an event to this socket.
+// Connected returns if this socket is connected via the websocket.
+func (s *Socket) Connected() bool {
+	return s.connected
+}
+
+// Self send an event to this socket itself. Will be handled in the
+// handlers HandleSelf function.
+func (s *Socket) Self(ctx context.Context, msg Event) {
+	s.handler.self(ctx, s, msg)
+}
+
+// Broadcast send an event to all sockets on this same handler.
+func (s *Socket) Broadcast(msg Event) {
+	s.handler.Broadcast(msg)
+}
+
+// Send an event to this socket's client, to be handled there.
 func (s *Socket) Send(msg Event) {
 	select {
 	case s.msgs <- msg:
@@ -78,15 +96,10 @@ func (s *Socket) Redirect(u *url.URL) {
 	s.Send(e)
 }
 
-// Context get the sockets context.
-func (s *Socket) Context() context.Context {
-	return s.ctx
-}
-
 // mount passes this socket to the handlers mount func. This returns data
 // which we then set to the socket to store.
-func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request, connected bool) error {
-	data, err := h.Mount(ctx, h, r, s, connected)
+func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request) error {
+	data, err := h.Mount(ctx, r, s)
 	if err != nil {
 		return fmt.Errorf("mount error: %w", err)
 	}
@@ -96,9 +109,9 @@ func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request, connect
 
 // params passes this socket to the handlers params func. This returns data
 // which we then set to the socket to store.
-func (s *Socket) params(ctx context.Context, h *Handler, r *http.Request, connected bool) error {
+func (s *Socket) params(ctx context.Context, h *Handler, r *http.Request) error {
 	for _, ph := range h.paramsHandlers {
-		data, err := ph(s, ParamsFromRequest(r))
+		data, err := ph(ctx, s, ParamsFromRequest(r))
 		if err != nil {
 			return fmt.Errorf("params error: %w", err)
 		}

@@ -21,7 +21,7 @@ import (
 // MountHandler the func that is called by a handler to gather data to
 // be rendered in a template. This is called on first GET and then later when
 // the web socket first connects.
-type MountHandler func(ctx context.Context, h *Handler, r *http.Request, c *Socket, connected bool) (interface{}, error)
+type MountHandler func(ctx context.Context, r *http.Request, c *Socket) (interface{}, error)
 
 // RenderHandler the func that is called to render the current state of the
 // data for the socket.
@@ -33,12 +33,6 @@ type ErrorHandler func(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 // HandlerConfig applies config to a handler.
 type HandlerConfig func(h *Handler) error
-
-// HandlerEvent an event sent by the handler.
-type HandlerEvent struct {
-	S   *Socket
-	Msg Event
-}
 
 // Handler to be served by an HTTP server.
 type Handler struct {
@@ -55,9 +49,6 @@ type Handler struct {
 
 	// session store
 	sessionStore SessionStore
-
-	// emitter is a channel to send messages back to the socket.
-	emitter chan HandlerEvent
 
 	// broadcastLimiter limit broadcast rate.
 	broadcastLimiter *rate.Limiter
@@ -83,11 +74,10 @@ type Handler struct {
 func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) {
 	h := &Handler{
 		sessionStore:     store,
-		emitter:          make(chan HandlerEvent),
 		broadcastLimiter: rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
 		eventHandlers:    make(map[string]EventHandler),
 		selfHandlers:     make(map[string]EventHandler),
-		Mount: func(ctx context.Context, hd *Handler, r *http.Request, c *Socket, connected bool) (interface{}, error) {
+		Mount: func(ctx context.Context, r *http.Request, c *Socket) (interface{}, error) {
 			return nil, nil
 		},
 		Render: func(ctx context.Context, data interface{}) (io.Reader, error) {
@@ -107,20 +97,7 @@ func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) 
 		}
 	}
 
-	go StartHandler(h)
 	return h, nil
-}
-
-// StartHandler run a handler so that it's events can be dealt with.
-// This is called by `NewHandler` so is only required if you are manually
-// creating a handler.
-func StartHandler(h *Handler) {
-	for {
-		select {
-		case m := <-h.emitter:
-			go handleEmmittedEvent(h, m)
-		}
-	}
 }
 
 // ServeHTTP serves this handler.
@@ -145,22 +122,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-// Self sends a message to the socket on this view.
-func (h *Handler) Self(sock *Socket, msg Event) {
-	h.emitter <- HandlerEvent{
-		S:   sock,
-		Msg: msg,
-	}
-}
-
 // Broadcast send a message to all sockets connected to this view.
 func (h *Handler) Broadcast(msg Event) {
 	ctx := context.Background()
 	h.broadcastLimiter.Wait(ctx)
-
-	h.emitter <- HandlerEvent{
-		Msg: msg,
-	}
+	handleEmittedEvent(ctx, h, nil, msg)
 }
 
 // HandleEvent handles an event that comes from the client. For example a click
@@ -169,7 +135,7 @@ func (h *Handler) HandleEvent(t string, handler EventHandler) {
 	h.eventHandlers[t] = handler
 }
 
-// HandleSelf handles an event that comes from the view. For example calling
+// HandleSelf handles an event that comes from the server side socket. For example calling
 // h.Self(socket, msg) will be handled here.
 func (h *Handler) HandleSelf(t string, handler EventHandler) {
 	h.selfHandlers[t] = handler
@@ -179,6 +145,11 @@ func (h *Handler) HandleSelf(t string, handler EventHandler) {
 // things like pagincation, or some filtering.
 func (h *Handler) HandleParams(handler EventHandler) {
 	h.paramsHandlers = append(h.paramsHandlers, handler)
+}
+
+// self sends a message to the socket on this view.
+func (h *Handler) self(ctx context.Context, sock *Socket, msg Event) {
+	handleEmittedEvent(ctx, h, sock, msg)
 }
 
 // serveHTTP serve an http request to the view.
@@ -191,16 +162,16 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get socket.
-	sock := NewSocket(r.Context(), session)
+	sock := NewSocket(session, h, false)
 
 	// Run mount, this generates the data for the page we are on.
-	if err := sock.mount(r.Context(), h, r, false); err != nil {
+	if err := sock.mount(r.Context(), h, r); err != nil {
 		h.Error(r.Context(), w, r, err)
 		return
 	}
 
 	// Handle any query parameters that are on the page.
-	if err := sock.params(r.Context(), h, r, false); err != nil {
+	if err := sock.params(r.Context(), h, r); err != nil {
 		h.Error(r.Context(), w, r, err)
 		return
 	}
@@ -265,7 +236,7 @@ type eventError struct {
 func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) error {
 	ctx := r.Context()
 	// Get the sessions socket and register it with the server.
-	sock := NewSocket(ctx, session)
+	sock := NewSocket(session, h, true)
 	sock.assignWS(c)
 	h.addSocket(sock)
 	defer h.deleteSocket(sock)
@@ -293,7 +264,7 @@ func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) 
 				}
 				switch m.T {
 				case EventParams:
-					if err := h.handleParams(sock, m); err != nil {
+					if err := h.handleParams(ctx, sock, m); err != nil {
 						switch {
 						case errors.Is(err, ErrNoEventHandler):
 							log.Println("event error", m, err)
@@ -302,7 +273,7 @@ func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) 
 						}
 					}
 				default:
-					if err := h.handleEvent(m.T, sock, m); err != nil {
+					if err := h.handleEvent(ctx, m.T, sock, m); err != nil {
 						switch {
 						case errors.Is(err, ErrNoEventHandler):
 							log.Println("event error", m, err)
@@ -325,12 +296,12 @@ func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) 
 
 	// Run mount again now that eh socket is connected, passing true indicating
 	// a connection has been made.
-	if err := sock.mount(ctx, h, r, true); err != nil {
+	if err := sock.mount(ctx, h, r); err != nil {
 		return fmt.Errorf("socket mount error: %w", err)
 	}
 
 	// Run params again now that the socket is connected.
-	if err := sock.params(r.Context(), h, r, true); err != nil {
+	if err := sock.params(r.Context(), h, r); err != nil {
 		return fmt.Errorf("socket params error: %w", err)
 	}
 
@@ -394,7 +365,7 @@ func (h *Handler) deleteSocket(sock *Socket) {
 }
 
 // handleEvent route an event to the correct handler.
-func (h *Handler) handleEvent(t string, sock *Socket, msg Event) error {
+func (h *Handler) handleEvent(ctx context.Context, t string, sock *Socket, msg Event) error {
 	handler, ok := h.eventHandlers[t]
 	if !ok {
 		return fmt.Errorf("no event handler for %s: %w", t, ErrNoEventHandler)
@@ -405,7 +376,7 @@ func (h *Handler) handleEvent(t string, sock *Socket, msg Event) error {
 		return fmt.Errorf("received message and could not extract params: %w", err)
 	}
 
-	data, err := handler(sock, params)
+	data, err := handler(ctx, sock, params)
 	if err != nil {
 		return err
 	}
@@ -415,7 +386,7 @@ func (h *Handler) handleEvent(t string, sock *Socket, msg Event) error {
 }
 
 // handleSelf route an event to the correct handler.
-func (h *Handler) handleSelf(t string, sock *Socket, msg Event) error {
+func (h *Handler) handleSelf(ctx context.Context, t string, sock *Socket, msg Event) error {
 	h.eventMu.Lock()
 	defer h.eventMu.Unlock()
 
@@ -429,7 +400,7 @@ func (h *Handler) handleSelf(t string, sock *Socket, msg Event) error {
 		return fmt.Errorf("received self message and could not extract params: %w", err)
 	}
 
-	data, err := handler(sock, params)
+	data, err := handler(ctx, sock, params)
 	if err != nil {
 		return fmt.Errorf("view self event handler error [%s]: %w", t, err)
 	}
@@ -439,14 +410,14 @@ func (h *Handler) handleSelf(t string, sock *Socket, msg Event) error {
 }
 
 // handleParams on params change run the handler.
-func (h *Handler) handleParams(sock *Socket, msg Event) error {
+func (h *Handler) handleParams(ctx context.Context, sock *Socket, msg Event) error {
 	params, err := msg.Params()
 	if err != nil {
 		return fmt.Errorf("received params message and could not extract params: %w", err)
 	}
 
 	for _, ph := range h.paramsHandlers {
-		data, err := ph(sock, params)
+		data, err := ph(ctx, sock, params)
 		if err != nil {
 			return fmt.Errorf("view params handler error: %w", err)
 		}
@@ -482,26 +453,26 @@ func (h *Handler) hasSocket(s *Socket) error {
 	return nil
 }
 
-func handleEmmittedEvent(h *Handler, he HandlerEvent) {
+func handleEmittedEvent(ctx context.Context, h *Handler, s *Socket, msg Event) {
 	// If the socket is nil, this is broadcast message.
-	if he.S == nil {
+	if s == nil {
 		sockets := h.sockets()
 		for _, socket := range sockets {
-			_handleEmittedEvent(h, he, socket)
+			_handleEmittedEvent(ctx, h, socket, msg)
 		}
 	} else {
-		if err := h.hasSocket(he.S); err != nil {
+		if err := h.hasSocket(s); err != nil {
 			return
 		}
-		_handleEmittedEvent(h, he, he.S)
+		_handleEmittedEvent(ctx, h, s, msg)
 	}
 }
 
-func _handleEmittedEvent(h *Handler, he HandlerEvent, socket *Socket) {
-	if err := h.handleSelf(he.Msg.T, socket, he.Msg); err != nil {
+func _handleEmittedEvent(ctx context.Context, h *Handler, s *Socket, msg Event) {
+	if err := h.handleSelf(ctx, msg.T, s, msg); err != nil {
 		log.Println("server event error", err)
 	}
-	if err := socket.render(context.Background(), h); err != nil {
+	if err := s.render(ctx, h); err != nil {
 		log.Println("socket handleView error", err)
 	}
 }

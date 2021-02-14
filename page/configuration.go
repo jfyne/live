@@ -40,17 +40,17 @@ func WithRender(fn RenderHandler) ComponentConfig {
 // WithComponentMount set the live.Handler to mount the root component.
 func WithComponentMount(construct ComponentConstructor) live.HandlerConfig {
 	return func(h *live.Handler) error {
-		h.Mount = func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket, connected bool) (interface{}, error) {
+		h.Mount = func(ctx context.Context, r *http.Request, s *live.Socket) (interface{}, error) {
 			root, err := construct(ctx, h, r, s)
 			if err != nil {
 				return nil, fmt.Errorf("failed to construct root component: %w", err)
 			}
-			if connected {
+			if s.Connected() {
 				if err := root.Register(&root); err != nil {
 					return nil, err
 				}
 			}
-			if err := root.Mount(ctx, &root, r, connected); err != nil {
+			if err := root.Mount(ctx, &root, r); err != nil {
 				return nil, err
 			}
 			return root, nil

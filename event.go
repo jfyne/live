@@ -106,6 +106,8 @@ func ParamFloat32(params map[string]interface{}, key string) float32 {
 	switch out := v.(type) {
 	case float32:
 		return out
+	case float64:
+		return float32(out)
 	case string:
 		f, err := strconv.ParseFloat(out, 32)
 		if err != nil {

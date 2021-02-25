@@ -10,7 +10,7 @@ import (
 	"github.com/jfyne/live"
 )
 
-// CompoentConfig configure a component.
+// ComponentConfig configures a component.
 type ComponentConfig func(c *Component) error
 
 // WithRegister set a register handler on the component.

@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -349,19 +348,6 @@ func (h *Handler) deleteSocket(sock *Socket) {
 	h.socketsMu.Lock()
 	defer h.socketsMu.Unlock()
 	delete(h.socketMap, sock)
-
-	// Clear scoped event handlers.
-	for id := range h.eventHandlers {
-		if strings.HasPrefix(id, sock.Session.ID) {
-			delete(h.eventHandlers, id)
-		}
-	}
-	// Clear scoped self handlers
-	for id := range h.selfHandlers {
-		if strings.HasPrefix(id, sock.Session.ID) {
-			delete(h.selfHandlers, id)
-		}
-	}
 }
 
 // handleEvent route an event to the correct handler.

@@ -46,11 +46,11 @@ func WithComponentMount(construct ComponentConstructor) live.HandlerConfig {
 				return nil, fmt.Errorf("failed to construct root component: %w", err)
 			}
 			if s.Connected() {
-				if err := root.Register(&root); err != nil {
+				if err := root.Register(root); err != nil {
 					return nil, err
 				}
 			}
-			if err := root.Mount(ctx, &root, r); err != nil {
+			if err := root.Mount(ctx, root, r); err != nil {
 				return nil, err
 			}
 			return root, nil
@@ -63,12 +63,12 @@ func WithComponentMount(construct ComponentConstructor) live.HandlerConfig {
 func WithComponentRenderer() live.HandlerConfig {
 	return func(h *live.Handler) error {
 		h.Render = func(ctx context.Context, data interface{}) (io.Reader, error) {
-			c, ok := data.(Component)
+			c, ok := data.(*Component)
 			if !ok {
 				return nil, fmt.Errorf("root render data is not a component")
 			}
 			var buf bytes.Buffer
-			if err := c.Render(&buf, &c); err != nil {
+			if err := c.Render(&buf, c); err != nil {
 				return nil, err
 			}
 			return &buf, nil

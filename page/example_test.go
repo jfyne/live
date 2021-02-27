@@ -10,7 +10,7 @@ import (
 )
 
 // NewGreeter creates a new greeter component.
-func NewGreeter(ID string, h *live.Handler, s *live.Socket, name string) (Component, error) {
+func NewGreeter(ID string, h *live.Handler, s *live.Socket, name string) (*Component, error) {
 	return NewComponent(
 		ID,
 		h,
@@ -32,7 +32,7 @@ func NewGreeter(ID string, h *live.Handler, s *live.Socket, name string) (Compon
 func Example() {
 	h, err := live.NewHandler(
 		live.NewCookieStore("session-name", []byte("weak-secret")),
-		WithComponentMount(func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket) (Component, error) {
+		WithComponentMount(func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket) (*Component, error) {
 			return NewGreeter("hello-id", h, s, "World!")
 		}),
 		WithComponentRenderer(),

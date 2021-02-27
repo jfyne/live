@@ -34,9 +34,9 @@ func (r RenderFunc) Render(w io.Writer) error {
 	return r(w)
 }
 
-// RenderComponent wrap a component and provide a RenderFunc.
-func RenderComponent(c Component) RenderFunc {
+// Render wrap a component and provide a RenderFunc.
+func Render(c *Component) RenderFunc {
 	return RenderFunc(func(w io.Writer) error {
-		return c.Render(w, &c)
+		return c.Render(w, c)
 	})
 }

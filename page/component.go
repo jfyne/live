@@ -1,6 +1,7 @@
 package page
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -24,7 +25,7 @@ type RenderHandler func(w io.Writer, c *Component) error
 type EventHandler func(ctx context.Context, params map[string]interface{}) (interface{}, error)
 
 // ComponentConstructor a func for creating a new component.
-type ComponentConstructor func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket) (Component, error)
+type ComponentConstructor func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket) (*Component, error)
 
 // Component a self contained component on the page.
 type Component struct {
@@ -53,8 +54,8 @@ type Component struct {
 }
 
 // NewComponent creates a new component and returns it. It does not register it or mount it.
-func NewComponent(ID string, h *live.Handler, s *live.Socket, configurations ...ComponentConfig) (Component, error) {
-	c := Component{
+func NewComponent(ID string, h *live.Handler, s *live.Socket, configurations ...ComponentConfig) (*Component, error) {
+	c := &Component{
 		ID:       ID,
 		Handler:  h,
 		Socket:   s,
@@ -63,8 +64,8 @@ func NewComponent(ID string, h *live.Handler, s *live.Socket, configurations ...
 		Render:   defaultRender,
 	}
 	for _, conf := range configurations {
-		if err := conf(&c); err != nil {
-			return Component{}, err
+		if err := conf(c); err != nil {
+			return &Component{}, err
 		}
 	}
 
@@ -72,16 +73,16 @@ func NewComponent(ID string, h *live.Handler, s *live.Socket, configurations ...
 }
 
 // Init takes a constructor and then registers and mounts the component.
-func Init(ctx context.Context, construct func() (Component, error)) (Component, error) {
+func Init(ctx context.Context, construct func() (*Component, error)) (*Component, error) {
 	comp, err := construct()
 	if err != nil {
-		return Component{}, fmt.Errorf("could not install component on construct: %w", err)
+		return nil, fmt.Errorf("could not install component on construct: %w", err)
 	}
-	if err := comp.Register(&comp); err != nil {
-		return Component{}, fmt.Errorf("could not install component on register: %w", err)
+	if err := comp.Register(comp); err != nil {
+		return nil, fmt.Errorf("could not install component on register: %w", err)
 	}
-	if err := comp.Mount(ctx, &comp, nil); err != nil {
-		return Component{}, fmt.Errorf("could not install component on mount: %w", err)
+	if err := comp.Mount(ctx, comp, nil); err != nil {
+		return nil, fmt.Errorf("could not install component on mount: %w", err)
 	}
 	return comp, nil
 }
@@ -132,7 +133,16 @@ func (c *Component) HandleParams(handler EventHandler) {
 // Event scopes an event string so that it applies to this instance of this component
 // only.
 func (c *Component) Event(event string) string {
-	return c.Socket.Session.ID + "--" + c.ID + "--" + event
+	return c.ID + "--" + event
+}
+
+// String renders the component to a string.
+func (c *Component) String() string {
+	var buf bytes.Buffer
+	if err := c.Render(&buf, c); err != nil {
+		return fmt.Sprintf("template rendering failed: %s", err)
+	}
+	return buf.String()
 }
 
 // defaultRegister is the default register handler which does nothing.

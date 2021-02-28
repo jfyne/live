@@ -67,6 +67,9 @@ type Handler struct {
 
 	// event lock.
 	eventMu sync.Mutex
+
+	// ignoreFaviconRequest setting to ignore requests for /favicon.ico.
+	ignoreFaviconRequest bool
 }
 
 // NewHandler creates a new live handler.
@@ -86,8 +89,9 @@ func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) 
 			w.WriteHeader(500)
 			w.Write([]byte(err.Error()))
 		},
-		socketMap:      make(map[*Socket]struct{}),
-		paramsHandlers: []EventHandler{},
+		socketMap:            make(map[*Socket]struct{}),
+		paramsHandlers:       []EventHandler{},
+		ignoreFaviconRequest: true,
 	}
 
 	for _, conf := range configs {
@@ -101,6 +105,13 @@ func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) 
 
 // ServeHTTP serves this handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/favicon.ico" {
+		if h.ignoreFaviconRequest == true {
+			w.WriteHeader(404)
+			return
+		}
+	}
+
 	// Check if we are going to upgrade to a webscoket.
 	upgrade := false
 	for _, header := range r.Header["Upgrade"] {

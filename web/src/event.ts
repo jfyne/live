@@ -1,6 +1,6 @@
 import { Socket } from "./socket";
 import { LiveElement } from "./element";
-import { Hook, Hooks } from "./interop";
+import { Hook, Hooks, DOM } from "./interop";
 
 export const EventMounted = "live:mounted";
 export const EventBeforeUpdate = "live:beforeupdate";
@@ -68,6 +68,7 @@ export class LiveEvent {
  */
 export class EventDispatch {
     private static hooks: Hooks;
+    private static dom?: DOM;
     private static eventHandlers: { [e: string]: ((d: any) => void)[] };
 
     constructor() {}
@@ -75,8 +76,9 @@ export class EventDispatch {
     /**
      * Must be called before usage.
      */
-    static init(hooks: Hooks) {
+    static init(hooks: Hooks, dom?: DOM) {
         this.hooks = hooks;
+        this.dom = dom;
         this.eventHandlers = {};
     }
 
@@ -107,13 +109,20 @@ export class EventDispatch {
     /**
      * Before an element is updated.
      */
-    static beforeUpdate(element: Element) {
+    static beforeUpdate(fromEl: Element, toEl: Element) {
         const event = new CustomEvent(EventBeforeUpdate, {});
-        const h = this.getElementHooks(element);
-        if (h === null) {
-            return;
+
+        const h = this.getElementHooks(fromEl);
+        if (h !== null) {
+            this.callHook(event, fromEl, h.beforeUpdate);
         }
-        this.callHook(event, element, h.beforeUpdate);
+
+        if (
+            this.dom !== undefined &&
+            this.dom.onBeforeElUpdated !== undefined
+        ) {
+            this.dom.onBeforeElUpdated(fromEl, toEl);
+        }
     }
 
     /**

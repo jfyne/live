@@ -1,10 +1,10 @@
 import { Socket } from "./socket";
 import { Events } from "./events";
 import { EventDispatch } from "./event";
-import { Hooks } from "./interop";
+import { Hooks, DOM } from "./interop";
 
 export class Live {
-    constructor(private hooks: Hooks) {}
+    constructor(private hooks: Hooks, private dom?: DOM) {}
 
     public init() {
         // Check that this document has been rendered by live.
@@ -12,7 +12,7 @@ export class Live {
             return;
         }
         // Initialise the event dispatch.
-        EventDispatch.init(this.hooks);
+        EventDispatch.init(this.hooks, this.dom);
 
         // Dial the server.
         Socket.dial();

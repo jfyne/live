@@ -43,6 +43,7 @@ export class Patch {
         if (target === undefined) {
             return;
         }
+        const newElement = Patch.html2Node(e.HTML);
 
         switch (e.Action) {
             case 0: // NOOP
@@ -51,23 +52,31 @@ export class Patch {
                 if (target.parentNode === null) {
                     return;
                 }
-                EventDispatch.beforeUpdate(target);
-                target.parentNode.insertBefore(Patch.html2Node(e.HTML), target);
+                EventDispatch.beforeUpdate(target, newElement as Element);
+                target.parentNode.insertBefore(newElement, target);
                 EventDispatch.updated(target);
                 break;
             case 2: // REPLACE
-                EventDispatch.beforeDestroy(target);
+                if (e.HTML === "") {
+                    EventDispatch.beforeDestroy(target);
+                } else {
+                    EventDispatch.beforeUpdate(target, newElement as Element);
+                }
                 target.outerHTML = e.HTML;
-                EventDispatch.destroyed(target);
+                if (e.HTML === "") {
+                    EventDispatch.destroyed(target);
+                } else {
+                    EventDispatch.updated(target);
+                }
                 break;
             case 3: // APPEND
-                EventDispatch.beforeUpdate(target);
-                target.append(Patch.html2Node(e.HTML));
+                EventDispatch.beforeUpdate(target, newElement as Element);
+                target.append(newElement);
                 EventDispatch.updated(target);
                 break;
             case 4: // PREPEND
-                EventDispatch.beforeUpdate(target);
-                target.prepend(Patch.html2Node(e.HTML));
+                EventDispatch.beforeUpdate(target, newElement as Element);
+                target.prepend(newElement);
                 EventDispatch.updated(target);
                 break;
         }

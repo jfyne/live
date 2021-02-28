@@ -382,6 +382,22 @@ export interface Hook {
      */
     reconnected?: () => void;
 }
+
+/**
+ * The DOM management interace. This allows external JS libraries to
+ * interop with Live.
+ */
+export interface DOM {
+    /**
+     * The fromEl and toEl DOM nodes are passed to the function
+     * just before the DOM patch operations occurs in Live. This
+     * allows external libraries to (re)initialize DOM elements
+     * or copy attributes as necessary as Live performs its own
+     * patch operations. The update operation cannot be cancelled
+     * or deferred, and the return value is ignored.
+     */
+    onBeforeElUpdated?: (fromEl: Element, toEl: Element) => void;
+}
 ```
 
 In scope when these functions are called:
@@ -420,7 +436,7 @@ live.init();
 
 This allows more control over how hooks are passed to live, and when it should be initialised. It is expected
 that you would then build your compiled javsacript and serve it. See the
-[npm example](https://github.com/jfyne/live-examples/tree/main/npm).
+[alpine example](https://github.com/jfyne/live-examples/tree/main/alpine).
 
 ## Errors and exceptions
 

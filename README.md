@@ -487,3 +487,9 @@ The following events receive css loading classes:
 - `live-blur` - `live-blur-loading`
 - `live-window-keydown` - `live-keydown-loading`
 - `live-window-keyup` - `live-keyup-loading`
+
+## Broadcasting to different nodes
+
+In production it is often required to have multiple instances of the same application running, in order to handle this
+live has a PubSub element. This allows nodes to publish onto topics and receive those messages as if they were all
+running as the same instance.

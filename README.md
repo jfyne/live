@@ -492,4 +492,5 @@ The following events receive css loading classes:
 
 In production it is often required to have multiple instances of the same application running, in order to handle this
 live has a PubSub element. This allows nodes to publish onto topics and receive those messages as if they were all
-running as the same instance.
+running as the same instance. See the [cluster example](https://github.com/jfyne/live-examples/tree/main/cluster) for
+usage.

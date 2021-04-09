@@ -68,14 +68,14 @@ func thermoMount(ctx context.Context, r *http.Request, s *Socket) (interface{}, 
 // is called with the original request context of the socket, the socket itself containing the current
 // state and and params that came from the event. Params contain query string parameters and any
 // `live-value-` bindings.
-func tempUp(ctx context.Context, s *Socket, params map[string]interface{}) (interface{}, error) {
+func tempUp(ctx context.Context, s *Socket, p Params) (interface{}, error) {
 	model := NewThermoModel(s)
 	model.C += 0.1
 	return model, nil
 }
 
 // tempDown on the temp down event, decrease the thermostat temperature by .1 C.
-func tempDown(ctx context.Context, s *Socket, params map[string]interface{}) (interface{}, error) {
+func tempDown(ctx context.Context, s *Socket, p Params) (interface{}, error) {
 	model := NewThermoModel(s)
 	model.C -= 0.1
 	return model, nil
@@ -215,9 +215,9 @@ Clicking on this tag will result in the browser URL being updated, and then an e
 trigger the handler's `HandleParams` callback. With the query string being available in the params map of the handler.
 
 ```go
-h.HandleParams(func(s *live.Socket, p map[string]interface{}) (interface{}, error) {
+h.HandleParams(func(s *live.Socket, p live.Params) (interface{}, error) {
     ...
-    page := live.ParamInt(p, "page")
+    page := p.Int("page")
     ...
 })
 ```

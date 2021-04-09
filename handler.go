@@ -142,10 +142,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Broadcast send a message to all sockets connected to this handler.
-func (h *Handler) Broadcast(msg Event) {
+func (h *Handler) Broadcast(event string, data interface{}) error {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("could not encode data for broadcast: %w", err)
+	}
+	e := Event{T: event, Data: payload}
 	ctx := context.Background()
 	h.broadcastLimiter.Wait(ctx)
-	h.broadcast(ctx, h, msg)
+	h.broadcast(ctx, h, e)
+	return nil
 }
 
 // HandleEvent handles an event that comes from the client. For example a click
@@ -304,7 +310,9 @@ func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) 
 				if err := sock.render(ctx, h); err != nil {
 					internalErrors <- fmt.Errorf("socket handle error: %w", err)
 				}
-				sock.Send(Event{T: EventAck, ID: m.ID})
+				if err := sock.Send(EventAck, nil, WithID(m.ID)); err != nil {
+					internalErrors <- fmt.Errorf("socket send error: %w", err)
+				}
 			case websocket.MessageBinary:
 				log.Println("binary messages unhandled")
 			}
@@ -339,12 +347,16 @@ func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) 
 				return fmt.Errorf("writing to socket error: %w", err)
 			}
 		case ee := <-eventErrors:
-			if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: ee}); err != nil {
+			d, err := json.Marshal(ee)
+			if err != nil {
+				return fmt.Errorf("writing to socket error: %w", err)
+			}
+			if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: d}); err != nil {
 				return fmt.Errorf("writing to socket error: %w", err)
 			}
 		case err := <-internalErrors:
 			if err != nil {
-				if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: err.Error()}); err != nil {
+				if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: []byte(err.Error())}); err != nil {
 					return fmt.Errorf("writing to socket error: %w", err)
 				}
 			}

@@ -2,6 +2,7 @@ package live
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -64,36 +65,51 @@ func (s *Socket) Connected() bool {
 
 // Self send an event to this socket itself. Will be handled in the
 // handlers HandleSelf function.
-func (s *Socket) Self(ctx context.Context, msg Event) {
+func (s *Socket) Self(ctx context.Context, event string, data interface{}) error {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("could not encode data for self: %w", err)
+	}
+	msg := Event{T: event, Data: payload}
 	s.handler.self(ctx, s, msg)
+	return nil
 }
 
 // Broadcast send an event to all sockets on this same handler.
-func (s *Socket) Broadcast(msg Event) {
-	s.handler.Broadcast(msg)
+func (s *Socket) Broadcast(event string, data interface{}) error {
+	return s.handler.Broadcast(event, data)
 }
 
 // Send an event to this socket's client, to be handled there.
-func (s *Socket) Send(msg Event) {
+func (s *Socket) Send(event string, data interface{}, options ...EventConfig) error {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("could not encode data for send: %w", err)
+	}
+	msg := Event{T: event, Data: payload}
+	for _, o := range options {
+		if err := o(&msg); err != nil {
+			return fmt.Errorf("could not configure event: %w", err)
+		}
+	}
 	select {
 	case s.msgs <- msg:
 	default:
 		go s.closeSlow()
 	}
+	return nil
 }
 
 // PatchURL sends an event to the client to update the
 // query params in the URL.
 func (s *Socket) PatchURL(values url.Values) {
-	e := Event{T: EventParams, Data: values.Encode()}
-	s.Send(e)
+	s.Send(EventParams, values.Encode())
 }
 
 // Redirect sends a redirect event to the client. This will trigger the browser to
 // redirect to a URL.
 func (s *Socket) Redirect(u *url.URL) {
-	e := Event{T: EventRedirect, Data: u.String()}
-	s.Send(e)
+	s.Send(EventRedirect, u.String())
 }
 
 // mount passes this socket to the handlers mount func. This returns data
@@ -111,7 +127,7 @@ func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request) error {
 // which we then set to the socket to store.
 func (s *Socket) params(ctx context.Context, h *Handler, r *http.Request) error {
 	for _, ph := range h.paramsHandlers {
-		data, err := ph(ctx, s, ParamsFromRequest(r))
+		data, err := ph(ctx, s, NewParamsFromRequest(r))
 		if err != nil {
 			return fmt.Errorf("params error: %w", err)
 		}
@@ -145,11 +161,7 @@ func (s *Socket) render(ctx context.Context, h *Handler) error {
 			return fmt.Errorf("diff error: %w", err)
 		}
 		if len(patches) != 0 {
-			msg := Event{
-				T:    EventPatch,
-				Data: patches,
-			}
-			s.Send(msg)
+			s.Send(EventPatch, patches)
 		}
 	}
 	s.currentRender = node

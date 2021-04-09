@@ -22,7 +22,7 @@ type RenderHandler func(w io.Writer, c *Component) error
 
 // EventHandler for a component, only needs the params as the event is scoped to both the socket and then component
 // iteslef. Returns any component state that needs updating.
-type EventHandler func(ctx context.Context, params map[string]interface{}) (interface{}, error)
+type EventHandler func(ctx context.Context, p live.Params) (interface{}, error)
 
 // ComponentConstructor a func for creating a new component.
 type ComponentConstructor func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket) (*Component, error)
@@ -89,14 +89,13 @@ func Init(ctx context.Context, construct func() (*Component, error)) (*Component
 
 // Self sends an event scoped not only to this socket, but to this specific component instance. Or any
 // components sharing the same ID.
-func (c *Component) Self(ctx context.Context, s *live.Socket, event live.Event) {
-	event.T = c.Event(event.T)
-	s.Self(ctx, event)
+func (c *Component) Self(ctx context.Context, s *live.Socket, event string, data interface{}) error {
+	return s.Self(ctx, c.Event(event), data)
 }
 
 // HandleSelf handles scoped incoming events send by a components Self function.
 func (c *Component) HandleSelf(event string, handler EventHandler) {
-	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s *live.Socket, p map[string]interface{}) (interface{}, error) {
+	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s *live.Socket, p live.Params) (interface{}, error) {
 		state, err := handler(ctx, p)
 		if err != nil {
 			return s.Assigns(), err
@@ -108,7 +107,7 @@ func (c *Component) HandleSelf(event string, handler EventHandler) {
 
 // HandleEvent handles a component event sent from a connected socket.
 func (c *Component) HandleEvent(event string, handler EventHandler) {
-	c.Handler.HandleEvent(c.Event(event), func(ctx context.Context, s *live.Socket, p map[string]interface{}) (interface{}, error) {
+	c.Handler.HandleEvent(c.Event(event), func(ctx context.Context, s *live.Socket, p live.Params) (interface{}, error) {
 		state, err := handler(ctx, p)
 		if err != nil {
 			return s.Assigns(), err
@@ -120,7 +119,7 @@ func (c *Component) HandleEvent(event string, handler EventHandler) {
 
 // HandleParams handles parameter changes. Caution these handlers are not scoped to a specific component.
 func (c *Component) HandleParams(handler EventHandler) {
-	c.Handler.HandleParams(func(ctx context.Context, s *live.Socket, p map[string]interface{}) (interface{}, error) {
+	c.Handler.HandleParams(func(ctx context.Context, s *live.Socket, p live.Params) (interface{}, error) {
 		state, err := handler(ctx, p)
 		if err != nil {
 			return s.Assigns(), err

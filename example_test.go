@@ -36,14 +36,14 @@ func thermoMount(ctx context.Context, r *http.Request, s *Socket) (interface{}, 
 // is called with the original request context of the socket, the socket itself containing the current
 // state and and params that came from the event. Params contain query string parameters and any
 // `live-value-` bindings.
-func tempUp(ctx context.Context, s *Socket, params map[string]interface{}) (interface{}, error) {
+func tempUp(ctx context.Context, s *Socket, p Params) (interface{}, error) {
 	model := NewThermoModel(s)
 	model.C += 0.1
 	return model, nil
 }
 
 // tempDown on the temp down event, decrease the thermostat temperature by .1 C.
-func tempDown(ctx context.Context, s *Socket, params map[string]interface{}) (interface{}, error) {
+func tempDown(ctx context.Context, s *Socket, p Params) (interface{}, error) {
 	model := NewThermoModel(s)
 	model.C -= 0.1
 	return model, nil

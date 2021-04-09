@@ -10,7 +10,12 @@
         "prepublishOnly": "npx tsc",
         "localpackage": "rm -r dist || true && npx tsc && npm pack"
     },
-    "keywords": ["serverside", "liveview", "golang", "go"],
+    "keywords": [
+        "serverside",
+        "liveview",
+        "golang",
+        "go"
+    ],
     "author": "jfyne",
     "license": "MIT",
     "repository": {

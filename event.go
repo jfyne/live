@@ -2,13 +2,15 @@ package live
 
 import (
 	"context"
-	"net/http"
-	"strconv"
+	"encoding/json"
 )
 
 // EventHandler a function to handle events, returns the data that should
 // be set to the socket after handling.
-type EventHandler func(context.Context, *Socket, map[string]interface{}) (interface{}, error)
+type EventHandler func(context.Context, *Socket, Params) (interface{}, error)
+
+// EventConfig configures an event.
+type EventConfig func(e *Event) error
 
 const (
 	// EventError indicates an error has occured.
@@ -31,103 +33,27 @@ const (
 // Event messages that are sent and received by the
 // socket.
 type Event struct {
-	T    string      `json:"t"`
-	ID   int         `json:"i,omitempty"`
-	Data interface{} `json:"d,omitempty"`
+	T    string          `json:"t"`
+	ID   int             `json:"i,omitempty"`
+	Data json.RawMessage `json:"d,omitempty"`
 }
 
 // Params extract params from inbound message.
-func (e Event) Params() (map[string]interface{}, error) {
+func (e Event) Params() (Params, error) {
 	if e.Data == nil {
-		return map[string]interface{}{}, nil
+		return Params{}, nil
 	}
-	p, ok := e.Data.(map[string]interface{})
-	if !ok {
+	var p Params
+	if err := json.Unmarshal(e.Data, &p); err != nil {
 		return nil, ErrMessageMalformed
 	}
 	return p, nil
 }
 
-// ParamString helper to return a string from the params.
-func ParamString(params map[string]interface{}, key string) string {
-	v, ok := params[key]
-	if !ok {
-		return ""
+// WithID sets an ID on an event.
+func WithID(ID int) EventConfig {
+	return func(e *Event) error {
+		e.ID = ID
+		return nil
 	}
-	out, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return out
-}
-
-// ParamCheckbox helper to return a boolean from params referring to
-// a checkbox input.
-func ParamCheckbox(params map[string]interface{}, name string) bool {
-	v, ok := params[name]
-	if !ok {
-		return false
-	}
-	out, ok := v.(string)
-	if !ok {
-		return false
-	}
-	if out == "on" {
-		return true
-	}
-	return false
-}
-
-// ParamInt helper to return an int from the params.
-func ParamInt(params map[string]interface{}, key string) int {
-	v, ok := params[key]
-	if !ok {
-		return 0
-	}
-	switch out := v.(type) {
-	case int:
-		return out
-	case string:
-		i, err := strconv.Atoi(out)
-		if err != nil {
-			return 0
-		}
-		return i
-	}
-	return 0
-}
-
-// ParamFloat32 helper to return a float32 from the params.
-func ParamFloat32(params map[string]interface{}, key string) float32 {
-	v, ok := params[key]
-	if !ok {
-		return 0.0
-	}
-	switch out := v.(type) {
-	case float32:
-		return out
-	case float64:
-		return float32(out)
-	case string:
-		f, err := strconv.ParseFloat(out, 32)
-		if err != nil {
-			return 0.0
-		}
-		return float32(f)
-	}
-	return 0.0
-}
-
-// ParamsFromRequest given an *http.Request extract the params.
-func ParamsFromRequest(r *http.Request) map[string]interface{} {
-	out := map[string]interface{}{}
-	values := r.URL.Query()
-	for k, v := range values {
-		if len(v) == 1 {
-			out[k] = v[0]
-		} else {
-			out[k] = v
-		}
-	}
-	return out
 }

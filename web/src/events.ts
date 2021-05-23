@@ -110,6 +110,24 @@ class Click extends LiveHandler {
 }
 
 /**
+ * live-mousedown attribute handling.
+ */
+class Mousedown extends LiveHandler {
+    constructor() {
+        super("mousedown", "live-mousedown");
+    }
+}
+
+/**
+ * live-mouseup attribute handling.
+ */
+class Mouseup extends LiveHandler {
+    constructor() {
+        super("mouseup", "live-mouseup");
+    }
+}
+
+/**
  * live-focus event handling.
  */
 class Focus extends LiveHandler {
@@ -336,6 +354,8 @@ class Patch extends LiveHandler {
  */
 export class Events {
     private static clicks: Click;
+    private static mousedown: Mousedown;
+    private static mouseup: Mouseup;
     private static focus: Focus;
     private static blur: Blur;
     private static windowFocus: WindowFocus;
@@ -354,6 +374,8 @@ export class Events {
      */
     public static init() {
         this.clicks = new Click();
+        this.mousedown = new Mousedown();
+        this.mouseup = new Mouseup();
         this.focus = new Focus();
         this.blur = new Blur();
         this.windowFocus = new WindowFocus();
@@ -375,6 +397,8 @@ export class Events {
      */
     public static rewire() {
         this.clicks.attach();
+        this.mousedown.attach();
+        this.mouseup.attach();
         this.focus.attach();
         this.blur.attach();
         this.windowFocus.attach();

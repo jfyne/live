@@ -356,12 +356,16 @@ func (h *Handler) _serveWS(r *http.Request, session Session, c *websocket.Conn) 
 			}
 		case err := <-internalErrors:
 			if err != nil {
-				if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: []byte(err.Error())}); err != nil {
+				d, err := json.Marshal(err.Error())
+				if err != nil {
 					return fmt.Errorf("writing to socket error: %w", err)
 				}
+				if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: d}); err != nil {
+					return fmt.Errorf("writing to socket error: %w", err)
+				}
+				// Something catastrophic has happened.
+				return fmt.Errorf("internal error: %w", err)
 			}
-			// Something catastrophic has happened.
-			return fmt.Errorf("read error: %w", err)
 		case <-ctx.Done():
 			return nil
 		}

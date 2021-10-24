@@ -91,7 +91,7 @@ func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) 
 		Render: func(ctx context.Context, data interface{}) (io.Reader, error) {
 			return nil, ErrNoRenderer
 		},
-		Error: func(ctx context.Context, w http.ResponseWriter, r *http.Request, err error) {
+		Error: func(_ context.Context, w http.ResponseWriter, _ *http.Request, err error) {
 			w.WriteHeader(500)
 			w.Write([]byte(err.Error()))
 		},
@@ -115,7 +115,7 @@ func NewHandler(store SessionStore, configs ...HandlerConfig) (*Handler, error) 
 // ServeHTTP serves this handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/favicon.ico" {
-		if h.ignoreFaviconRequest == true {
+		if h.ignoreFaviconRequest {
 			w.WriteHeader(404)
 			return
 		}
@@ -138,7 +138,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Upgrade to the webscoket version.
 	h.serveWS(w, r)
-	return
 }
 
 // Broadcast send a message to all sockets connected to this handler.

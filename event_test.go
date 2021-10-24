@@ -15,7 +15,7 @@ func TestEventParams(t *testing.T) {
 	}
 
 	e.Data = []byte("wrong")
-	p, err = e.Params()
+	_, err = e.Params()
 	if err != ErrMessageMalformed {
 		t.Error("expected ErrMessageMalformed, got", err)
 	}

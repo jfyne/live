@@ -47,7 +47,7 @@ func (p *PubSub) Subscribe(topic string, h *Handler) {
 
 	// This adjusts the handlers broadcast function to publish onto the
 	// given topic.
-	h.broadcast = func(ctx context.Context, h *Handler, msg Event) {
+	h.broadcast = func(ctx context.Context, _ *Handler, msg Event) {
 		if err := p.transport.Publish(ctx, topic, msg); err != nil {
 			log.Println("could not publish broadcast:", err)
 		}
@@ -71,7 +71,6 @@ type TransportMessage struct {
 // LocalTransport a pubsub transport that allows handlers to communicate
 // locally.
 type LocalTransport struct {
-	ctx   context.Context
 	queue chan TransportMessage
 }
 

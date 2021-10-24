@@ -121,7 +121,7 @@ func shapeTree(root *html.Node) {
 				break
 			}
 		}
-		if hasFlag == false {
+		if !hasFlag {
 			root.Attr = append(root.Attr, html.Attribute{Key: LiveRendered})
 		}
 	}
@@ -168,7 +168,7 @@ func (d *differ) compareNodes(oldNode, newNode *html.Node, followedPath []int) [
 	d.liveUpdateCheck(newNode, followedPath)
 
 	// If nodes at this position are not equal patch a replacement.
-	if nodeEqual(oldNode, newNode) == false {
+	if !nodeEqual(oldNode, newNode) {
 		return append(patches, d.generatePatch(newNode, followedPath, Replace))
 	}
 
@@ -301,10 +301,7 @@ func nodeEqual(oldNode *html.Node, newNode *html.Node) bool {
 		return false
 	}
 	// Data check
-	if strings.TrimSpace(oldNode.Data) != strings.TrimSpace(newNode.Data) {
-		return false
-	}
-	return true
+	return strings.TrimSpace(oldNode.Data) == strings.TrimSpace(newNode.Data)
 }
 
 // generateNodeList create a list of sibling nodes.

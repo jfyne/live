@@ -15,21 +15,56 @@ const _debug = false
 // LiveRendered an attribute key to show that a DOM has been rendered by live.
 const LiveRendered = "live-rendered"
 
+// liveAnchorPrefix prefixes injected anchors.
+const liveAnchorPrefix = "_l"
+
 // PatchAction available actions to take by a patch.
 type PatchAction uint32
 
 // Actions available.
 const (
 	Noop PatchAction = iota
-	Insert
 	Replace
 	Append
 	Prepend
 )
 
+// anchorGenerator generates an ID for a node in the tree.
+type anchorGenerator struct {
+	idx []int
+}
+
+func newAnchorGenerator() anchorGenerator {
+	return anchorGenerator{idx: []int{0}}
+}
+
+// inc increment the current index.
+func (n anchorGenerator) inc() anchorGenerator {
+	o := make([]int, len(n.idx))
+	copy(o, n.idx)
+	o[len(o)-1]++
+	return anchorGenerator{idx: o}
+}
+
+// level increase the depth.
+func (n anchorGenerator) level() anchorGenerator {
+	o := make([]int, len(n.idx))
+	copy(o, n.idx)
+	o = append(o, 0)
+	return anchorGenerator{idx: o}
+}
+
+func (n anchorGenerator) String() string {
+	out := liveAnchorPrefix
+	for _, i := range n.idx {
+		out += fmt.Sprintf("%d", i)
+	}
+	return out
+}
+
 // Patch a location in the frontend dom.
 type Patch struct {
-	Path   []int
+	Anchor string
 	Action PatchAction
 	HTML   string
 }
@@ -39,8 +74,6 @@ func (p Patch) String() string {
 	switch p.Action {
 	case Noop:
 		action = "NO"
-	case Insert:
-		action = "IN"
 	case Replace:
 		action = "RE"
 	case Append:
@@ -49,7 +82,7 @@ func (p Patch) String() string {
 		action = "PR"
 	}
 
-	return fmt.Sprintf("%v %s %s", p.Path, action, p.HTML)
+	return fmt.Sprintf("%s %s %s", p.Anchor, action, p.HTML)
 }
 
 // Diff compare two node states and return patches.
@@ -70,7 +103,8 @@ func Diff(current, proposed *html.Node) ([]Patch, error) {
 		}
 
 		output[idx] = Patch{
-			Path:   p.Path[2:],
+			Anchor: p.Anchor,
+			//Path:   p.Path[2:],
 			Action: p.Action,
 			HTML:   buf.String(),
 		}
@@ -81,7 +115,7 @@ func Diff(current, proposed *html.Node) ([]Patch, error) {
 
 // patch describes how to modify a dom.
 type patch struct {
-	Path   []int
+	Anchor string
 	Action PatchAction
 	Node   *html.Node
 }
@@ -91,15 +125,28 @@ type differ struct {
 	// `live-update` handler.
 	updateNode     *html.Node
 	updateModifier PatchAction
-	updatePath     []int
 }
 
 // diffTrees compares two html Nodes and outputs patches.
 func diffTrees(current, proposed *html.Node) []patch {
 	d := &differ{}
-	shapeTree(current)
-	shapeTree(proposed)
-	return d.compareNodes(current, proposed, []int{0})
+	anchorTree(current, newAnchorGenerator())
+	anchorTree(proposed, newAnchorGenerator())
+	return d.compareNodes(current, proposed, "")
+}
+
+func anchorTree(root *html.Node, id anchorGenerator) {
+	// Check this node.
+	if root.NextSibling != nil {
+		anchorTree(root.NextSibling, id.inc())
+	}
+	if root.FirstChild != nil {
+		anchorTree(root.FirstChild, id.level())
+	}
+
+	if nodeRelevant(root) && !hasAnchor(root) {
+		root.Attr = append(root.Attr, html.Attribute{Key: id.String()})
+	}
 }
 
 func shapeTree(root *html.Node) {
@@ -114,14 +161,7 @@ func shapeTree(root *html.Node) {
 	// Live is rendering this DOM tree so indicate that it has done so
 	// so that the client side knows to attempt to connect.
 	if root.Type == html.ElementNode && root.Data == "body" {
-		hasFlag := false
-		for _, a := range root.Attr {
-			if a.Key == LiveRendered {
-				hasFlag = true
-				break
-			}
-		}
-		if !hasFlag {
+		if !hasAttr(root, LiveRendered) {
 			root.Attr = append(root.Attr, html.Attribute{Key: LiveRendered})
 		}
 	}
@@ -135,7 +175,25 @@ func shapeTree(root *html.Node) {
 	}
 }
 
-func (d *differ) compareNodes(oldNode, newNode *html.Node, followedPath []int) []patch {
+func hasAnchor(node *html.Node) bool {
+	for _, a := range node.Attr {
+		if strings.HasPrefix(a.Key, liveAnchorPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAttr(node *html.Node, key string) bool {
+	for _, a := range node.Attr {
+		if a.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *differ) compareNodes(oldNode, newNode *html.Node, parentAnchor string) []patch {
 	debugNodeLog("compareNodes oldNode", oldNode)
 	debugNodeLog("compareNodes newNode", newNode)
 	patches := []patch{}
@@ -152,7 +210,7 @@ func (d *differ) compareNodes(oldNode, newNode *html.Node, followedPath []int) [
 		}
 		return append(
 			patches,
-			d.generatePatch(newNode, followedPath[:len(followedPath)-1], Append),
+			d.generatePatch(newNode, parentAnchor, Append),
 		)
 	}
 
@@ -161,82 +219,84 @@ func (d *differ) compareNodes(oldNode, newNode *html.Node, followedPath []int) [
 		if !nodeRelevant(oldNode) {
 			return []patch{}
 		}
-		return append(patches, d.generatePatch(newNode, followedPath, Replace))
+		return append(patches, d.generatePatch(newNode, findAnchor(oldNode), Replace))
 	}
 
 	// Check for `live-update` modifiers.
-	d.liveUpdateCheck(newNode, followedPath)
+	d.liveUpdateCheck(newNode)
 
 	// If nodes at this position are not equal patch a replacement.
 	if !nodeEqual(oldNode, newNode) {
-		return append(patches, d.generatePatch(newNode, followedPath, Replace))
+		return append(patches, d.generatePatch(newNode, parentAnchor, Replace))
 	}
 
 	newChildren := generateNodeList(newNode.FirstChild)
 	oldChildren := generateNodeList(oldNode.FirstChild)
 
 	for i := 0; i < len(newChildren) || i < len(oldChildren); i++ {
-		// Have to copy the followed path here, otherwise the patches
-		// paths get updated.
-		nextPath := make([]int, len(followedPath))
-		copy(nextPath, followedPath)
-
 		if i >= len(newChildren) {
-			nextPath = append(nextPath, len(newChildren))
-			patches = append(patches, d.compareNodes(oldChildren[i], nil, nextPath)...)
+			patches = append(patches, d.compareNodes(oldChildren[i], nil, findAnchor(oldNode))...)
 		} else if i >= len(oldChildren) {
-			nextPath = append(nextPath, i)
-			patches = append(patches, d.compareNodes(nil, newChildren[i], nextPath)...)
+			patches = append(patches, d.compareNodes(nil, newChildren[i], findAnchor(oldNode))...)
 		} else {
-			nextPath = append(nextPath, i)
-			patches = append(patches, d.compareNodes(oldChildren[i], newChildren[i], nextPath)...)
+			patches = append(patches, d.compareNodes(oldChildren[i], newChildren[i], findAnchor(oldNode))...)
 		}
 	}
 
 	return patches
 }
 
-func (d *differ) generatePatch(node *html.Node, followedPath []int, action PatchAction) patch {
+func (d *differ) generatePatch(node *html.Node, target string, action PatchAction) patch {
 	if node == nil {
 		return patch{
-			Path:   d.patchPath(followedPath),
+			Anchor: d.patchAnchor(target),
 			Action: d.patchAction(action),
 			Node:   nil,
 		}
 	}
 	debugNodeLog("generatePatch", node)
-	switch node.Type {
-	case html.TextNode:
+	switch {
+	case node.Type == html.TextNode:
 		return patch{
-			Path:   d.patchPath(followedPath[:len(followedPath)-1]),
+			Anchor: d.patchAnchor(target),
 			Action: d.patchAction(action),
 			Node:   node.Parent,
 		}
+	case action == Append:
+		return patch{
+			Anchor: d.patchAnchor(target),
+			Action: d.patchAction(action),
+			Node:   node,
+		}
 	default:
 		return patch{
-			Path:   d.patchPath(followedPath),
+			Anchor: d.patchAnchor(findAnchor(node)),
 			Action: d.patchAction(action),
 			Node:   node,
 		}
 	}
 }
 
+func findAnchor(node *html.Node) string {
+	for _, a := range node.Attr {
+		if strings.HasPrefix(a.Key, liveAnchorPrefix) {
+			return a.Key
+		}
+	}
+	return ""
+}
+
 // liveUpdateCheck check for an update modifier for this node.
-func (d *differ) liveUpdateCheck(node *html.Node, followedPath []int) {
+func (d *differ) liveUpdateCheck(node *html.Node) {
 	for _, attr := range node.Attr {
 		if attr.Key != "live-update" {
 			continue
 		}
 		d.updateNode = node
 
-		nextPath := make([]int, len(followedPath))
-		copy(nextPath, followedPath)
-		d.updatePath = nextPath
-
 		switch attr.Val {
 		case "replace":
 			d.updateModifier = Replace
-			d.updatePath = append(d.updatePath, 0)
 		case "ignore":
 			d.updateModifier = Noop
 		case "append":
@@ -257,11 +317,11 @@ func (d *differ) patchAction(action PatchAction) PatchAction {
 	return action
 }
 
-// patchPath in the current state of the differ get the patch
-// path.
-func (d *differ) patchPath(path []int) []int {
+// patchAnchor in the current state of the differ get the patch
+// anchor.
+func (d *differ) patchAnchor(path string) string {
 	if d.updateNode != nil {
-		return d.updatePath
+		return findAnchor(d.updateNode)
 	}
 	return path
 }
@@ -338,7 +398,6 @@ func debugNodeLog(msg string, node *html.Node) {
 	}
 
 	if node == nil {
-		log.Println(msg, nil, nil, `""`)
 		return
 	}
 

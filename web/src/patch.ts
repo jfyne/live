@@ -2,7 +2,7 @@ import { LiveEvent, EventDispatch } from "./event";
 import { Forms } from "./forms";
 
 interface PatchEvent {
-    Path: number[];
+    Anchor: string;
     Action: number;
     HTML: string;
 }
@@ -21,42 +21,16 @@ export class Patch {
     }
 
     private static applyPatch(e: PatchEvent) {
-        const html = document.querySelector("html");
-        if (html === null) {
-            throw "could not find html node";
-        }
-
-        let siblings = html.childNodes;
-        let target: Element | undefined = undefined;
-
-        for (let i = 0; i < e.Path.length; i++) {
-            target = siblings[e.Path[i]] as Element;
-            if (target === undefined) {
-                console.warn("unhandled patch, path target undefined", e);
-                return;
-            }
-            if (target.childNodes.length) {
-                siblings = target.childNodes;
-            }
-        }
-
-        if (target === undefined) {
+        const target = document.querySelector(`*[${e.Anchor}]`);
+        if (target === null) {
             return;
         }
-        const newElement = Patch.html2Node(e.HTML);
 
+        const newElement = Patch.html2Node(e.HTML);
         switch (e.Action) {
             case 0: // NOOP
                 return;
-            case 1: // INSERT
-                if (target.parentNode === null) {
-                    return;
-                }
-                EventDispatch.beforeUpdate(target, newElement as Element);
-                target.parentNode.insertBefore(newElement, target);
-                EventDispatch.updated(target);
-                break;
-            case 2: // REPLACE
+            case 1: // REPLACE
                 if (e.HTML === "") {
                     EventDispatch.beforeDestroy(target);
                 } else {
@@ -69,12 +43,12 @@ export class Patch {
                     EventDispatch.updated(target);
                 }
                 break;
-            case 3: // APPEND
+            case 2: // APPEND
                 EventDispatch.beforeUpdate(target, newElement as Element);
                 target.append(newElement);
                 EventDispatch.updated(target);
                 break;
-            case 4: // PREPEND
+            case 3: // PREPEND
                 EventDispatch.beforeUpdate(target, newElement as Element);
                 target.prepend(newElement);
                 EventDispatch.updated(target);

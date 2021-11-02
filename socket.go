@@ -163,6 +163,8 @@ func (s *Socket) render(ctx context.Context, h *Handler) error {
 		if len(patches) != 0 {
 			s.Send(EventPatch, patches)
 		}
+	} else {
+		anchorTree(node, newAnchorGenerator())
 	}
 	s.currentRender = node
 

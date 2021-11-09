@@ -12,7 +12,7 @@ func NewTestStore(ID string) *TestStore {
 	t := &TestStore{
 		s: NewSession(),
 	}
-	t.s.ID = ID
+	t.s[sessionID] = ID
 	return t
 }
 

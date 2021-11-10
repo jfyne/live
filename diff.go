@@ -17,6 +17,7 @@ const LiveRendered = "live-rendered"
 
 // liveAnchorPrefix prefixes injected anchors.
 const liveAnchorPrefix = "_l"
+const liveAnchorSep = -1
 
 // PatchAction available actions to take by a patch.
 type PatchAction uint32
@@ -35,7 +36,7 @@ type anchorGenerator struct {
 }
 
 func newAnchorGenerator() anchorGenerator {
-	return anchorGenerator{idx: []int{0}}
+	return anchorGenerator{idx: []int{}}
 }
 
 // inc increment the current index.
@@ -50,14 +51,18 @@ func (n anchorGenerator) inc() anchorGenerator {
 func (n anchorGenerator) level() anchorGenerator {
 	o := make([]int, len(n.idx))
 	copy(o, n.idx)
-	o = append(o, 0)
+	o = append(o, liveAnchorSep, 0)
 	return anchorGenerator{idx: o}
 }
 
 func (n anchorGenerator) String() string {
 	out := liveAnchorPrefix
 	for _, i := range n.idx {
-		out += fmt.Sprintf("%d", i)
+		if i == liveAnchorSep {
+			out += "_"
+		} else {
+			out += fmt.Sprintf("%d", i)
+		}
 	}
 	return out
 }

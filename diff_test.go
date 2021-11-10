@@ -20,7 +20,7 @@ func TestSingleTextChange(t *testing.T) {
 		root:     "<div>Hello</div>",
 		proposed: "<div>World</div>",
 		patches: []Patch{
-			{Anchor: "_l0010", Action: Replace, HTML: `<div _l0010="">World</div>`},
+			{Anchor: "_l_0_1_0", Action: Replace, HTML: `<div _l_0_1_0="">World</div>`},
 		},
 	}, t)
 }
@@ -30,8 +30,8 @@ func TestMultipleTextChange(t *testing.T) {
 		root:     `<div>Hello</div><div>World</div>`,
 		proposed: `<div>World</div><div>Hello</div>`,
 		patches: []Patch{
-			{Anchor: "_l0010", Action: Replace, HTML: `<div _l0010="">World</div>`},
-			{Anchor: "_l0011", Action: Replace, HTML: `<div _l0011="">Hello</div>`},
+			{Anchor: "_l_0_1_0", Action: Replace, HTML: `<div _l_0_1_0="">World</div>`},
+			{Anchor: "_l_0_1_1", Action: Replace, HTML: `<div _l_0_1_1="">Hello</div>`},
 		},
 	}, t)
 }
@@ -41,15 +41,15 @@ func TestNodeAppend(t *testing.T) {
 		root:     `<div>World</div>`,
 		proposed: `<div>Hello</div><div>World</div>`,
 		patches: []Patch{
-			{Anchor: "_l0010", Action: Replace, HTML: `<div _l0010="">Hello</div>`},
-			{Anchor: "_l001", Action: Append, HTML: `<div _l0011="">World</div>`},
+			{Anchor: "_l_0_1_0", Action: Replace, HTML: `<div _l_0_1_0="">Hello</div>`},
+			{Anchor: "_l_0_1", Action: Append, HTML: `<div _l_0_1_1="">World</div>`},
 		},
 	}, t)
 	runDiffTest(diffTest{
 		root:     `<div>Hello</div>`,
 		proposed: `<div>Hello</div><div>World</div>`,
 		patches: []Patch{
-			{Anchor: "_l001", Action: Append, HTML: `<div _l0011="">World</div>`},
+			{Anchor: "_l_0_1", Action: Append, HTML: `<div _l_0_1_1="">World</div>`},
 		},
 	}, t)
 }
@@ -59,15 +59,15 @@ func TestNodeDeletion(t *testing.T) {
 		root:     `<div>Hello</div><div>World</div>`,
 		proposed: `<div>World</div>`,
 		patches: []Patch{
-			{Anchor: "_l0010", Action: Replace, HTML: `<div _l0010="">World</div>`},
-			{Anchor: "_l0011", Action: Replace, HTML: ""},
+			{Anchor: "_l_0_1_0", Action: Replace, HTML: `<div _l_0_1_0="">World</div>`},
+			{Anchor: "_l_0_1_1", Action: Replace, HTML: ""},
 		},
 	}, t)
 	runDiffTest(diffTest{
 		root:     `<div>Hello</div><div>World</div>`,
 		proposed: `<div>Hello</div>`,
 		patches: []Patch{
-			{Anchor: "_l0011", Action: Replace, HTML: ""},
+			{Anchor: "_l_0_1_1", Action: Replace, HTML: ""},
 		},
 	}, t)
 }
@@ -77,7 +77,7 @@ func TestAttributeValueChange(t *testing.T) {
 		root:     `<div place="World">Hello</div>`,
 		proposed: `<div place="Change">Hello</div>`,
 		patches: []Patch{
-			{Anchor: "_l0010", Action: Replace, HTML: `<div place="Change" _l0010="">Hello</div>`},
+			{Anchor: "_l_0_1_0", Action: Replace, HTML: `<div place="Change" _l_0_1_0="">Hello</div>`},
 		},
 	}, t)
 }
@@ -87,8 +87,8 @@ func TestMultipleAttributeValueChange(t *testing.T) {
 		root:     `<div place="World">World</div><div place="Hello">Hello</div>`,
 		proposed: `<div place="Hello">Hello</div><div place="World">World</div>`,
 		patches: []Patch{
-			{Anchor: "_l0010", Action: Replace, HTML: `<div place="Hello" _l0010="">Hello</div>`},
-			{Anchor: "_l0011", Action: Replace, HTML: `<div place="World" _l0011="">World</div>`},
+			{Anchor: "_l_0_1_0", Action: Replace, HTML: `<div place="Hello" _l_0_1_0="">Hello</div>`},
+			{Anchor: "_l_0_1_1", Action: Replace, HTML: `<div place="World" _l_0_1_1="">World</div>`},
 		},
 	}, t)
 }
@@ -99,9 +99,9 @@ func TestNestedAppend(t *testing.T) {
 			root:     `<form><input type="text"/><input type="submit"/></form>`,
 			proposed: `<form><div>Extra</div><input type="text"/><input type="submit"/></form>`,
 			patches: []Patch{
-				{Anchor: "_l00100", Action: Replace, HTML: `<div _l00100="">Extra</div>`},
-				{Anchor: "_l00101", Action: Replace, HTML: `<input type="text" _l00101=""/>`},
-				{Anchor: "_l0010", Action: Append, HTML: `<input type="submit" _l00102=""/>`},
+				{Anchor: "_l_0_1_0_0", Action: Replace, HTML: `<div _l_0_1_0_0="">Extra</div>`},
+				{Anchor: "_l_0_1_0_1", Action: Replace, HTML: `<input type="text" _l_0_1_0_1=""/>`},
+				{Anchor: "_l_0_1_0", Action: Append, HTML: `<input type="submit" _l_0_1_0_2=""/>`},
 			},
 		},
 	}
@@ -115,8 +115,8 @@ func TestDoc(t *testing.T) {
 		root:     "<!doctype><html><head><title>1</title></head><body><div>1</div></body></html>",
 		proposed: "<!doctype><html><head><title>2</title></head><body><div>2</div></body></html>",
 		patches: []Patch{
-			{Anchor: "_l0100", Action: Replace, HTML: `<title _l0100="">2</title>`},
-			{Anchor: "_l0110", Action: Replace, HTML: `<div _l0110="">2</div>`},
+			{Anchor: "_l_1_0_0", Action: Replace, HTML: `<title _l_1_0_0="">2</title>`},
+			{Anchor: "_l_1_1_0", Action: Replace, HTML: `<div _l_1_1_0="">2</div>`},
 		},
 	}, t)
 }
@@ -166,11 +166,11 @@ func TestEarlyChildDeletion(t *testing.T) {
 		        <input type="submit"/>
 		    </form>`,
 			patches: []Patch{
-				{Anchor: "_l00100", Action: Replace, HTML: `<input type="text" _l00100=""/>`},
-				{Anchor: "_l00101", Action: Replace, HTML: `<input type="submit" _l00101=""/>`},
-				{Anchor: "_l00102", Action: Replace, HTML: ``},
-				{Anchor: "_l00103", Action: Replace, HTML: ``},
-				{Anchor: "_l00104", Action: Replace, HTML: ``},
+				{Anchor: "_l_0_1_0_0", Action: Replace, HTML: `<input type="text" _l_0_1_0_0=""/>`},
+				{Anchor: "_l_0_1_0_1", Action: Replace, HTML: `<input type="submit" _l_0_1_0_1=""/>`},
+				{Anchor: "_l_0_1_0_2", Action: Replace, HTML: ``},
+				{Anchor: "_l_0_1_0_3", Action: Replace, HTML: ``},
+				{Anchor: "_l_0_1_0_4", Action: Replace, HTML: ``},
 			},
 		},
 	}
@@ -194,9 +194,9 @@ func TestInsignificantWhitespace(t *testing.T) {
 		    <input type="submit"/>
 		    </form>`,
 			patches: []Patch{
-				{Anchor: "_l00100", Action: Replace, HTML: `<div _l00100="">Extra</div>`},
-				{Anchor: "_l00101", Action: Replace, HTML: `<input type="text" _l00101=""/>`},
-				{Anchor: "_l0010", Action: Append, HTML: `<input type="submit" _l00102=""/>`},
+				{Anchor: "_l_0_1_0_0", Action: Replace, HTML: `<div _l_0_1_0_0="">Extra</div>`},
+				{Anchor: "_l_0_1_0_1", Action: Replace, HTML: `<input type="text" _l_0_1_0_1=""/>`},
+				{Anchor: "_l_0_1_0", Action: Append, HTML: `<input type="submit" _l_0_1_0_2=""/>`},
 			},
 		},
 	}
@@ -211,7 +211,7 @@ func TestLiveUpdate(t *testing.T) {
 			root:     `<div live-update="append"><div>Hello</div></div>`,
 			proposed: `<div live-update="append"><div>World</div></div>`,
 			patches: []Patch{
-				{Anchor: "_l0010", Action: Append, HTML: `<div _l00100="">World</div>`},
+				{Anchor: "_l_0_1_0", Action: Append, HTML: `<div _l_0_1_0_0="">World</div>`},
 			},
 		},
 		{
@@ -224,28 +224,28 @@ func TestLiveUpdate(t *testing.T) {
 		        <div>World</div>
 		    </div>`,
 			patches: []Patch{
-				{Anchor: "_l0010", Action: Append, HTML: `<div _l00100="">World</div>`},
+				{Anchor: "_l_0_1_0", Action: Append, HTML: `<div _l_0_1_0_0="">World</div>`},
 			},
 		},
 		{
 			root:     `<div live-update="prepend"><div>Hello</div></div>`,
 			proposed: `<div live-update="prepend"><div>World</div></div>`,
 			patches: []Patch{
-				{Anchor: "_l0010", Action: Prepend, HTML: `<div _l00100="">World</div>`},
+				{Anchor: "_l_0_1_0", Action: Prepend, HTML: `<div _l_0_1_0_0="">World</div>`},
 			},
 		},
 		{
 			root:     `<div live-update="replace"><div>Hello</div></div>`,
 			proposed: `<div live-update="replace"><div>World</div></div>`,
 			patches: []Patch{
-				{Anchor: "_l0010", Action: Replace, HTML: `<div _l00100="">World</div>`},
+				{Anchor: "_l_0_1_0", Action: Replace, HTML: `<div _l_0_1_0_0="">World</div>`},
 			},
 		},
 		{
 			root:     `<div live-update="ignore"><div>Hello</div></div>`,
 			proposed: `<div live-update="ignore"><div>World</div></div>`,
 			patches: []Patch{
-				{Anchor: "_l0010", Action: Noop, HTML: `<div _l00100="">World</div>`},
+				{Anchor: "_l_0_1_0", Action: Noop, HTML: `<div _l_0_1_0_0="">World</div>`},
 			},
 		},
 	}
@@ -276,16 +276,16 @@ func TestIssue6(t *testing.T) {
 		    <script src="./live.js"></script>
 		    `,
 			patches: []Patch{
-				{Anchor: "_l0011", Action: Replace, HTML: `<pre _l0011="">1</pre>`},
-				{Anchor: "_l001", Action: Append, HTML: `<script src="./live.js" _l0012=""></script>`},
+				{Anchor: "_l_0_1_1", Action: Replace, HTML: `<pre _l_0_1_1="">1</pre>`},
+				{Anchor: "_l_0_1", Action: Append, HTML: `<script src="./live.js" _l_0_1_2=""></script>`},
 			},
 		},
 		{
 			root:     `<form><input type="text"/><input type="submit"/></form><script src="./live.js"></script>`,
 			proposed: `<form><input type="text"/><input type="submit"/></form><pre>1</pre><script src="./live.js"></script>`,
 			patches: []Patch{
-				{Anchor: "_l0011", Action: Replace, HTML: `<pre _l0011="">1</pre>`},
-				{Anchor: "_l001", Action: Append, HTML: `<script src="./live.js" _l0012=""></script>`},
+				{Anchor: "_l_0_1_1", Action: Replace, HTML: `<pre _l_0_1_1="">1</pre>`},
+				{Anchor: "_l_0_1", Action: Append, HTML: `<script src="./live.js" _l_0_1_2=""></script>`},
 			},
 		},
 		{
@@ -311,16 +311,16 @@ func TestIssue6(t *testing.T) {
 		    <script src="./live.js"></script>
 		    `,
 			patches: []Patch{
-				{Anchor: "_l0012", Action: Replace, HTML: `<pre _l0012="">2</pre>`},
-				{Anchor: "_l001", Action: Append, HTML: `<script src="./live.js" _l0013=""></script>`},
+				{Anchor: "_l_0_1_2", Action: Replace, HTML: `<pre _l_0_1_2="">2</pre>`},
+				{Anchor: "_l_0_1", Action: Append, HTML: `<script src="./live.js" _l_0_1_3=""></script>`},
 			},
 		},
 		{
 			root:     `<form><input type="text"/><input type="submit"/></form><pre>1</pre><script src="./live.js"></script>`,
 			proposed: `<form><input type="text"/><input type="submit"/></form><pre>1</pre><pre>2</pre><script src="./live.js"></script>`,
 			patches: []Patch{
-				{Anchor: "_l0012", Action: Replace, HTML: `<pre _l0012="">2</pre>`},
-				{Anchor: "_l001", Action: Append, HTML: `<script src="./live.js" _l0013=""></script>`},
+				{Anchor: "_l_0_1_2", Action: Replace, HTML: `<pre _l_0_1_2="">2</pre>`},
+				{Anchor: "_l_0_1", Action: Append, HTML: `<script src="./live.js" _l_0_1_3=""></script>`},
 			},
 		},
 		{
@@ -348,16 +348,16 @@ func TestIssue6(t *testing.T) {
 		    <script src="./live.js"></script>
 		    `,
 			patches: []Patch{
-				{Anchor: "_l0013", Action: Replace, HTML: `<pre _l0013="">3</pre>`},
-				{Anchor: "_l001", Action: Append, HTML: `<script src="./live.js" _l0014=""></script>`},
+				{Anchor: "_l_0_1_3", Action: Replace, HTML: `<pre _l_0_1_3="">3</pre>`},
+				{Anchor: "_l_0_1", Action: Append, HTML: `<script src="./live.js" _l_0_1_4=""></script>`},
 			},
 		},
 		{
 			root:     `<form><input type="text"/><input type="submit"/></form><pre>1</pre><pre>2</pre><script src="./live.js"></script>`,
 			proposed: `<form><input type="text"/><input type="submit"/></form><pre>1</pre><pre>2</pre><pre>3</pre><script src="./live.js"></script>`,
 			patches: []Patch{
-				{Anchor: "_l0013", Action: Replace, HTML: `<pre _l0013="">3</pre>`},
-				{Anchor: "_l001", Action: Append, HTML: `<script src="./live.js" _l0014=""></script>`},
+				{Anchor: "_l_0_1_3", Action: Replace, HTML: `<pre _l_0_1_3="">3</pre>`},
+				{Anchor: "_l_0_1", Action: Append, HTML: `<script src="./live.js" _l_0_1_4=""></script>`},
 			},
 		},
 	}
@@ -385,10 +385,10 @@ func TestListReplace(t *testing.T) {
         </table>
         `,
 		patches: []Patch{
-			{Anchor: "_l0010000", Action: Replace, HTML: `<td colspan="2" _l0010000="">No thingers</td>`},
-			{Anchor: "_l0010001", Action: Replace, HTML: ``},
-			{Anchor: "_l001001", Action: Replace, HTML: ``},
-			{Anchor: "_l001002", Action: Replace, HTML: ``},
+			{Anchor: "_l_0_1_0_0_0_0", Action: Replace, HTML: `<td colspan="2" _l_0_1_0_0_0_0="">No thingers</td>`},
+			{Anchor: "_l_0_1_0_0_0_1", Action: Replace, HTML: ``},
+			{Anchor: "_l_0_1_0_0_1", Action: Replace, HTML: ``},
+			{Anchor: "_l_0_1_0_0_2", Action: Replace, HTML: ``},
 		},
 	}, t)
 }

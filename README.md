@@ -13,6 +13,13 @@ Compatible with `net/http`, so will play nicely with middleware and other framew
 I am starting to use this in production where I work. As such, I will be fixing any issues
 I find and changing the API surface to make it as easy to use as possible.
 
+## Community
+
+For bugs please use github issues. If you have a question about design or adding features, I
+am happy to chat about it in the discussions tab.
+
+Discord server is [here](https://discord.gg/TuMNaXJMUG).
+
 ## Getting Started
 
 ### Install

@@ -6,6 +6,8 @@ import { EventDispatch, LiveEvent } from "./event";
  * Standard event handler class. Clicks, focus and blur.
  */
 class LiveHandler {
+    protected limiter = new Limiter();
+
     constructor(protected event: string, protected attribute: string) {}
 
     public isWired(element: Element): boolean {
@@ -24,10 +26,13 @@ class LiveHandler {
                     return;
                 }
                 const params = GetParams(element as HTMLElement);
-                element.addEventListener(
-                    this.event,
-                    this.handler(element as HTMLElement, params)
-                );
+                element.addEventListener(this.event, (e) => {
+                    if (this.limiter.hasDebounce(element)) {
+                        this.limiter.debounce(element, e, this.handler(element as HTMLFormElement, params));
+                    } else {
+                        this.handler(element as HTMLFormElement, params)(e);
+                    }
+                });
                 element.addEventListener("ack", (_) => {
                     element.classList.remove(`${this.attribute}-loading`);
                 });
@@ -97,6 +102,38 @@ export class KeyHandler extends LiveHandler {
                 element
             );
         };
+    }
+}
+
+class Limiter {
+    private debounceAttr = "live-debounce";
+    private debounceEvent: any;
+
+    public hasDebounce(element: Element): boolean {
+        return element.hasAttribute(this.debounceAttr);
+    }
+
+    public debounce(element: Element, e: Event, fn: EventListener) {
+        clearTimeout(this.debounceEvent);
+        if (!this.hasDebounce(element)) {
+            fn(e);
+            return;
+        }
+        const debounce = element.getAttribute(this.debounceAttr);
+        if (debounce === null) {
+            fn(e);
+            return;
+        }
+        if (debounce === "blur") {
+            this.debounceEvent = fn;
+            element.addEventListener("blur", () => {
+                this.debounceEvent();
+            });
+            return;
+        }
+        this.debounceEvent = setTimeout(() => {
+            fn(e);
+        }, parseInt(debounce));
     }
 }
 
@@ -220,6 +257,7 @@ class WindowKeyup extends KeyHandler {
  */
 class Change {
     protected attribute = "live-change";
+    protected limiter = new Limiter();
 
     constructor() {}
 
@@ -244,8 +282,14 @@ class Change {
                         if (this.isWired(childElement) == true) {
                             return;
                         }
-                        childElement.addEventListener("input", (_) => {
-                            this.handler(element as HTMLFormElement);
+                        childElement.addEventListener("input", (e) => {
+                            if (this.limiter.hasDebounce(childElement)) {
+                                this.limiter.debounce(childElement, e, () => {
+                                    this.handler(element as HTMLFormElement);
+                                });
+                            } else {
+                                this.handler(element as HTMLFormElement);
+                            }
                         });
                     });
             });

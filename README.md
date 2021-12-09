@@ -301,8 +301,20 @@ See the [form example](https://github.com/jfyne/live-examples/tree/main/todo) fo
 
 ### Rate Limiting
 
+- [x] live-debounce
 - [ ] live-throttle
-- [ ] live-debounce
+
+All events can be rate-limited on the client by using the `live-debounce` and `live-throttle` bindings,
+with the following behavior:
+
+`live-debounce` accepts either an integer timeout value (in milliseconds),
+or "blur". When an integer is provided, emitting the event is delayed by the specified milliseconds. When
+"blur" is provided, emitting the event is delayed until the field is blurred by the user. Debouncing is typically
+used for input elements.
+
+`live-throttle` accepts an integer timeout value to throttle the event in milliseconds. Unlike debounce,
+throttle will immediately emit the event, then rate limit it at once per provided timeout. Throttling is
+typically used to rate limit clicks, mouse and keyboard actions.
 
 ### Dom Patching
 

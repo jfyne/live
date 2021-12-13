@@ -1,5 +1,5 @@
 //go:generate npm run-script build
 
-//+build ignore
+//+build generate
 
 package main

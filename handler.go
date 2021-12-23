@@ -181,7 +181,17 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get session.
 	session, err := h.sessionStore.Get(r)
 	if err != nil {
-		h.Error(r.Context(), w, r, err)
+		if r.URL.Query().Get("live-repair") != "" {
+			h.Error(r.Context(), w, r, fmt.Errorf("session corrupted: %w", err))
+			return
+		} else {
+			log.Println(fmt.Errorf("session corrupted trying to repair: %w", err))
+			h.sessionStore.Clear(w, r)
+			q := r.URL.Query()
+			q.Set("live-repair", "1")
+			r.URL.RawQuery = q.Encode()
+			http.Redirect(w, r, r.URL.String(), http.StatusTemporaryRedirect)
+		}
 		return
 	}
 

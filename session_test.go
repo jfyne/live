@@ -2,6 +2,8 @@ package live
 
 import "net/http"
 
+var _ SessionStore = &TestStore{}
+
 // TestStore a test session store.
 type TestStore struct {
 	s Session
@@ -24,5 +26,11 @@ func (t TestStore) Get(r *http.Request) (Session, error) {
 // Save a session.
 func (t *TestStore) Save(w http.ResponseWriter, r *http.Request, session Session) error {
 	t.s = session
+	return nil
+}
+
+// Clear a session.
+func (t *TestStore) Clear(w http.ResponseWriter, r *http.Request) error {
+	t.s = map[string]interface{}{}
 	return nil
 }

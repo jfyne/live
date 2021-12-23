@@ -3,10 +3,13 @@ package live
 import (
 	"encoding/gob"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/sessions"
 	"github.com/rs/xid"
 )
+
+var _ SessionStore = &CookieStore{}
 
 // sessionID the key to access the live session ID.
 const sessionID string = "_lsid"
@@ -18,6 +21,7 @@ const sessionCookie string = "_ls"
 type SessionStore interface {
 	Get(*http.Request) (Session, error)
 	Save(http.ResponseWriter, *http.Request, Session) error
+	Clear(http.ResponseWriter, *http.Request) error
 }
 
 // Session persisted over page loads.
@@ -98,4 +102,16 @@ func (c CookieStore) Save(w http.ResponseWriter, r *http.Request, session Sessio
 	}
 	s.Values[sessionCookie] = session
 	return s.Save(r, w)
+}
+
+// Clear a session.
+func (c CookieStore) Clear(w http.ResponseWriter, r *http.Request) error {
+	http.SetCookie(w, &http.Cookie{
+		Name:     c.sessionName,
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+	})
+	return nil
 }

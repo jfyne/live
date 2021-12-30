@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 
 	"github.com/jfyne/live"
 )
@@ -15,7 +14,7 @@ import (
 type RegisterHandler func(c *Component) error
 
 // MountHandler the components mount function called on first GET request and again when the socket connects.
-type MountHandler func(ctx context.Context, c *Component, r *http.Request) error
+type MountHandler func(ctx context.Context, c *Component) error
 
 // RenderHandler ths component.
 type RenderHandler func(w io.Writer, c *Component) error
@@ -25,7 +24,7 @@ type RenderHandler func(w io.Writer, c *Component) error
 type EventHandler func(ctx context.Context, p live.Params) (interface{}, error)
 
 // ComponentConstructor a func for creating a new component.
-type ComponentConstructor func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket) (*Component, error)
+type ComponentConstructor func(ctx context.Context, h live.Handler, s live.Socket) (*Component, error)
 
 // Component a self contained component on the page.
 type Component struct {
@@ -34,11 +33,11 @@ type Component struct {
 	ID string
 
 	// Handler a reference to the host handler.
-	Handler *live.Handler
+	Handler live.Handler
 
 	// Socket a reference to the socket that this component
 	// is scoped too.
-	Socket *live.Socket
+	Socket live.Socket
 
 	// Register the component. This should be used to setup event handling.
 	Register RegisterHandler
@@ -54,7 +53,7 @@ type Component struct {
 }
 
 // NewComponent creates a new component and returns it. It does not register it or mount it.
-func NewComponent(ID string, h *live.Handler, s *live.Socket, configurations ...ComponentConfig) (*Component, error) {
+func NewComponent(ID string, h live.Handler, s live.Socket, configurations ...ComponentConfig) (*Component, error) {
 	c := &Component{
 		ID:       ID,
 		Handler:  h,
@@ -81,7 +80,7 @@ func Init(ctx context.Context, construct func() (*Component, error)) (*Component
 	if err := comp.Register(comp); err != nil {
 		return nil, fmt.Errorf("could not install component on register: %w", err)
 	}
-	if err := comp.Mount(ctx, comp, nil); err != nil {
+	if err := comp.Mount(ctx, comp); err != nil {
 		return nil, fmt.Errorf("could not install component on mount: %w", err)
 	}
 	return comp, nil
@@ -89,13 +88,13 @@ func Init(ctx context.Context, construct func() (*Component, error)) (*Component
 
 // Self sends an event scoped not only to this socket, but to this specific component instance. Or any
 // components sharing the same ID.
-func (c *Component) Self(ctx context.Context, s *live.Socket, event string, data interface{}) error {
+func (c *Component) Self(ctx context.Context, s live.Socket, event string, data interface{}) error {
 	return s.Self(ctx, c.Event(event), data)
 }
 
 // HandleSelf handles scoped incoming events send by a components Self function.
 func (c *Component) HandleSelf(event string, handler EventHandler) {
-	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s *live.Socket, p live.Params) (interface{}, error) {
+	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s live.Socket, p live.Params) (interface{}, error) {
 		state, err := handler(ctx, p)
 		if err != nil {
 			return s.Assigns(), err
@@ -107,7 +106,7 @@ func (c *Component) HandleSelf(event string, handler EventHandler) {
 
 // HandleEvent handles a component event sent from a connected socket.
 func (c *Component) HandleEvent(event string, handler EventHandler) {
-	c.Handler.HandleEvent(c.Event(event), func(ctx context.Context, s *live.Socket, p live.Params) (interface{}, error) {
+	c.Handler.HandleEvent(c.Event(event), func(ctx context.Context, s live.Socket, p live.Params) (interface{}, error) {
 		state, err := handler(ctx, p)
 		if err != nil {
 			return s.Assigns(), err
@@ -119,7 +118,7 @@ func (c *Component) HandleEvent(event string, handler EventHandler) {
 
 // HandleParams handles parameter changes. Caution these handlers are not scoped to a specific component.
 func (c *Component) HandleParams(handler EventHandler) {
-	c.Handler.HandleParams(func(ctx context.Context, s *live.Socket, p live.Params) (interface{}, error) {
+	c.Handler.HandleParams(func(ctx context.Context, s live.Socket, p live.Params) (interface{}, error) {
 		state, err := handler(ctx, p)
 		if err != nil {
 			return s.Assigns(), err
@@ -150,7 +149,7 @@ func defaultRegister(c *Component) error {
 }
 
 // defaultMount is the default mount handler which does nothing.
-func defaultMount(ctx context.Context, c *Component, r *http.Request) error {
+func defaultMount(ctx context.Context, c *Component) error {
 	return nil
 }
 

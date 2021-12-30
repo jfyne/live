@@ -16,9 +16,9 @@ func TestHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h.Render = func(ctx context.Context, data interface{}) (io.Reader, error) {
+	h.HandleRender(func(ctx context.Context, data interface{}) (io.Reader, error) {
 		return strings.NewReader(output), nil
-	}
+	})
 
 	req, err := http.NewRequest("GET", "/test", nil)
 	if err != nil {
@@ -26,7 +26,8 @@ func TestHandler(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	h.serveHTTP(rr, req)
+	ctx := httpContext(rr, req)
+	h.serveHTTP(ctx, rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", rr.Code, http.StatusOK)
@@ -49,7 +50,8 @@ func TestHandlerErrorNoRenderer(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	h.serveHTTP(rr, req)
+	ctx := httpContext(rr, req)
+	h.serveHTTP(ctx, rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("handler returned wrong status code: got %v want %v", rr.Code, http.StatusInternalServerError)

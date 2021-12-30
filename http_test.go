@@ -2,7 +2,7 @@ package live
 
 import "net/http"
 
-var _ SessionStore = &TestStore{}
+var _ HTTPSessionStore = &TestStore{}
 
 // TestStore a test session store.
 type TestStore struct {

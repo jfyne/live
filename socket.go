@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"sync"
 
+	"github.com/rs/xid"
 	"golang.org/x/net/html"
-	"nhooyr.io/websocket"
 )
 
 const (
@@ -17,12 +16,52 @@ const (
 	maxMessageBufferSize = 16
 )
 
-// Socket describes a socket from the outside.
-type Socket struct {
-	// The session for this socket.
-	Session Session
+var _ Socket = &BaseSocket{}
 
-	handler       *Handler
+type SocketID string
+
+// Socket describes a connected user, and the state that they
+// are in.
+type Socket interface {
+	// ID return an ID for this socket.
+	ID() SocketID
+	// Assigns returns the data currently assigned to this
+	// socket.
+	Assigns() interface{}
+	// Assign set data to this socket. This will happen automatically
+	// if you return data from and `EventHander`.
+	Assign(data interface{})
+	// Connected returns true if this socket is connected via the websocket.
+	Connected() bool
+	// Self send an event to this socket itself. Will be handled in the
+	// handlers HandleSelf function.
+	Self(ctx context.Context, event string, data interface{}) error
+	// Broadcast send an event to all sockets on this same handler.
+	Broadcast(event string, data interface{}) error
+	// Send an event to this socket's client, to be handled there.
+	Send(event string, data interface{}, options ...EventConfig) error
+	// PatchURL sends an event to the client to update the
+	// query params in the URL.
+	PatchURL(values url.Values)
+	// Redirect sends a redirect event to the client. This will trigger the browser to
+	// redirect to a URL.
+	Redirect(u *url.URL)
+	// LatestRender return the latest render that this socket generated.
+	LatestRender() *html.Node
+	// UpdateRender set the latest render.
+	UpdateRender(render *html.Node)
+	// Session returns the sockets session.
+	Session() Session
+	// Messages returns the channel of events on this socket.
+	Messages() chan Event
+}
+
+// BaseSocket describes a socket from the outside.
+type BaseSocket struct {
+	session Session
+	id      SocketID
+
+	handler       Handler
 	connected     bool
 	currentRender *html.Node
 	msgs          chan Event
@@ -32,19 +71,27 @@ type Socket struct {
 	dataMu sync.Mutex
 }
 
-// NewSocket creates a new socket.
-func NewSocket(s Session, h *Handler, connected bool) *Socket {
-	return &Socket{
-		Session:   s,
+// NewBaseSocket creates a new default socket.
+func NewBaseSocket(s Session, h Handler, connected bool) *BaseSocket {
+	return &BaseSocket{
+		session:   s,
 		handler:   h,
 		connected: connected,
 		msgs:      make(chan Event, maxMessageBufferSize),
 	}
 }
 
+// ID generate a unique ID for this socket.
+func (s *BaseSocket) ID() SocketID {
+	if s.id == "" {
+		s.id = SocketID(xid.New().String())
+	}
+	return s.id
+}
+
 // Assigns returns the data currently assigned to this
 // socket.
-func (s *Socket) Assigns() interface{} {
+func (s *BaseSocket) Assigns() interface{} {
 	s.dataMu.Lock()
 	defer s.dataMu.Unlock()
 	return s.data
@@ -52,20 +99,20 @@ func (s *Socket) Assigns() interface{} {
 
 // Assign set data to this socket. This will happen automatically
 // if you return data from and `EventHander`.
-func (s *Socket) Assign(data interface{}) {
+func (s *BaseSocket) Assign(data interface{}) {
 	s.dataMu.Lock()
 	defer s.dataMu.Unlock()
 	s.data = data
 }
 
 // Connected returns if this socket is connected via the websocket.
-func (s *Socket) Connected() bool {
+func (s *BaseSocket) Connected() bool {
 	return s.connected
 }
 
 // Self send an event to this socket itself. Will be handled in the
 // handlers HandleSelf function.
-func (s *Socket) Self(ctx context.Context, event string, data interface{}) error {
+func (s *BaseSocket) Self(ctx context.Context, event string, data interface{}) error {
 	payload, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("could not encode data for self: %w", err)
@@ -76,12 +123,12 @@ func (s *Socket) Self(ctx context.Context, event string, data interface{}) error
 }
 
 // Broadcast send an event to all sockets on this same handler.
-func (s *Socket) Broadcast(event string, data interface{}) error {
+func (s *BaseSocket) Broadcast(event string, data interface{}) error {
 	return s.handler.Broadcast(event, data)
 }
 
 // Send an event to this socket's client, to be handled there.
-func (s *Socket) Send(event string, data interface{}, options ...EventConfig) error {
+func (s *BaseSocket) Send(event string, data interface{}, options ...EventConfig) error {
 	payload, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("could not encode data for send: %w", err)
@@ -102,78 +149,25 @@ func (s *Socket) Send(event string, data interface{}, options ...EventConfig) er
 
 // PatchURL sends an event to the client to update the
 // query params in the URL.
-func (s *Socket) PatchURL(values url.Values) {
+func (s *BaseSocket) PatchURL(values url.Values) {
 	s.Send(EventParams, values.Encode())
 }
 
 // Redirect sends a redirect event to the client. This will trigger the browser to
 // redirect to a URL.
-func (s *Socket) Redirect(u *url.URL) {
+func (s *BaseSocket) Redirect(u *url.URL) {
 	s.Send(EventRedirect, u.String())
 }
 
-// mount passes this socket to the handlers mount func. This returns data
-// which we then set to the socket to store.
-func (s *Socket) mount(ctx context.Context, h *Handler, r *http.Request) error {
-	data, err := h.Mount(ctx, r, s)
-	if err != nil {
-		return fmt.Errorf("mount error: %w", err)
-	}
-	s.Assign(data)
-	return nil
+func (s *BaseSocket) LatestRender() *html.Node {
+	return s.currentRender
 }
-
-// params passes this socket to the handlers params func. This returns data
-// which we then set to the socket to store.
-func (s *Socket) params(ctx context.Context, h *Handler, r *http.Request) error {
-	for _, ph := range h.paramsHandlers {
-		data, err := ph(ctx, s, NewParamsFromRequest(r))
-		if err != nil {
-			return fmt.Errorf("params error: %w", err)
-		}
-		s.Assign(data)
-	}
-	return nil
+func (s *BaseSocket) UpdateRender(render *html.Node) {
+	s.currentRender = render
 }
-
-// render passes this socket to the handlers render func. This generates
-// the HTML we should be showing to the socket. A diff is then run against
-// previosuly generated HTML and patches sent to the socket.
-func (s *Socket) render(ctx context.Context, h *Handler) error {
-	s.dataMu.Lock()
-	defer s.dataMu.Unlock()
-
-	// Render handler.
-	output, err := h.Render(ctx, s.data)
-	if err != nil {
-		return fmt.Errorf("render error: %w", err)
-	}
-	node, err := html.Parse(output)
-	if err != nil {
-		return fmt.Errorf("html parse error: %w", err)
-	}
-	shapeTree(node)
-
-	// Get diff
-	if s.currentRender != nil {
-		patches, err := Diff(s.currentRender, node)
-		if err != nil {
-			return fmt.Errorf("diff error: %w", err)
-		}
-		if len(patches) != 0 {
-			s.Send(EventPatch, patches)
-		}
-	} else {
-		anchorTree(node, newAnchorGenerator())
-	}
-	s.currentRender = node
-
-	return nil
+func (s *BaseSocket) Session() Session {
+	return s.session
 }
-
-// assignWS connect a web socket to a socket.
-func (s *Socket) assignWS(ws *websocket.Conn) {
-	s.closeSlow = func() {
-		ws.Close(websocket.StatusPolicyViolation, "socket too slow to keep up with messages")
-	}
+func (s *BaseSocket) Messages() chan Event {
+	return s.msgs
 }

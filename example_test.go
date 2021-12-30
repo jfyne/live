@@ -15,7 +15,7 @@ type ThermoModel struct {
 }
 
 // Helper function to get the model from the socket data.
-func NewThermoModel(s *Socket) *ThermoModel {
+func NewThermoModel(s Socket) *ThermoModel {
 	m, ok := s.Assigns().(*ThermoModel)
 	// If we haven't already initialised set up.
 	if !ok {
@@ -28,7 +28,7 @@ func NewThermoModel(s *Socket) *ThermoModel {
 
 // thermoMount initialises the thermostat state. Data returned in the mount function will
 // automatically be assigned to the socket.
-func thermoMount(ctx context.Context, r *http.Request, s *Socket) (interface{}, error) {
+func thermoMount(ctx context.Context, s Socket) (interface{}, error) {
 	return NewThermoModel(s), nil
 }
 
@@ -36,14 +36,14 @@ func thermoMount(ctx context.Context, r *http.Request, s *Socket) (interface{}, 
 // is called with the original request context of the socket, the socket itself containing the current
 // state and and params that came from the event. Params contain query string parameters and any
 // `live-value-` bindings.
-func tempUp(ctx context.Context, s *Socket, p Params) (interface{}, error) {
+func tempUp(ctx context.Context, s Socket, p Params) (interface{}, error) {
 	model := NewThermoModel(s)
 	model.C += 0.1
 	return model, nil
 }
 
 // tempDown on the temp down event, decrease the thermostat temperature by .1 C.
-func tempDown(ctx context.Context, s *Socket, p Params) (interface{}, error) {
+func tempDown(ctx context.Context, s Socket, p Params) (interface{}, error) {
 	model := NewThermoModel(s)
 	model.C -= 0.1
 	return model, nil
@@ -63,11 +63,11 @@ func Example() {
 	// socket connection. This should be used to create the initial state,
 	// the socket Connected func will be true if the mount call is on a web
 	// socket connection.
-	h.Mount = thermoMount
+	h.HandleMount(thermoMount)
 
 	// Provide a render function. Here we are doing it manually, but there is a
 	// provided WithTemplateRenderer which can be used to work with `html/template`
-	h.Render = func(ctx context.Context, data interface{}) (io.Reader, error) {
+	h.HandleRender(func(ctx context.Context, data interface{}) (io.Reader, error) {
 		tmpl, err := template.New("thermo").Parse(`
             <div>{{.C}}</div>
             <button live-click="temp-up">+</button>
@@ -83,7 +83,7 @@ func Example() {
 			return nil, err
 		}
 		return &buf, nil
-	}
+	})
 
 	// This handles the `live-click="temp-up"` button. First we load the model from
 	// the socket, increment the temperature, and then return the new state of the

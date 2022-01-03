@@ -43,13 +43,11 @@ type Engine interface {
 	CallEvent(ctx context.Context, t string, sock Socket, msg Event) error
 	// HandleBroadcast allows overriding the broadcast functionality.
 	HandleBroadcast(handler BroadcastHandler)
-
-	// Internal implementation.
+	// Broadcast send a message to all sockets connected to this engine.
+	Broadcast(event string, data interface{}) error
 
 	// self sends a message to the socket on this engine.
 	self(ctx context.Context, sock Socket, msg Event)
-	// Broadcast send a message to all sockets connected to this engine.
-	broadcast(event string, data interface{}) error
 }
 
 // BaseEngine handles live inner workings.
@@ -109,7 +107,7 @@ func (e *BaseEngine) Error() ErrorHandler {
 }
 
 // Broadcast send a message to all sockets connected to this engine.
-func (e *BaseEngine) broadcast(event string, data interface{}) error {
+func (e *BaseEngine) Broadcast(event string, data interface{}) error {
 	payload, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("could not encode data for broadcast: %w", err)

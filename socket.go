@@ -36,7 +36,7 @@ type Socket interface {
 	// Self send an event to this socket itself. Will be handled in the
 	// handlers HandleSelf function.
 	Self(ctx context.Context, event string, data interface{}) error
-	// Broadcast send an event to all sockets on this same handler.
+	// Broadcast send an event to all sockets on this same engine.
 	Broadcast(event string, data interface{}) error
 	// Send an event to this socket's client, to be handled there.
 	Send(event string, data interface{}, options ...EventConfig) error
@@ -122,9 +122,9 @@ func (s *BaseSocket) Self(ctx context.Context, event string, data interface{}) e
 	return nil
 }
 
-// Broadcast send an event to all sockets on this same handler.
+// Broadcast send an event to all sockets on this same engine.
 func (s *BaseSocket) Broadcast(event string, data interface{}) error {
-	return s.engine.broadcast(event, data)
+	return s.engine.Broadcast(event, data)
 }
 
 // Send an event to this socket's client, to be handled there.

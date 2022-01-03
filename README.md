@@ -8,10 +8,10 @@ an interactive web app just using Go and its templates.
 
 ![](https://github.com/jfyne/live-examples/blob/main/chat.gif)
 
-Compatible with `net/http`, so will play nicely with middleware and other frameworks.
+The structures provided in this package are compatible with `net/http`, so will play
+nicely with middleware and other frameworks.
 
-I am starting to use this in production where I work. As such, I will be fixing any issues
-I find and changing the API surface to make it as easy to use as possible.
+- [Fiber](https://github.com/jfyne/live-contrib/tree/main/livefiber)
 
 ## Community
 
@@ -44,7 +44,6 @@ import (
 	"context"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -93,10 +92,7 @@ func tempDown(ctx context.Context, s Socket, p Params) (interface{}, error) {
 func Example() {
 
 	// Setup the handler.
-	h, err := NewHandler(NewCookieStore("session-name", []byte("weak-secret")))
-	if err != nil {
-		log.Fatal("could not create handler")
-	}
+	h := NewHandler()
 
 	// Mount function is called on initial HTTP load and then initial web
 	// socket connection. This should be used to create the initial state,
@@ -133,7 +129,7 @@ func Example() {
 	// This handles the `live-click="temp-down"` button.
 	h.HandleEvent("temp-down", tempDown)
 
-	http.Handle("/thermostat", h)
+	http.Handle("/thermostat", NewHttpHandler(NewCookieStore("session-name", []byte("weak-secret")), h))
 
 	// This serves the JS needed to make live work.
 	http.Handle("/live.js", Javascript{})
@@ -160,7 +156,6 @@ package page
 import (
 	"context"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/jfyne/live"
@@ -187,18 +182,14 @@ func NewGreeter(ID string, h live.Handler, s live.Socket, name string) (*Compone
 }
 
 func Example() {
-	h, err := live.NewHandler(
-		live.NewCookieStore("session-name", []byte("weak-secret")),
+	h := live.NewHandler(
 		WithComponentMount(func(ctx context.Context, h live.Handler, s live.Socket) (*Component, error) {
 			return NewGreeter("hello-id", h, s, "World!")
 		}),
 		WithComponentRenderer(),
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	http.Handle("/", h)
+	http.Handle("/", live.NewHttpHandler(live.NewCookieStore("session-name", []byte("weak-secret")), h))
 	http.Handle("/live.js", live.Javascript{})
 	http.ListenAndServe(":8080", nil)
 }

@@ -3,7 +3,6 @@ package page
 import (
 	"context"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/jfyne/live"
@@ -30,18 +29,14 @@ func NewGreeter(ID string, h live.Handler, s live.Socket, name string) (*Compone
 }
 
 func Example() {
-	h, err := live.NewHandler(
-		live.NewCookieStore("session-name", []byte("weak-secret")),
+	h := live.NewHandler(
 		WithComponentMount(func(ctx context.Context, h live.Handler, s live.Socket) (*Component, error) {
 			return NewGreeter("hello-id", h, s, "World!")
 		}),
 		WithComponentRenderer(),
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	http.Handle("/", h)
+	http.Handle("/", live.NewHttpHandler(live.NewCookieStore("session-name", []byte("weak-secret")), h))
 	http.Handle("/live.js", live.Javascript{})
 	http.ListenAndServe(":8080", nil)
 }

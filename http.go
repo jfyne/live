@@ -16,46 +16,36 @@ import (
 	"nhooyr.io/websocket"
 )
 
-var _ Handler = &HTTPHandler{}
-var _ Socket = &HTTPSocket{}
-var _ HTTPSessionStore = &CookieStore{}
+var _ Engine = &HttpEngine{}
+var _ Socket = &HttpSocket{}
+var _ HttpSessionStore = &CookieStore{}
 
 // sessionCookie the name of the session cookie.
 const sessionCookie string = "_ls"
 
-// HTTPSessionStore handles storing and retrieving sessions.
-type HTTPSessionStore interface {
+// HttpSessionStore handles storing and retrieving sessions.
+type HttpSessionStore interface {
 	Get(*http.Request) (Session, error)
 	Save(http.ResponseWriter, *http.Request, Session) error
 	Clear(http.ResponseWriter, *http.Request) error
 }
 
-// HTTPHandler serves live for net/http.
-type HTTPHandler struct {
-	sessionStore HTTPSessionStore
-	*BaseHandler
+// HttpEngine serves live for net/http.
+type HttpEngine struct {
+	sessionStore HttpSessionStore
+	*BaseEngine
 }
 
-// NewHandler returns the net/http handler for live.
-func NewHandler(store HTTPSessionStore, configs ...HandlerConfig) (*HTTPHandler, error) {
-	d, err := NewBaseHandler(configs...)
-	if err != nil {
-		return nil, fmt.Errorf("could not init base handler: %w", err)
-	}
-	h := &HTTPHandler{
+// NewHttpHandler returns the net/http handler for live.
+func NewHttpHandler(store HttpSessionStore, handler Handler) *HttpEngine {
+	return &HttpEngine{
 		sessionStore: store,
-		BaseHandler:  d,
+		BaseEngine:   NewBaseEngine(handler),
 	}
-	for _, conf := range configs {
-		if err := conf(h); err != nil {
-			return nil, fmt.Errorf("could not apply config: %w", err)
-		}
-	}
-	return h, nil
 }
 
 // ServeHTTP serves this handler.
-func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *HttpEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/favicon.ico" {
 		if h.ignoreFaviconRequest {
 			w.WriteHeader(404)
@@ -76,7 +66,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if !upgrade {
 		// Serve the http version of the handler.
-		h.serveHTTP(ctx, w, r)
+		h.serveHttp(ctx, w, r)
 		return
 	}
 
@@ -84,8 +74,8 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.serveWS(ctx, w, r)
 }
 
-// serveHTTP serve an http request to the handler.
-func (h *HTTPHandler) serveHTTP(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+// serveHttp serve an http request to the handler.
+func (h *HttpEngine) serveHttp(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	// Get session.
 	session, err := h.sessionStore.Get(r)
@@ -105,7 +95,7 @@ func (h *HTTPHandler) serveHTTP(ctx context.Context, w http.ResponseWriter, r *h
 	}
 
 	// Get socket.
-	sock := NewHTTPSocket(session, h, false)
+	sock := NewHttpSocket(session, h, false)
 
 	// Run mount, this generates the state for the page we are on.
 	data, err := h.Mount()(ctx, sock)
@@ -146,7 +136,7 @@ func (h *HTTPHandler) serveHTTP(ctx context.Context, w http.ResponseWriter, r *h
 }
 
 // serveWS serve a websocket request to the handler.
-func (h *HTTPHandler) serveWS(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func (h *HttpEngine) serveWS(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	// Get the session from the http request.
 	session, err := h.sessionStore.Get(r)
 	if err != nil {
@@ -179,9 +169,9 @@ func (h *HTTPHandler) serveWS(ctx context.Context, w http.ResponseWriter, r *htt
 }
 
 // _serveWS implement the logic for a web socket connection.
-func (h *HTTPHandler) _serveWS(ctx context.Context, r *http.Request, session Session, c *websocket.Conn) error {
+func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Session, c *websocket.Conn) error {
 	// Get the sessions socket and register it with the server.
-	sock := NewHTTPSocket(session, h, true)
+	sock := NewHttpSocket(session, h, true)
 	sock.assignWS(c)
 	h.AddSocket(sock)
 	defer h.DeleteSocket(sock)
@@ -303,19 +293,19 @@ func (h *HTTPHandler) _serveWS(ctx context.Context, r *http.Request, session Ses
 	}
 }
 
-type HTTPSocket struct {
+type HttpSocket struct {
 	*BaseSocket
 }
 
-// NewHTTPSocket creates a new http socket.
-func NewHTTPSocket(s Session, h Handler, connected bool) *HTTPSocket {
-	return &HTTPSocket{
-		BaseSocket: NewBaseSocket(s, h, connected),
+// NewHttpSocket creates a new http socket.
+func NewHttpSocket(s Session, e Engine, connected bool) *HttpSocket {
+	return &HttpSocket{
+		BaseSocket: NewBaseSocket(s, e, connected),
 	}
 }
 
 // assignWS connect a web socket to a socket.
-func (s *HTTPSocket) assignWS(ws *websocket.Conn) {
+func (s *HttpSocket) assignWS(ws *websocket.Conn) {
 	s.closeSlow = func() {
 		ws.Close(websocket.StatusPolicyViolation, "socket too slow to keep up with messages")
 	}

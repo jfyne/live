@@ -61,7 +61,7 @@ type BaseSocket struct {
 	session Session
 	id      SocketID
 
-	handler       Handler
+	engine        Engine
 	connected     bool
 	currentRender *html.Node
 	msgs          chan Event
@@ -72,10 +72,10 @@ type BaseSocket struct {
 }
 
 // NewBaseSocket creates a new default socket.
-func NewBaseSocket(s Session, h Handler, connected bool) *BaseSocket {
+func NewBaseSocket(s Session, e Engine, connected bool) *BaseSocket {
 	return &BaseSocket{
 		session:   s,
-		handler:   h,
+		engine:    e,
 		connected: connected,
 		msgs:      make(chan Event, maxMessageBufferSize),
 	}
@@ -118,13 +118,13 @@ func (s *BaseSocket) Self(ctx context.Context, event string, data interface{}) e
 		return fmt.Errorf("could not encode data for self: %w", err)
 	}
 	msg := Event{T: event, Data: payload}
-	s.handler.self(ctx, s, msg)
+	s.engine.self(ctx, s, msg)
 	return nil
 }
 
 // Broadcast send an event to all sockets on this same handler.
 func (s *BaseSocket) Broadcast(event string, data interface{}) error {
-	return s.handler.Broadcast(event, data)
+	return s.engine.broadcast(event, data)
 }
 
 // Send an event to this socket's client, to be handled there.

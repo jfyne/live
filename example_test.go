@@ -5,7 +5,6 @@ import (
 	"context"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -54,10 +53,7 @@ func tempDown(ctx context.Context, s Socket, p Params) (interface{}, error) {
 func Example() {
 
 	// Setup the handler.
-	h, err := NewHandler(NewCookieStore("session-name", []byte("weak-secret")))
-	if err != nil {
-		log.Fatal("could not create handler")
-	}
+	h := NewHandler()
 
 	// Mount function is called on initial HTTP load and then initial web
 	// socket connection. This should be used to create the initial state,
@@ -94,7 +90,7 @@ func Example() {
 	// This handles the `live-click="temp-down"` button.
 	h.HandleEvent("temp-down", tempDown)
 
-	http.Handle("/thermostat", h)
+	http.Handle("/thermostat", NewHttpHandler(NewCookieStore("session-name", []byte("weak-secret")), h))
 
 	// This serves the JS needed to make live work.
 	http.Handle("/live.js", Javascript{})

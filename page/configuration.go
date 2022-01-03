@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 
 	"github.com/jfyne/live"
 )
@@ -39,9 +38,9 @@ func WithRender(fn RenderHandler) ComponentConfig {
 
 // WithComponentMount set the live.Handler to mount the root component.
 func WithComponentMount(construct ComponentConstructor) live.HandlerConfig {
-	return func(h *live.Handler) error {
-		h.Mount = func(ctx context.Context, r *http.Request, s *live.Socket) (interface{}, error) {
-			root, err := construct(ctx, h, r, s)
+	return func(h live.Handler) error {
+		h.HandleMount(func(ctx context.Context, s live.Socket) (interface{}, error) {
+			root, err := construct(ctx, h, s)
 			if err != nil {
 				return nil, fmt.Errorf("failed to construct root component: %w", err)
 			}
@@ -50,19 +49,19 @@ func WithComponentMount(construct ComponentConstructor) live.HandlerConfig {
 					return nil, err
 				}
 			}
-			if err := root.Mount(ctx, root, r); err != nil {
+			if err := root.Mount(ctx, root); err != nil {
 				return nil, err
 			}
 			return root, nil
-		}
+		})
 		return nil
 	}
 }
 
 // WithComponentRenderer set the live.Handler to use a root component to render.
 func WithComponentRenderer() live.HandlerConfig {
-	return func(h *live.Handler) error {
-		h.Render = func(ctx context.Context, data interface{}) (io.Reader, error) {
+	return func(h live.Handler) error {
+		h.HandleRender(func(_ context.Context, data interface{}) (io.Reader, error) {
 			c, ok := data.(*Component)
 			if !ok {
 				return nil, fmt.Errorf("root render data is not a component")
@@ -72,7 +71,7 @@ func WithComponentRenderer() live.HandlerConfig {
 				return nil, err
 			}
 			return &buf, nil
-		}
+		})
 		return nil
 	}
 }

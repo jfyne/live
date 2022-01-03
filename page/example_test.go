@@ -3,19 +3,18 @@ package page
 import (
 	"context"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/jfyne/live"
 )
 
 // NewGreeter creates a new greeter component.
-func NewGreeter(ID string, h *live.Handler, s *live.Socket, name string) (*Component, error) {
+func NewGreeter(ID string, h live.Handler, s live.Socket, name string) (*Component, error) {
 	return NewComponent(
 		ID,
 		h,
 		s,
-		WithMount(func(ctx context.Context, c *Component, r *http.Request) error {
+		WithMount(func(ctx context.Context, c *Component) error {
 			c.State = name
 			return nil
 		}),
@@ -30,18 +29,14 @@ func NewGreeter(ID string, h *live.Handler, s *live.Socket, name string) (*Compo
 }
 
 func Example() {
-	h, err := live.NewHandler(
-		live.NewCookieStore("session-name", []byte("weak-secret")),
-		WithComponentMount(func(ctx context.Context, h *live.Handler, r *http.Request, s *live.Socket) (*Component, error) {
+	h := live.NewHandler(
+		WithComponentMount(func(ctx context.Context, h live.Handler, s live.Socket) (*Component, error) {
 			return NewGreeter("hello-id", h, s, "World!")
 		}),
 		WithComponentRenderer(),
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	http.Handle("/", h)
+	http.Handle("/", live.NewHttpHandler(live.NewCookieStore("session-name", []byte("weak-secret")), h))
 	http.Handle("/live.js", live.Javascript{})
 	http.ListenAndServe(":8080", nil)
 }

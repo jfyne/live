@@ -13,3 +13,6 @@ var ErrMessageMalformed = errors.New("message malformed")
 
 // ErrNoSocket returned when a socket doesn't exist.
 var ErrNoSocket = errors.New("no socket")
+
+// ErrNotImplemented returned when an interface has not been implemented correctly.
+var ErrNotImplemented = errors.New("not implemented")

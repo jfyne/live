@@ -7,7 +7,7 @@ import (
 
 // EventHandler a function to handle events, returns the data that should
 // be set to the socket after handling.
-type EventHandler func(context.Context, *Socket, Params) (interface{}, error)
+type EventHandler func(context.Context, Socket, Params) (interface{}, error)
 
 // EventConfig configures an event.
 type EventConfig func(e *Event) error
@@ -56,4 +56,9 @@ func WithID(ID int) EventConfig {
 		e.ID = ID
 		return nil
 	}
+}
+
+type ErrorEvent struct {
+	Source Event  `json:"source"`
+	Err    string `json:"err"`
 }

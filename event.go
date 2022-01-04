@@ -1,13 +1,8 @@
 package live
 
 import (
-	"context"
 	"encoding/json"
 )
-
-// EventHandler a function to handle events, returns the data that should
-// be set to the socket after handling.
-type EventHandler func(context.Context, Socket, Params) (interface{}, error)
 
 // EventConfig configures an event.
 type EventConfig func(e *Event) error
@@ -33,9 +28,10 @@ const (
 // Event messages that are sent and received by the
 // socket.
 type Event struct {
-	T    string          `json:"t"`
-	ID   int             `json:"i,omitempty"`
-	Data json.RawMessage `json:"d,omitempty"`
+	T        string          `json:"t"`
+	ID       int             `json:"i,omitempty"`
+	Data     json.RawMessage `json:"d,omitempty"`
+	SelfData interface{}     `json:"-"`
 }
 
 // Params extract params from inbound message.

@@ -20,8 +20,12 @@ type MountHandler func(ctx context.Context, c *Component) error
 type RenderHandler func(w io.Writer, c *Component) error
 
 // EventHandler for a component, only needs the params as the event is scoped to both the socket and then component
-// iteslef. Returns any component state that needs updating.
+// itself. Returns any component state that needs updating.
 type EventHandler func(ctx context.Context, p live.Params) (interface{}, error)
+
+// SelfHandler for a component, only needs the data as the event is scoped to both the socket and then component
+// itself. Returns any component state that needs updating.
+type SelfHandler func(ctx context.Context, data interface{}) (interface{}, error)
 
 // ComponentConstructor a func for creating a new component.
 type ComponentConstructor func(ctx context.Context, h live.Handler, s live.Socket) (*Component, error)
@@ -93,9 +97,9 @@ func (c *Component) Self(ctx context.Context, s live.Socket, event string, data 
 }
 
 // HandleSelf handles scoped incoming events send by a components Self function.
-func (c *Component) HandleSelf(event string, handler EventHandler) {
-	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s live.Socket, p live.Params) (interface{}, error) {
-		state, err := handler(ctx, p)
+func (c *Component) HandleSelf(event string, handler SelfHandler) {
+	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s live.Socket, d interface{}) (interface{}, error) {
+		state, err := handler(ctx, d)
 		if err != nil {
 			return s.Assigns(), err
 		}

@@ -26,6 +26,14 @@ type RenderHandler func(ctx context.Context, data interface{}) (io.Reader, error
 // a handler of this type will be called.
 type ErrorHandler func(ctx context.Context, err error)
 
+// EventHandler a function to handle events, returns the data that should
+// be set to the socket after handling.
+type EventHandler func(context.Context, Socket, Params) (interface{}, error)
+
+// SelfHandler a function to handle self events, returns the data that should
+// be set to the socket after handling.
+type SelfHandler func(context.Context, Socket, interface{}) (interface{}, error)
+
 // Handler methods.
 type Handler interface {
 	// HandleMount handles initial setup on first request, and then later when
@@ -40,7 +48,7 @@ type Handler interface {
 	HandleEvent(t string, handler EventHandler)
 	// HandleSelf handles an event that comes from the server side socket. For example calling
 	// h.Self(socket, msg) will be handled here.
-	HandleSelf(t string, handler EventHandler)
+	HandleSelf(t string, handler SelfHandler)
 	// HandleParams handles a URL query parameter change. This is useful for handling
 	// things like pagincation, or some filtering.
 	HandleParams(handler EventHandler)
@@ -49,7 +57,7 @@ type Handler interface {
 	getRender() RenderHandler
 	getError() ErrorHandler
 	getEvent(t string) (EventHandler, error)
-	getSelf(t string) (EventHandler, error)
+	getSelf(t string) (SelfHandler, error)
 	getParams() []EventHandler
 }
 
@@ -68,7 +76,7 @@ type BaseHandler struct {
 	// eventHandlers the map of client event handlers.
 	eventHandlers map[string]EventHandler
 	// selfHandlers the map of handler event handlers.
-	selfHandlers map[string]EventHandler
+	selfHandlers map[string]SelfHandler
 	// paramsHandlers a slice of handlers which respond to a change in URL parameters.
 	paramsHandlers []EventHandler
 }
@@ -77,7 +85,7 @@ type BaseHandler struct {
 func NewHandler(configs ...HandlerConfig) *BaseHandler {
 	h := &BaseHandler{
 		eventHandlers:  make(map[string]EventHandler),
-		selfHandlers:   make(map[string]EventHandler),
+		selfHandlers:   make(map[string]SelfHandler),
 		paramsHandlers: []EventHandler{},
 		mountHandler: func(ctx context.Context, s Socket) (interface{}, error) {
 			return nil, nil
@@ -119,7 +127,7 @@ func (h *BaseHandler) HandleEvent(t string, handler EventHandler) {
 
 // HandleSelf handles an event that comes from the server side socket. For example calling
 // h.Self(socket, msg) will be handled here.
-func (h *BaseHandler) HandleSelf(t string, handler EventHandler) {
+func (h *BaseHandler) HandleSelf(t string, handler SelfHandler) {
 	h.selfHandlers[t] = handler
 }
 
@@ -145,7 +153,7 @@ func (h *BaseHandler) getEvent(t string) (EventHandler, error) {
 	}
 	return handler, nil
 }
-func (h *BaseHandler) getSelf(t string) (EventHandler, error) {
+func (h *BaseHandler) getSelf(t string) (SelfHandler, error) {
 	handler, ok := h.selfHandlers[t]
 	if !ok {
 		return nil, fmt.Errorf("no self handler for %s: %w", t, ErrNoEventHandler)

@@ -11,7 +11,9 @@ an interactive web app just using Go and its templates.
 The structures provided in this package are compatible with `net/http`, so will play
 nicely with middleware and other frameworks.
 
-- [Fiber](https://github.com/jfyne/live-contrib/tree/main/livefiber)
+## Other implementations
+
+- [Fiber](https://github.com/jfyne/live-contrib/tree/main/livefiber) a live handler for [Fiber](https://github.com/gofiber/fiber).
 
 ## Community
 

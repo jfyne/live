@@ -2,7 +2,6 @@ package live
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"sync"
@@ -108,11 +107,7 @@ func (e *BaseEngine) Error() ErrorHandler {
 
 // Broadcast send a message to all sockets connected to this engine.
 func (e *BaseEngine) Broadcast(event string, data interface{}) error {
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("could not encode data for broadcast: %w", err)
-	}
-	ev := Event{T: event, Data: payload}
+	ev := Event{T: event, SelfData: data}
 	ctx := context.Background()
 	e.broadcastLimiter.Wait(ctx)
 	e.broadcastHandler(ctx, e, ev)
@@ -191,12 +186,7 @@ func (e *BaseEngine) handleSelf(ctx context.Context, t string, sock Socket, msg 
 		return fmt.Errorf("no self event handler for %s: %w", t, ErrNoEventHandler)
 	}
 
-	params, err := msg.Params()
-	if err != nil {
-		return fmt.Errorf("received self message and could not extract params: %w", err)
-	}
-
-	data, err := handler(ctx, sock, params)
+	data, err := handler(ctx, sock, msg.SelfData)
 	if err != nil {
 		return fmt.Errorf("handler self event handler error [%s]: %w", t, err)
 	}

@@ -113,11 +113,7 @@ func (s *BaseSocket) Connected() bool {
 // Self send an event to this socket itself. Will be handled in the
 // handlers HandleSelf function.
 func (s *BaseSocket) Self(ctx context.Context, event string, data interface{}) error {
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("could not encode data for self: %w", err)
-	}
-	msg := Event{T: event, Data: payload}
+	msg := Event{T: event, SelfData: data}
 	s.engine.self(ctx, s, msg)
 	return nil
 }

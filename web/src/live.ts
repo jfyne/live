@@ -1,6 +1,6 @@
 import { Socket } from "./socket";
 import { Events } from "./events";
-import { EventDispatch } from "./event";
+import { EventDispatch, LiveEvent } from "./event";
 import { Hooks, DOM } from "./interop";
 
 export class Live {
@@ -22,5 +22,10 @@ export class Live {
 
         // Rewire all the events.
         Events.rewire();
+    }
+
+    public send(typ: string, data: any, id?: number) {
+        const e = new LiveEvent(typ, data, id);
+        Socket.send(e);
     }
 }

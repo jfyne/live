@@ -1,4 +1,5 @@
 import { Socket } from "./socket";
+import { Forms } from "./forms";
 import { UpdateURLParams, GetParams, GetURLParams, Params } from "./params";
 import { EventDispatch, LiveEvent } from "./event";
 
@@ -28,7 +29,11 @@ class LiveHandler {
                 const params = GetParams(element as HTMLElement);
                 element.addEventListener(this.event, (e) => {
                     if (this.limiter.hasDebounce(element)) {
-                        this.limiter.debounce(element, e, this.handler(element as HTMLFormElement, params));
+                        this.limiter.debounce(
+                            element,
+                            e,
+                            this.handler(element as HTMLFormElement, params)
+                        );
                     } else {
                         this.handler(element as HTMLFormElement, params)(e);
                     }
@@ -300,18 +305,7 @@ class Change {
         if (t === null) {
             return;
         }
-        const formData = new FormData(element);
-        const values: { [key: string]: any } = {};
-        formData.forEach((value, key) => {
-            if (!Reflect.has(values, key)) {
-                values[key] = value;
-                return;
-            }
-            if (!Array.isArray(values[key])) {
-                values[key] = [values[key]];
-            }
-            values[key].push(value);
-        });
+        const values: { [key: string]: any } = Forms.serialize(element);
         element.classList.add(`${this.attribute}-loading`);
         Socket.sendAndTrack(
             new LiveEvent(t, values, LiveEvent.GetID()),
@@ -331,24 +325,42 @@ class Submit extends LiveHandler {
     protected handler(element: HTMLElement, params: Params): EventListener {
         return (e: Event) => {
             if (e.preventDefault) e.preventDefault();
-            var vals = { ...params };
 
-            const t = element?.getAttribute(this.attribute);
-            if (t === null) {
-                return;
+            const hasFiles = Forms.hasFiles(element as HTMLFormElement);
+            if (hasFiles === true) {
+                const request = new XMLHttpRequest();
+                request.open("POST", "");
+                request.addEventListener('load', () => {
+                    this.sendEvent(element, params);
+                });
+
+                request.send(new FormData(element as HTMLFormElement));
+            } else {
+                this.sendEvent(element, params);
             }
-            const data = new FormData(element as HTMLFormElement);
-            data.forEach((value: any, name: string) => {
-                vals[name] = value;
-            });
-            element.classList.add(`${this.attribute}-loading`);
-            Socket.sendAndTrack(
-                new LiveEvent(t, vals, LiveEvent.GetID()),
-                element
-            );
-
             return false;
         };
+    }
+
+    protected sendEvent(element: HTMLElement, params: Params) {
+        const t = element?.getAttribute(this.attribute);
+        if (t === null) {
+            return;
+        }
+
+        var vals = { ...params };
+
+        const data: { [key: string]: any } = Forms.serialize(
+            element as HTMLFormElement
+        );
+        Object.keys(data).map((k) => {
+            vals[k] = data[k];
+        });
+        element.classList.add(`${this.attribute}-loading`);
+        Socket.sendAndTrack(
+            new LiveEvent(t, vals, LiveEvent.GetID()),
+            element
+        );
     }
 }
 

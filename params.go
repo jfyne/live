@@ -10,15 +10,7 @@ type Params map[string]interface{}
 
 // String helper to get a string from the params.
 func (p Params) String(key string) string {
-	v, ok := p[key]
-	if !ok {
-		return ""
-	}
-	out, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return out
+	return mapString(p, key)
 }
 
 // Checkbox helper to return a boolean from params referring to
@@ -38,8 +30,24 @@ func (p Params) Checkbox(key string) bool {
 	return false
 }
 
+func mapString(p map[string]interface{}, key string) string {
+	v, ok := p[key]
+	if !ok {
+		return ""
+	}
+	out, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return out
+}
+
 // Int helper to return and int from the params.
 func (p Params) Int(key string) int {
+	return mapInt(p, key)
+}
+
+func mapInt(p map[string]interface{}, key string) int {
 	v, ok := p[key]
 	if !ok {
 		return 0
@@ -53,12 +61,20 @@ func (p Params) Int(key string) int {
 			return 0
 		}
 		return i
+	case float32:
+		return int(out)
+	case float64:
+		return int(out)
 	}
 	return 0
 }
 
 // Float32 helper to return a float32 from the params.
 func (p Params) Float32(key string) float32 {
+	return mapFloat32(p, key)
+}
+
+func mapFloat32(p map[string]interface{}, key string) float32 {
 	v, ok := p[key]
 	if !ok {
 		return 0.0

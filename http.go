@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -37,17 +40,17 @@ type HttpEngine struct {
 }
 
 // NewHttpHandler returns the net/http handler for live.
-func NewHttpHandler(store HttpSessionStore, handler Handler) *HttpEngine {
+func NewHttpHandler(store HttpSessionStore, handler Handler, configs ...EngineConfig) *HttpEngine {
 	return &HttpEngine{
 		sessionStore: store,
-		BaseEngine:   NewBaseEngine(handler),
+		BaseEngine:   NewBaseEngine(handler, configs...),
 	}
 }
 
 // ServeHTTP serves this handler.
 func (h *HttpEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/favicon.ico" {
-		if h.ignoreFaviconRequest {
+		if h.IgnoreFaviconRequest {
 			w.WriteHeader(404)
 			return
 		}
@@ -65,8 +68,12 @@ func (h *HttpEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := httpContext(w, r)
 
 	if !upgrade {
-		// Serve the http version of the handler.
-		h.serveHttp(ctx, w, r)
+		switch r.Method {
+		case http.MethodPost:
+			h.post(ctx, w, r)
+		default:
+			h.get(ctx, w, r)
+		}
 		return
 	}
 
@@ -74,8 +81,124 @@ func (h *HttpEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.serveWS(ctx, w, r)
 }
 
-// serveHttp serve an http request to the handler.
-func (h *HttpEngine) serveHttp(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+// post handler.
+func (h *HttpEngine) post(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	// Get session.
+	session, err := h.sessionStore.Get(r)
+	if err != nil {
+		h.Error()(ctx, fmt.Errorf("no session found: %w", err))
+		return
+	}
+
+	// Get socket.
+	sock, err := h.GetSocket(session)
+	if err != nil {
+		h.Error()(ctx, err)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, h.MaxUploadSize)
+	if err := r.ParseMultipartForm(h.MaxUploadSize); err != nil {
+		h.Error()(ctx, fmt.Errorf("could not parse form for uploads: %w", err))
+		return
+	}
+
+	uploadDir := filepath.Join(h.UploadStagingLocation, string(sock.ID()))
+	if h.UploadStagingLocation == "" {
+		uploadDir, err = os.MkdirTemp("", string(sock.ID()))
+		if err != nil {
+			h.Error()(ctx, fmt.Errorf("%s upload dir creation failed: %w", sock.ID(), err))
+			return
+		}
+	}
+
+	for _, config := range sock.UploadConfigs() {
+		for _, fileHeader := range r.MultipartForm.File[config.Name] {
+			u := uploadFromFileHeader(fileHeader)
+			sock.AssignUpload(config.Name, u)
+			handleFileUpload(h, sock, config, u, uploadDir, fileHeader)
+
+			render, err := RenderSocket(ctx, h, sock)
+			if err != nil {
+				h.Error()(ctx, err)
+				return
+			}
+			sock.UpdateRender(render)
+		}
+	}
+}
+
+func uploadFromFileHeader(fh *multipart.FileHeader) *Upload {
+	return &Upload{
+		Name: fh.Filename,
+		Size: fh.Size,
+	}
+}
+
+func handleFileUpload(h *HttpEngine, sock Socket, config *UploadConfig, u *Upload, uploadDir string, fileHeader *multipart.FileHeader) {
+	// Check file claims to be within the max size.
+	if fileHeader.Size > config.MaxSize {
+		u.Errors = append(u.Errors, fmt.Errorf("%s greater than max allowed size of %d", fileHeader.Filename, config.MaxSize))
+		return
+	}
+
+	// Open the incoming file.
+	file, err := fileHeader.Open()
+	if err != nil {
+		u.Errors = append(u.Errors, fmt.Errorf("could not open %s for upload: %w", fileHeader.Filename, err))
+		return
+	}
+	defer file.Close()
+
+	// Check the actual filetype.
+	buff := make([]byte, 512)
+	_, err = file.Read(buff)
+	if err != nil {
+		u.Errors = append(u.Errors, fmt.Errorf("could not check %s for type: %w", fileHeader.Filename, err))
+		return
+	}
+	filetype := http.DetectContentType(buff)
+	allowed := false
+	for _, a := range config.Accept {
+		if filetype == a {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		u.Errors = append(u.Errors, fmt.Errorf("%s filetype is not allowed", fileHeader.Filename))
+		return
+	}
+	u.Type = filetype
+
+	// Rewind to start of the
+	_, err = file.Seek(0, io.SeekStart)
+	if err != nil {
+		u.Errors = append(u.Errors, fmt.Errorf("%s rewind error: %w", fileHeader.Filename, err))
+		return
+	}
+
+	f, err := os.Create(filepath.Join(uploadDir, fmt.Sprintf("%d%s", time.Now().UnixNano(), filepath.Ext(fileHeader.Filename))))
+	if err != nil {
+		u.Errors = append(u.Errors, fmt.Errorf("%s upload file creation failed: %w", fileHeader.Filename, err))
+		return
+	}
+	defer f.Close()
+	u.internalLocation = f.Name()
+	u.Name = fileHeader.Filename
+
+	written, err := io.Copy(f, io.TeeReader(file, &UploadProgress{Upload: u, Engine: h, Socket: sock}))
+	if err != nil {
+		u.Errors = append(u.Errors, fmt.Errorf("%s upload failed: %w", fileHeader.Filename, err))
+		return
+	}
+	u.Size = written
+
+	return
+}
+
+// get renderer.
+func (h *HttpEngine) get(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	// Get session.
 	session, err := h.sessionStore.Get(r)

@@ -17,7 +17,7 @@ func TestHandler(t *testing.T) {
 	output := `<html _l00=""><head _l000=""></head><body _l001="" live-rendered="">test</body></html>`
 
 	h := &Tester{NewHandler()}
-	h.HandleRender(func(ctx context.Context, data interface{}) (io.Reader, error) {
+	h.HandleRender(func(ctx context.Context, data *RenderContext) (io.Reader, error) {
 		return strings.NewReader(output), nil
 	})
 
@@ -30,7 +30,7 @@ func TestHandler(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	ctx := httpContext(rr, req)
-	e.serveHttp(ctx, rr, req)
+	e.get(ctx, rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("handler returned wrong status code: got %v want %v", rr.Code, http.StatusOK)
@@ -53,7 +53,7 @@ func TestHandlerErrorNoRenderer(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	ctx := httpContext(rr, req)
-	e.serveHttp(ctx, rr, req)
+	e.get(ctx, rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("handler returned wrong status code: got %v want %v", rr.Code, http.StatusInternalServerError)

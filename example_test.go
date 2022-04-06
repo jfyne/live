@@ -63,9 +63,9 @@ func Example() {
 
 	// Provide a render function. Here we are doing it manually, but there is a
 	// provided WithTemplateRenderer which can be used to work with `html/template`
-	h.HandleRender(func(ctx context.Context, data interface{}) (io.Reader, error) {
+	h.HandleRender(func(ctx context.Context, data *RenderContext) (io.Reader, error) {
 		tmpl, err := template.New("thermo").Parse(`
-            <div>{{.C}}</div>
+            <div>{{.Assigns.C}}</div>
             <button live-click="temp-up">+</button>
             <button live-click="temp-down">-</button>
             <!-- Include to make live work -->

@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/rs/xid"
 	"golang.org/x/net/html"
 )
 
@@ -46,6 +45,18 @@ type Socket interface {
 	// Redirect sends a redirect event to the client. This will trigger the browser to
 	// redirect to a URL.
 	Redirect(u *url.URL)
+	// AllowUploads indicates that his socket should allow uploads.
+	AllowUploads(config *UploadConfig)
+	// UploadConfigs return the list of configures uploads for this socket.
+	UploadConfigs() []*UploadConfig
+	// Uploads returns uploads to this socket.
+	Uploads() UploadContext
+	// AssignUploads set uploads to a upload config on this socket.
+	AssignUpload(config string, upload *Upload)
+	// ClearUploads clears the sockets upload map.
+	ClearUploads()
+	// ClearUpload clear a specific upload.
+	ClearUpload(config string, upload *Upload)
 	// LatestRender return the latest render that this socket generated.
 	LatestRender() *html.Node
 	// UpdateRender set the latest render.
@@ -67,6 +78,9 @@ type BaseSocket struct {
 	msgs          chan Event
 	closeSlow     func()
 
+	uploadConfigs []*UploadConfig
+	uploads       UploadContext
+
 	data   interface{}
 	dataMu sync.Mutex
 }
@@ -74,17 +88,18 @@ type BaseSocket struct {
 // NewBaseSocket creates a new default socket.
 func NewBaseSocket(s Session, e Engine, connected bool) *BaseSocket {
 	return &BaseSocket{
-		session:   s,
-		engine:    e,
-		connected: connected,
-		msgs:      make(chan Event, maxMessageBufferSize),
+		session:       s,
+		engine:        e,
+		connected:     connected,
+		uploadConfigs: []*UploadConfig{},
+		msgs:          make(chan Event, maxMessageBufferSize),
 	}
 }
 
 // ID generate a unique ID for this socket.
 func (s *BaseSocket) ID() SocketID {
 	if s.id == "" {
-		s.id = SocketID(xid.New().String())
+		s.id = SocketID(NewID())
 	}
 	return s.id
 }
@@ -153,6 +168,59 @@ func (s *BaseSocket) PatchURL(values url.Values) {
 // redirect to a URL.
 func (s *BaseSocket) Redirect(u *url.URL) {
 	s.Send(EventRedirect, u.String())
+}
+
+// AllowUploads indicates that his socket should accept uploads.
+func (s *BaseSocket) AllowUploads(config *UploadConfig) {
+	s.uploadConfigs = append(s.uploadConfigs, config)
+}
+
+// UploadConfigs return the configs for this socket.
+func (s *BaseSocket) UploadConfigs() []*UploadConfig {
+	return s.uploadConfigs
+}
+
+// Uploads return the sockets uploads.
+func (s *BaseSocket) Uploads() UploadContext {
+	return s.uploads
+}
+
+// AssignUpload set uploads to this socket.
+func (s *BaseSocket) AssignUpload(config string, upload *Upload) {
+	if s.uploads == nil {
+		s.uploads = map[string][]*Upload{}
+	}
+	if _, ok := s.uploads[config]; !ok {
+		s.uploads[config] = []*Upload{}
+	}
+	for idx, u := range s.uploads[config] {
+		if u.Name == upload.Name {
+			s.uploads[config][idx] = upload
+			return
+		}
+	}
+	s.uploads[config] = append(s.uploads[config], upload)
+}
+
+// ClearUploads clear this sockets upload map.
+func (s *BaseSocket) ClearUploads() {
+	s.uploads = map[string][]*Upload{}
+}
+
+// ClearUpload clear a specific upload from this socket.
+func (s *BaseSocket) ClearUpload(config string, upload *Upload) {
+	if s.uploads == nil {
+		s.uploads = map[string][]*Upload{}
+	}
+	if _, ok := s.uploads[config]; !ok {
+		return
+	}
+	for idx, u := range s.uploads[config] {
+		if u.Name == upload.Name {
+			s.uploads[config] = append(s.uploads[config][:idx], s.uploads[config][idx+1:]...)
+			return
+		}
+	}
 }
 
 func (s *BaseSocket) LatestRender() *html.Node {

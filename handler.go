@@ -20,7 +20,7 @@ type MountHandler func(ctx context.Context, c Socket) (interface{}, error)
 
 // RenderHandler the func that is called to render the current state of the
 // data for the socket.
-type RenderHandler func(ctx context.Context, data interface{}) (io.Reader, error)
+type RenderHandler func(ctx context.Context, rc *RenderContext) (io.Reader, error)
 
 // ErrorHandler if an error occurs during the mount and render cycle
 // a handler of this type will be called.
@@ -90,7 +90,7 @@ func NewHandler(configs ...HandlerConfig) *BaseHandler {
 		mountHandler: func(ctx context.Context, s Socket) (interface{}, error) {
 			return nil, nil
 		},
-		renderHandler: func(ctx context.Context, data interface{}) (io.Reader, error) {
+		renderHandler: func(ctx context.Context, rc *RenderContext) (io.Reader, error) {
 			return nil, ErrNoRenderer
 		},
 		errorHandler: func(ctx context.Context, err error) {
@@ -103,7 +103,7 @@ func NewHandler(configs ...HandlerConfig) *BaseHandler {
 	}
 	for _, conf := range configs {
 		if err := conf(h); err != nil {
-			log.Println("warning:", fmt.Errorf("could not apply config: %w", err))
+			log.Println("warning:", fmt.Errorf("could not apply config to handler: %w", err))
 		}
 	}
 	return h

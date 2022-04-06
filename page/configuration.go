@@ -61,11 +61,12 @@ func WithComponentMount(construct ComponentConstructor) live.HandlerConfig {
 // WithComponentRenderer set the live.Handler to use a root component to render.
 func WithComponentRenderer() live.HandlerConfig {
 	return func(h live.Handler) error {
-		h.HandleRender(func(_ context.Context, data interface{}) (io.Reader, error) {
-			c, ok := data.(*Component)
+		h.HandleRender(func(_ context.Context, data *live.RenderContext) (io.Reader, error) {
+			c, ok := data.Assigns.(*Component)
 			if !ok {
 				return nil, fmt.Errorf("root render data is not a component")
 			}
+			c.Uploads = data.Uploads
 			var buf bytes.Buffer
 			if err := c.Render(&buf, c); err != nil {
 				return nil, err

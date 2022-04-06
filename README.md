@@ -104,9 +104,9 @@ func Example() {
 
 	// Provide a render function. Here we are doing it manually, but there is a
 	// provided WithTemplateRenderer which can be used to work with `html/template`
-	h.HandleRender(func(ctx context.Context, data interface{}) (io.Reader, error) {
+	h.HandleRender(func(ctx context.Context, data *RenderContext) (io.Reader, error) {
 		tmpl, err := template.New("thermo").Parse(`
-            <div>{{.C}}</div>
+            <div>{{.Assigns.C}}</div>
             <button live-click="temp-up">+</button>
             <button live-click="temp-down">-</button>
             <!-- Include to make live work -->
@@ -506,3 +506,27 @@ In production it is often required to have multiple instances of the same applic
 live has a PubSub element. This allows nodes to publish onto topics and receive those messages as if they were all
 running as the same instance. See the [cluster example](https://github.com/jfyne/live-examples/tree/main/cluster) for
 usage.
+
+## Uploads
+
+Live supports interactive file uploads with progress indication. See the [uploads example](https://github.com/jfyne/live-examples/tree/main/uploads)
+for usage.
+
+### Features
+
+Accept specification - Define accepted file types, max number of entries, max file size, etc. When the client
+selects file(s), the file metadata can be validated with a helper function.
+
+Reactive entries - Uploads are populated in the `.Uploads` template context. Entries automatically respond
+to progress and errors.
+
+### Entry validataion
+
+File selection triggers the usual form change event and there is a helper function to validate the uploads. 
+Use `live.ValidateUploads` to validate the incoming files. Any validation errors will be available in the `.Uploads`
+context in the template.
+
+### Consume the uploads
+
+When a form is submitted files will first be uploaded to a staging area, then the submit event is triggered. Within the event
+handler use the `live.ConsumeUploads` helper function to then move the uploaded files to where you need them.

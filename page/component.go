@@ -54,6 +54,9 @@ type Component struct {
 
 	// State the components state.
 	State interface{}
+
+	// Any uploads.
+	Uploads live.UploadContext
 }
 
 // NewComponent creates a new component and returns it. It does not register it or mount it.

@@ -7,11 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/html"
 	"golang.org/x/time/rate"
 )
 
 var _ Engine = &BaseEngine{}
+
+// EngineConfig applies configuration to an engine.
+type EngineConfig func(e Engine) error
 
 // BroadcastHandler a way for processes to communicate.
 type BroadcastHandler func(ctx context.Context, e Engine, msg Event)
@@ -34,6 +36,9 @@ type Engine interface {
 	Error() ErrorHandler
 	// AddSocket add a socket to the engine.
 	AddSocket(sock Socket)
+	// GetSocket from a session get an already connected
+	// socket.
+	GetSocket(session Session) (Socket, error)
 	// DeleteSocket remove a socket from the engine.
 	DeleteSocket(sock Socket)
 	// CallParams on params change run the handlers.
@@ -65,21 +70,36 @@ type BaseEngine struct {
 	// event lock.
 	eventMu sync.Mutex
 
-	// ignoreFaviconRequest setting to ignore requests for /favicon.ico.
-	ignoreFaviconRequest bool
+	// IgnoreFaviconRequest setting to ignore requests for /favicon.ico.
+	IgnoreFaviconRequest bool
+
+	// MaxUploadSize the maximum upload size in bytes to allow. This defaults
+	// too 100MB.
+	MaxUploadSize int64
+
+	// UploadStagingLocation where uploads are stored before they are consumed. This defaults
+	// too the default OS temp directory.
+	UploadStagingLocation string
 }
 
 // NewBaseEngine creates a new base engine.
-func NewBaseEngine(h Handler) *BaseEngine {
-	return &BaseEngine{
+func NewBaseEngine(h Handler, configs ...EngineConfig) *BaseEngine {
+	e := &BaseEngine{
 		broadcastLimiter: rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
 		broadcastHandler: func(ctx context.Context, h Engine, msg Event) {
 			h.self(ctx, nil, msg)
 		},
 		socketMap:            make(map[SocketID]Socket),
-		ignoreFaviconRequest: true,
+		IgnoreFaviconRequest: true,
+		MaxUploadSize:        100 * 1024 * 1024,
 		handler:              h,
 	}
+	for _, conf := range configs {
+		if err := conf(e); err != nil {
+			log.Println("warning:", fmt.Errorf("could not apply config to engine: %w", err))
+		}
+	}
+	return e
 }
 
 func (e *BaseEngine) Handler(hand Handler) {
@@ -146,6 +166,18 @@ func (e *BaseEngine) AddSocket(sock Socket) {
 	e.socketsMu.Lock()
 	defer e.socketsMu.Unlock()
 	e.socketMap[sock.ID()] = sock
+}
+
+// GetSocket get a socket from a session.
+func (e *BaseEngine) GetSocket(session Session) (Socket, error) {
+	e.socketsMu.Lock()
+	defer e.socketsMu.Unlock()
+	for _, s := range e.socketMap {
+		if SessionID(session) == SessionID(s.Session()) {
+			return s, nil
+		}
+	}
+	return nil, ErrNoSocket
 }
 
 // DeleteSocket remove a socket from the engine.
@@ -237,33 +269,4 @@ func (e *BaseEngine) hasSocket(s Socket) error {
 		return ErrNoSocket
 	}
 	return nil
-}
-
-// RenderSocket takes the engine and current socket and renders it to html.
-func RenderSocket(ctx context.Context, e Engine, s Socket) (*html.Node, error) {
-	// Render handler.
-	output, err := e.Render()(ctx, s.Assigns())
-	if err != nil {
-		return nil, fmt.Errorf("render error: %w", err)
-	}
-	render, err := html.Parse(output)
-	if err != nil {
-		return nil, fmt.Errorf("html parse error: %w", err)
-	}
-	shapeTree(render)
-
-	// Get diff
-	if s.LatestRender() != nil {
-		patches, err := Diff(s.LatestRender(), render)
-		if err != nil {
-			return nil, fmt.Errorf("diff error: %w", err)
-		}
-		if len(patches) != 0 {
-			s.Send(EventPatch, patches)
-		}
-	} else {
-		anchorTree(render, newAnchorGenerator())
-	}
-
-	return render, nil
 }

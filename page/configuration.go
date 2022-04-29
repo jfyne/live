@@ -20,7 +20,7 @@ func WithRegister(fn RegisterHandler) ComponentConfig {
 	}
 }
 
-// WithMount set a mounnt handler on the component.
+// WithMount set a mount handler on the component.
 func WithMount(fn MountHandler) ComponentConfig {
 	return func(c *Component) error {
 		c.Mount = fn

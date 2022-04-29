@@ -260,7 +260,7 @@ func (e *BaseEngine) sockets() []Socket {
 }
 
 // hasSocket check a socket is there error if it isn't connected or
-// doensn't exist.
+// doesn't exist.
 func (e *BaseEngine) hasSocket(s Socket) error {
 	e.socketsMu.Lock()
 	defer e.socketsMu.Unlock()

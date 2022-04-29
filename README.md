@@ -335,8 +335,9 @@ See the [chat example](https://github.com/jfyne/live-examples/tree/main/chat) fo
 
 ### Hooks
 
-Hooks take the following form. They allow additional javscript to be during a
-page lifecycle.
+Hooks take the following form. They allow additional javascript to hook into the live lifecycle.
+These should be used to implement custom behavior and bind additional events which are not supported
+out of the box.
 
 [embedmd]:# (web/src/interop.ts)
 ```ts
@@ -425,6 +426,21 @@ See the [chat example](https://github.com/jfyne/live-examples/tree/main/chat) fo
 There are two ways to integrate javascript into your applications. The first is the simplest, using the built
 in javascript handler. This includes client side code to initialise the live handler and automatically looks for
 hooks at `window.Hooks`. All of the examples use this method.
+
+To add a custom hook register it before including the `live.js` file.
+```javascript
+window.Hooks = window.Hooks || {};
+window.Hooks['my-hook'] = {
+	mount: function() {
+		// ...
+	}
+};
+```
+
+Use the `live-hook` attribute to wire the hook with live.
+```html
+<div live-hook="my-hook"></div>
+```
 
 See the [chat example](https://github.com/jfyne/live-examples/tree/main/chat) for usage.
 

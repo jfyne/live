@@ -54,7 +54,7 @@ func (p *PubSub) Subscribe(topic string, h Engine) {
 	})
 }
 
-// Receice a message from the transport.
+// Recieve a message from the transport.
 func (p *PubSub) Recieve(topic string, msg Event) {
 	ctx := context.Background()
 	for _, node := range p.handlers[topic] {
@@ -62,7 +62,7 @@ func (p *PubSub) Recieve(topic string, msg Event) {
 	}
 }
 
-// TransportMessage a userful container to send live events.
+// TransportMessage a useful container to send live events.
 type TransportMessage struct {
 	Topic string
 	Msg   Event

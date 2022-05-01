@@ -32,7 +32,7 @@ func contextWithWriter(ctx context.Context, w http.ResponseWriter) context.Conte
 	return context.WithValue(ctx, writerKey, w)
 }
 
-// Request pulls out an initiating request from a context.
+// Writer pulls out a response writer from a context.
 func Writer(ctx context.Context) http.ResponseWriter {
 	data := ctx.Value(writerKey)
 	w, ok := data.(http.ResponseWriter)

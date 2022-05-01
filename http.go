@@ -56,7 +56,7 @@ func (h *HttpEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Check if we are going to upgrade to a webscoket.
+	// Check if we are going to upgrade to a websocket.
 	upgrade := false
 	for _, header := range r.Header["Upgrade"] {
 		if header == "websocket" {
@@ -77,7 +77,7 @@ func (h *HttpEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Upgrade to the webscoket version.
+	// Upgrade to the websocket version.
 	h.serveWS(ctx, w, r)
 }
 

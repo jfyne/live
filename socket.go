@@ -28,7 +28,7 @@ type Socket interface {
 	// socket.
 	Assigns() interface{}
 	// Assign set data to this socket. This will happen automatically
-	// if you return data from and `EventHander`.
+	// if you return data from an `EventHander`.
 	Assign(data interface{})
 	// Connected returns true if this socket is connected via the websocket.
 	Connected() bool
@@ -96,7 +96,7 @@ func NewBaseSocket(s Session, e Engine, connected bool) *BaseSocket {
 	}
 }
 
-// ID generate a unique ID for this socket.
+// ID generates a unique ID for this socket.
 func (s *BaseSocket) ID() SocketID {
 	if s.id == "" {
 		s.id = SocketID(NewID())
@@ -112,8 +112,8 @@ func (s *BaseSocket) Assigns() interface{} {
 	return s.data
 }
 
-// Assign set data to this socket. This will happen automatically
-// if you return data from and `EventHander`.
+// Assign sets data to this socket. This will happen automatically
+// if you return data from an `EventHander`.
 func (s *BaseSocket) Assign(data interface{}) {
 	s.dataMu.Lock()
 	defer s.dataMu.Unlock()
@@ -125,7 +125,7 @@ func (s *BaseSocket) Connected() bool {
 	return s.connected
 }
 
-// Self send an event to this socket itself. Will be handled in the
+// Self sends an event to this socket itself. Will be handled in the
 // handlers HandleSelf function.
 func (s *BaseSocket) Self(ctx context.Context, event string, data interface{}) error {
 	msg := Event{T: event, SelfData: data}
@@ -133,7 +133,7 @@ func (s *BaseSocket) Self(ctx context.Context, event string, data interface{}) e
 	return nil
 }
 
-// Broadcast send an event to all sockets on this same engine.
+// Broadcast sends an event to all sockets on this same engine.
 func (s *BaseSocket) Broadcast(event string, data interface{}) error {
 	return s.engine.Broadcast(event, data)
 }
@@ -175,17 +175,17 @@ func (s *BaseSocket) AllowUploads(config *UploadConfig) {
 	s.uploadConfigs = append(s.uploadConfigs, config)
 }
 
-// UploadConfigs return the configs for this socket.
+// UploadConfigs returns the configs for this socket.
 func (s *BaseSocket) UploadConfigs() []*UploadConfig {
 	return s.uploadConfigs
 }
 
-// Uploads return the sockets uploads.
+// Uploads returns the sockets uploads.
 func (s *BaseSocket) Uploads() UploadContext {
 	return s.uploads
 }
 
-// AssignUpload set uploads to this socket.
+// AssignUpload sets uploads to this socket.
 func (s *BaseSocket) AssignUpload(config string, upload *Upload) {
 	if s.uploads == nil {
 		s.uploads = map[string][]*Upload{}
@@ -202,12 +202,12 @@ func (s *BaseSocket) AssignUpload(config string, upload *Upload) {
 	s.uploads[config] = append(s.uploads[config], upload)
 }
 
-// ClearUploads clear this sockets upload map.
+// ClearUploads clears this sockets upload map.
 func (s *BaseSocket) ClearUploads() {
 	s.uploads = map[string][]*Upload{}
 }
 
-// ClearUpload clear a specific upload from this socket.
+// ClearUpload clears a specific upload from this socket.
 func (s *BaseSocket) ClearUpload(config string, upload *Upload) {
 	if s.uploads == nil {
 		s.uploads = map[string][]*Upload{}
@@ -223,15 +223,22 @@ func (s *BaseSocket) ClearUpload(config string, upload *Upload) {
 	}
 }
 
+// LastRender returns the last render result of this socket.
 func (s *BaseSocket) LatestRender() *html.Node {
 	return s.currentRender
 }
+
+// UpdateRender replaces the last render result of this socket.
 func (s *BaseSocket) UpdateRender(render *html.Node) {
 	s.currentRender = render
 }
+
+// Session returns the session of this socket.
 func (s *BaseSocket) Session() Session {
 	return s.session
 }
+
+// Messages returns a channel of event messages sent and received by this socket.
 func (s *BaseSocket) Messages() chan Event {
 	return s.msgs
 }

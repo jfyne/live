@@ -30,10 +30,16 @@ type SelfHandler func(ctx context.Context, data interface{}) (interface{}, error
 // ComponentConstructor a func for creating a new component.
 type ComponentConstructor func(ctx context.Context, h live.Handler, s live.Socket) (*Component, error)
 
-// Component a self contained component on the page.
+// Component is a self contained component on the page. Components can be reused accross the application
+// or used to compose complex interfaces by splitting events handlers and render logic into
+// smaller pieces.
+//
+// Remember to use a unique ID and use the Event function which scopes the event-name
+// to trigger the event in the right component.
 type Component struct {
 	// ID identifies the component on the page. This should be something stable, so that during the mount
 	// it can be found again by the socket.
+	// When reusing the same component this ID should be unique to avoid conflicts.
 	ID string
 
 	// Handler a reference to the host handler.

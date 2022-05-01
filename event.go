@@ -8,11 +8,11 @@ import (
 type EventConfig func(e *Event) error
 
 const (
-	// EventError indicates an error has occured.
+	// EventError indicates an error has occurred.
 	EventError = "err"
 	// EventPatch a patch event containing a diff.
 	EventPatch = "patch"
-	// EventAck sent when an event is ackknowledged.
+	// EventAck sent when an event is acknowledged.
 	EventAck = "ack"
 	// EventConnect sent as soon as the server accepts the
 	// WS connection.

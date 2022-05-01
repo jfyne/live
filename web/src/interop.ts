@@ -54,7 +54,7 @@ export interface Hook {
 }
 
 /**
- * The DOM management interace. This allows external JS libraries to
+ * The DOM management interface. This allows external JS libraries to
  * interop with Live.
  */
 export interface DOM {

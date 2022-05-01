@@ -118,13 +118,13 @@ export class Forms {
                     values[this.upKey][key].push(fi);
                     break;
                 default:
-                    // If the key doesn exist set it.
+                    // If the key doesn't exist set it.
                     if (!Reflect.has(values, key)) {
                         values[key] = value;
                         return;
                     }
                     // If it already exists that means this needs to become
-                    // and array.
+                    // an array.
                     if (!Array.isArray(values[key])) {
                         values[key] = [values[key]];
                     }

@@ -307,6 +307,7 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 
 	// Handle events coming from the websocket connection.
 	go func() {
+		//var currentUpload *Upload
 		for {
 			t, d, err := c.Read(ctx)
 			if err != nil {
@@ -330,6 +331,19 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 							eventErrors <- ErrorEvent{Source: m, Err: err.Error()}
 						}
 					}
+				case EventUpload:
+					var up Upload
+					if err := json.Unmarshal(m.Data, &up); err != nil {
+						internalErrors <- err
+						break
+					}
+					conf := findUploadConfig(sock, up.FieldName)
+					if conf == nil {
+						eventErrors <- ErrorEvent{Source: m, Err: ErrUploadNotFound.Error()}
+						break
+					}
+					sock.AssignUpload(conf.Name, &up)
+					//currentUpload = &up
 				default:
 					if err := h.CallEvent(ctx, m.T, sock, m); err != nil {
 						switch {

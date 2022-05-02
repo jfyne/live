@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"time"
 )
 
 const upKey = "uploads"
@@ -48,15 +50,27 @@ type UploadConfig struct {
 
 // Upload describes an upload from the client.
 type Upload struct {
+	FieldName    string `json:"fieldName"`
 	Name         string
 	Size         int64
 	Type         string
 	LastModified string
-	Errors       []error
-	Progress     float32
+	Errors       []error `json:"-"`
+	Progress     float32 `json:"-"`
 
 	internalLocation string `json:"-"`
 	bytesRead        int64  `json:"-"`
+}
+
+// CreateFile creates a temp file location.
+func (u *Upload) CreateFile(rootDir string, socketID SocketID) (*os.File, error) {
+	uploadDir := filepath.Join(rootDir, string(socketID))
+	f, err := os.Create(filepath.Join(uploadDir, fmt.Sprintf("%d%s", time.Now().UnixNano(), filepath.Ext(u.Name))))
+	if err != nil {
+		u.Errors = append(u.Errors, fmt.Errorf("%s upload file creation failed: %w", u.Name, err))
+		return nil, err
+	}
+	return f, nil
 }
 
 // File gets an open file reader.
@@ -193,4 +207,13 @@ func WithUploadStagingLocation(stagingLocation string) EngineConfig {
 		}
 		return nil
 	}
+}
+
+func findUploadConfig(sock Socket, name string) *UploadConfig {
+	for _, c := range sock.UploadConfigs() {
+		if c.Name == name {
+			return c
+		}
+	}
+	return nil
 }

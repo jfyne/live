@@ -23,6 +23,8 @@ const (
 	// EventRedirect sent in order to trigger a browser
 	// redirect.
 	EventRedirect = "redirect"
+	// EventUpload sent for upload handling.
+	EventUpload = "live:upload"
 )
 
 // Event messages that are sent and received by the

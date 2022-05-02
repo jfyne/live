@@ -101,6 +101,10 @@ export class Socket {
         this.conn.send(e.serialize());
     }
 
+    static sendFile(blob: Blob) {
+        this.conn.send(blob);
+    }
+
     /**
      * Called when a ack event comes in. Complete the loop
      * with any outstanding tracked events.

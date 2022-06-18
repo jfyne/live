@@ -26,19 +26,19 @@ type Socket interface {
 	ID() SocketID
 	// Assigns returns the data currently assigned to this
 	// socket.
-	Assigns() interface{}
+	Assigns() any
 	// Assign set data to this socket. This will happen automatically
 	// if you return data from an `EventHander`.
-	Assign(data interface{})
+	Assign(data any)
 	// Connected returns true if this socket is connected via the websocket.
 	Connected() bool
 	// Self send an event to this socket itself. Will be handled in the
 	// handlers HandleSelf function.
-	Self(ctx context.Context, event string, data interface{}) error
+	Self(ctx context.Context, event string, data any) error
 	// Broadcast send an event to all sockets on this same engine.
-	Broadcast(event string, data interface{}) error
+	Broadcast(event string, data any) error
 	// Send an event to this socket's client, to be handled there.
-	Send(event string, data interface{}, options ...EventConfig) error
+	Send(event string, data any, options ...EventConfig) error
 	// PatchURL sends an event to the client to update the
 	// query params in the URL.
 	PatchURL(values url.Values)
@@ -81,7 +81,7 @@ type BaseSocket struct {
 	uploadConfigs []*UploadConfig
 	uploads       UploadContext
 
-	data   interface{}
+	data   any
 	dataMu sync.Mutex
 }
 
@@ -106,7 +106,7 @@ func (s *BaseSocket) ID() SocketID {
 
 // Assigns returns the data currently assigned to this
 // socket.
-func (s *BaseSocket) Assigns() interface{} {
+func (s *BaseSocket) Assigns() any {
 	s.dataMu.Lock()
 	defer s.dataMu.Unlock()
 	return s.data
@@ -114,7 +114,7 @@ func (s *BaseSocket) Assigns() interface{} {
 
 // Assign sets data to this socket. This will happen automatically
 // if you return data from an `EventHander`.
-func (s *BaseSocket) Assign(data interface{}) {
+func (s *BaseSocket) Assign(data any) {
 	s.dataMu.Lock()
 	defer s.dataMu.Unlock()
 	s.data = data
@@ -127,19 +127,19 @@ func (s *BaseSocket) Connected() bool {
 
 // Self sends an event to this socket itself. Will be handled in the
 // handlers HandleSelf function.
-func (s *BaseSocket) Self(ctx context.Context, event string, data interface{}) error {
+func (s *BaseSocket) Self(ctx context.Context, event string, data any) error {
 	msg := Event{T: event, SelfData: data}
 	s.engine.self(ctx, s, msg)
 	return nil
 }
 
 // Broadcast sends an event to all sockets on this same engine.
-func (s *BaseSocket) Broadcast(event string, data interface{}) error {
+func (s *BaseSocket) Broadcast(event string, data any) error {
 	return s.engine.Broadcast(event, data)
 }
 
 // Send an event to this socket's client, to be handled there.
-func (s *BaseSocket) Send(event string, data interface{}, options ...EventConfig) error {
+func (s *BaseSocket) Send(event string, data any, options ...EventConfig) error {
 	payload, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("could not encode data for send: %w", err)

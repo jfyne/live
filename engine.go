@@ -21,7 +21,7 @@ type BroadcastHandler func(ctx context.Context, e Engine, msg Event)
 // Engine methods.
 type Engine interface {
 	// Handler takes a handler to configure the lifecycle.
-	Handler(h Handler)
+	Handler(h *Handler)
 	// Mount a user should provide the mount function. This is what
 	// is called on initial GET request and later when the websocket connects.
 	// Data to render the handler should be fetched here and returned.
@@ -52,7 +52,7 @@ type Engine interface {
 	// HandleBroadcast allows overriding the broadcast functionality.
 	HandleBroadcast(handler BroadcastHandler)
 	// Broadcast send a message to all sockets connected to this engine.
-	Broadcast(event string, data interface{}) error
+	Broadcast(event string, data any) error
 
 	// self sends a message to the socket on this engine.
 	self(ctx context.Context, sock Socket, msg Event)
@@ -61,7 +61,7 @@ type Engine interface {
 // BaseEngine handles live inner workings.
 type BaseEngine struct {
 	// handler implements all the developer defined logic.
-	handler Handler
+	handler *Handler
 
 	// broadcastLimiter limit broadcast ratehandler.
 	broadcastLimiter *rate.Limiter
@@ -87,7 +87,7 @@ type BaseEngine struct {
 }
 
 // NewBaseEngine creates a new base engine.
-func NewBaseEngine(h Handler) *BaseEngine {
+func NewBaseEngine(h *Handler) *BaseEngine {
 	const maxUploadSize = 100 * 1024 * 1024
 	return &BaseEngine{
 		broadcastLimiter: rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
@@ -96,12 +96,12 @@ func NewBaseEngine(h Handler) *BaseEngine {
 		},
 		socketMap:            make(map[SocketID]Socket),
 		IgnoreFaviconRequest: true,
-		MaxUploadSize:        100 * 1024 * 1024,
+		MaxUploadSize:        maxUploadSize,
 		handler:              h,
 	}
 }
 
-func (e *BaseEngine) Handler(hand Handler) {
+func (e *BaseEngine) Handler(hand *Handler) {
 	e.handler = hand
 }
 func (e *BaseEngine) HandleBroadcast(f BroadcastHandler) {
@@ -109,7 +109,7 @@ func (e *BaseEngine) HandleBroadcast(f BroadcastHandler) {
 }
 
 func (e *BaseEngine) Mount() MountHandler {
-	return e.handler.getMount()
+	return e.handler.mountHandler
 }
 
 func (e *BaseEngine) Unmount() UnmountHandler {
@@ -117,19 +117,19 @@ func (e *BaseEngine) Unmount() UnmountHandler {
 }
 
 func (e *BaseEngine) Params() []EventHandler {
-	return e.handler.getParams()
+	return e.handler.paramsHandlers
 }
 
 func (e *BaseEngine) Render() RenderHandler {
-	return e.handler.getRender()
+	return e.handler.renderHandler
 }
 
 func (e *BaseEngine) Error() ErrorHandler {
-	return e.handler.getError()
+	return e.handler.errorHandler
 }
 
 // Broadcast send a message to all sockets connected to this engine.
-func (e *BaseEngine) Broadcast(event string, data interface{}) error {
+func (e *BaseEngine) Broadcast(event string, data any) error {
 	ev := Event{T: event, SelfData: data}
 	ctx := context.Background()
 	e.broadcastLimiter.Wait(ctx)
@@ -241,7 +241,7 @@ func (e *BaseEngine) CallParams(ctx context.Context, sock Socket, msg Event) err
 		return fmt.Errorf("received params message and could not extract params: %w", err)
 	}
 
-	for _, ph := range e.handler.getParams() {
+	for _, ph := range e.handler.paramsHandlers {
 		data, err := ph(ctx, sock, params)
 		if err != nil {
 			return fmt.Errorf("handler params handler error: %w", err)

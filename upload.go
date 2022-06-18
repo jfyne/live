@@ -106,14 +106,14 @@ func (u *UploadProgress) Write(p []byte) (n int, err error) {
 func ValidateUploads(s Socket, p Params) {
 	s.ClearUploads()
 
-	input, ok := p[upKey].(map[string]interface{})
+	input, ok := p[upKey].(map[string]any)
 	if !ok {
 		log.Println("warning:", ErrUploadNotFound)
 		return
 	}
 
 	for _, c := range s.UploadConfigs() {
-		uploads, ok := input[c.Name].([]interface{})
+		uploads, ok := input[c.Name].([]any)
 		if !ok {
 			s.AssignUpload(c.Name, &Upload{Errors: []error{ErrUploadNotFound}})
 			continue
@@ -122,7 +122,7 @@ func ValidateUploads(s Socket, p Params) {
 			s.AssignUpload(c.Name, &Upload{Errors: []error{&UploadError{err: ErrUploadTooManyFiles}}})
 		}
 		for _, u := range uploads {
-			f, ok := u.(map[string]interface{})
+			f, ok := u.(map[string]any)
 			if !ok {
 				s.AssignUpload(c.Name, &Upload{Errors: []error{&UploadError{err: ErrUploadNotFound}}})
 				continue

@@ -1,34 +1,56 @@
 package page
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"reflect"
+	"regexp"
+	"strings"
 
 	"github.com/jfyne/live"
 )
 
-// RegisterHandler the first part of the component lifecycle, this is called during component creation
-// and is used to register any events that the component handles.
-type RegisterHandler func(c *Component) error
-
-// MountHandler the components mount function called on first GET request and again when the socket connects.
-type MountHandler func(ctx context.Context, c *Component) error
-
-// RenderHandler ths component.
-type RenderHandler func(w io.Writer, c *Component) error
-
 // EventHandler for a component, only needs the params as the event is scoped to both the socket and then component
 // itself. Returns any component state that needs updating.
-type EventHandler func(ctx context.Context, p live.Params) (interface{}, error)
+type EventHandler func(ctx context.Context, p live.Params) (any, error)
 
 // SelfHandler for a component, only needs the data as the event is scoped to both the socket and then component
 // itself. Returns any component state that needs updating.
-type SelfHandler func(ctx context.Context, data interface{}) (interface{}, error)
+type SelfHandler func(ctx context.Context, data any) (any, error)
 
-// ComponentConstructor a func for creating a new component.
-type ComponentConstructor func(ctx context.Context, h live.Handler, s live.Socket) (*Component, error)
+// ComponentMount describes the needed function for mounting a component.
+type ComponentMount interface {
+	Mount(context.Context) error
+}
+
+// ComponentRender descirbes the neded functions for rendering a component.
+type ComponentRender interface {
+	Render() RenderFunc
+	Event(string) string
+}
+
+// ComponentLifecycle describes all that is neded to describe a component.
+type ComponentLifecycle interface {
+	isComponent
+	componentInit
+	componentRegister
+	ComponentMount
+	ComponentRender
+}
+
+type componentInit interface {
+	init(ID string, h *live.Handler, s live.Socket)
+}
+
+type componentRegister interface {
+	register(ID string, h *live.Handler, s live.Socket, comp any) error
+}
+
+type isComponent interface {
+	_isComponent()
+	_assignUploads(live.UploadContext)
+}
 
 // Component is a self contained component on the page. Components can be reused accross the application
 // or used to compose complex interfaces by splitting events handlers and render logic into
@@ -43,135 +65,155 @@ type Component struct {
 	ID string
 
 	// Handler a reference to the host handler.
-	Handler live.Handler
+	Handler *live.Handler
 
 	// Socket a reference to the socket that this component
 	// is scoped too.
 	Socket live.Socket
 
-	// Register the component. This should be used to setup event handling.
-	Register RegisterHandler
-
-	// Mount the component, this should be used to setup the components initial state.
-	Mount MountHandler
-
-	// Render the component, this should be used to describe how to render the component.
-	Render RenderHandler
-
-	// State the components state.
-	State interface{}
-
 	// Any uploads.
 	Uploads live.UploadContext
 }
 
-// NewComponent creates a new component and returns it. It does not register it or mount it.
-func NewComponent(ID string, h live.Handler, s live.Socket, configurations ...ComponentConfig) (*Component, error) {
-	c := &Component{
-		ID:       ID,
-		Handler:  h,
-		Socket:   s,
-		Register: defaultRegister,
-		Mount:    defaultMount,
-		Render:   defaultRender,
-	}
-	for _, conf := range configurations {
-		if err := conf(c); err != nil {
-			return &Component{}, err
-		}
-	}
-
-	return c, nil
+func (c Component) _isComponent() {}
+func (c *Component) _assignUploads(uploads live.UploadContext) {
+	c.Uploads = uploads
 }
 
-// Init takes a constructor and then registers and mounts the component.
-func Init(ctx context.Context, construct func() (*Component, error)) (*Component, error) {
-	comp, err := construct()
-	if err != nil {
-		return nil, fmt.Errorf("could not install component on construct: %w", err)
+func (c *Component) init(ID string, h *live.Handler, s live.Socket) {
+	c.ID = ID
+	c.Handler = h
+	c.Socket = s
+}
+
+// Mount a default component mount function.
+func (c Component) Mount(ctx context.Context) error {
+	return nil
+}
+
+// Render a default component render function.
+func (c Component) Render() RenderFunc {
+	return func(w io.Writer) error {
+		return nil
 	}
-	if err := comp.Register(comp); err != nil {
-		return nil, fmt.Errorf("could not install component on register: %w", err)
+}
+
+var compMethodDetect = regexp.MustCompile(`On([A-Za-z]*)`)
+var compMethodSplit = regexp.MustCompile(`[A-Z][^A-Z]*`)
+
+func (c *Component) register(ID string, h *live.Handler, s live.Socket, t any) error {
+	c.ID = ID
+	c.Handler = h
+	c.Socket = s
+
+	ty := reflect.TypeOf(t)
+	va := reflect.ValueOf(t)
+	for i := 0; i < va.NumMethod(); i++ {
+		method := ty.Method(i)
+		if !compMethodDetect.MatchString(method.Name) {
+			continue
+		}
+		parts := compMethodSplit.FindAllString(method.Name, -1)
+		if len(parts) < 2 {
+			continue
+		}
+		c.HandleEvent(eventName(parts), func(ctx context.Context, p live.Params) (any, error) {
+			res := va.MethodByName(method.Name).Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(p)})
+			switch len(res) {
+			case 0:
+				return t, nil
+			case 1:
+				err, ok := res[0].Interface().(error)
+				if !ok {
+					return t, nil
+				}
+				return t, err
+			default:
+				return t, nil
+			}
+		})
+		c.HandleSelf(eventName(parts), func(ctx context.Context, data any) (any, error) {
+			res := va.MethodByName(method.Name).Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(data)})
+			switch len(res) {
+			case 0:
+				return t, nil
+			case 1:
+				err, ok := res[0].Interface().(error)
+				if !ok {
+					return t, nil
+				}
+				return t, err
+			default:
+				return t, nil
+			}
+		})
 	}
-	if err := comp.Mount(ctx, comp); err != nil {
-		return nil, fmt.Errorf("could not install component on mount: %w", err)
+	return nil
+}
+
+func eventName(parts []string) string {
+	out := []string{}
+	for _, p := range parts[1:] {
+		out = append(out, strings.ToLower(p))
 	}
-	return comp, nil
+	return strings.Join(out, "-")
+}
+
+// Start begins the component's lifecycle.
+func Start(ctx context.Context, ID string, h *live.Handler, s live.Socket, comp ComponentLifecycle) error {
+	if err := comp.register(ID, h, s, comp); err != nil {
+		return fmt.Errorf("could not spawn component on register: %w", err)
+	}
+	if err := comp.Mount(ctx); err != nil {
+		return fmt.Errorf("could not spawn component on mount: %w", err)
+	}
+	return nil
 }
 
 // Self sends an event scoped not only to this socket, but to this specific component instance. Or any
 // components sharing the same ID.
-func (c *Component) Self(ctx context.Context, s live.Socket, event string, data interface{}) error {
-	return s.Self(ctx, c.Event(event), data)
+func (c *Component) Self(ctx context.Context, event string, data any) error {
+	return c.Socket.Self(ctx, c.Event(event), data)
 }
 
 // HandleSelf handles scoped incoming events send by a components Self function.
 func (c *Component) HandleSelf(event string, handler SelfHandler) {
-	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s live.Socket, d interface{}) (interface{}, error) {
-		state, err := handler(ctx, d)
+	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s live.Socket, d any) (any, error) {
+		_, err := handler(ctx, d)
 		if err != nil {
 			return s.Assigns(), err
 		}
-		c.State = state
+		//c.State = state
 		return s.Assigns(), nil
 	})
 }
 
 // HandleEvent handles a component event sent from a connected socket.
 func (c *Component) HandleEvent(event string, handler EventHandler) {
-	c.Handler.HandleEvent(c.Event(event), func(ctx context.Context, s live.Socket, p live.Params) (interface{}, error) {
-		state, err := handler(ctx, p)
+	c.Handler.HandleEvent(c.Event(event), func(ctx context.Context, s live.Socket, p live.Params) (any, error) {
+		_, err := handler(ctx, p)
 		if err != nil {
 			return s.Assigns(), err
 		}
-		c.State = state
+		//c.State = state
 		return s.Assigns(), nil
 	})
 }
 
 // HandleParams handles parameter changes. Caution these handlers are not scoped to a specific component.
 func (c *Component) HandleParams(handler EventHandler) {
-	c.Handler.HandleParams(func(ctx context.Context, s live.Socket, p live.Params) (interface{}, error) {
-		state, err := handler(ctx, p)
+	c.Handler.HandleParams(func(ctx context.Context, s live.Socket, p live.Params) (any, error) {
+		_, err := handler(ctx, p)
 		if err != nil {
 			return s.Assigns(), err
 		}
-		c.State = state
+		//c.State = state
 		return s.Assigns(), nil
 	})
 }
 
 // Event scopes an event string so that it applies to this instance of this component
 // only.
-func (c *Component) Event(event string) string {
+func (c Component) Event(event string) string {
 	return c.ID + "--" + event
 }
-
-// String renders the component to a string.
-func (c *Component) String() string {
-	var buf bytes.Buffer
-	if err := c.Render(&buf, c); err != nil {
-		return fmt.Sprintf("template rendering failed: %s", err)
-	}
-	return buf.String()
-}
-
-// defaultRegister is the default register handler which does nothing.
-func defaultRegister(c *Component) error {
-	return nil
-}
-
-// defaultMount is the default mount handler which does nothing.
-func defaultMount(ctx context.Context, c *Component) error {
-	return nil
-}
-
-// defaultRender is the default render handler which does nothing.
-func defaultRender(w io.Writer, c *Component) error {
-	_, err := w.Write([]byte(fmt.Sprintf("%+v", c.State)))
-	return err
-}
-
-var _ RegisterHandler = defaultRegister
-var _ MountHandler = defaultMount
-var _ RenderHandler = defaultRender

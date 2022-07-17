@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -35,16 +36,33 @@ type HttpSessionStore interface {
 
 // HttpEngine serves live for net/http.
 type HttpEngine struct {
-	sessionStore HttpSessionStore
+	acceptOptions *websocket.AcceptOptions
+	sessionStore  HttpSessionStore
 	*BaseEngine
+}
+
+// WithWebsocketAcceptOptions apply websocket accept options to the HTTP engine.
+func WithWebsocketAcceptOptions(options *websocket.AcceptOptions) EngineConfig {
+	return func(e Engine) error {
+		if httpEngine, ok := e.(*HttpEngine); ok {
+			httpEngine.acceptOptions = options
+		}
+		return nil
+	}
 }
 
 // NewHttpHandler returns the net/http handler for live.
 func NewHttpHandler(store HttpSessionStore, handler Handler, configs ...EngineConfig) *HttpEngine {
-	return &HttpEngine{
+	e := &HttpEngine{
 		sessionStore: store,
-		BaseEngine:   NewBaseEngine(handler, configs...),
+		BaseEngine:   NewBaseEngine(handler),
 	}
+	for _, conf := range configs {
+		if err := conf(e); err != nil {
+			log.Println("warning:", fmt.Errorf("could not apply config to engine: %w", err))
+		}
+	}
+	return e
 }
 
 // ServeHTTP serves this handler.
@@ -267,7 +285,16 @@ func (h *HttpEngine) serveWS(ctx context.Context, w http.ResponseWriter, r *http
 		return
 	}
 
-	c, err := websocket.Accept(w, r, nil)
+	// https://github.com/nhooyr/websocket/issues/218
+	// https://github.com/gorilla/websocket/issues/731
+	if strings.Contains(r.UserAgent(), "Safari") {
+		if h.acceptOptions == nil {
+			h.acceptOptions = &websocket.AcceptOptions{}
+		}
+		h.acceptOptions.CompressionMode = websocket.CompressionDisabled
+	}
+
+	c, err := websocket.Accept(w, r, h.acceptOptions)
 	if err != nil {
 		h.Error()(ctx, err)
 		return

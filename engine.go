@@ -83,8 +83,9 @@ type BaseEngine struct {
 }
 
 // NewBaseEngine creates a new base engine.
-func NewBaseEngine(h Handler, configs ...EngineConfig) *BaseEngine {
-	e := &BaseEngine{
+func NewBaseEngine(h Handler) *BaseEngine {
+	const maxUploadSize = 100 * 1024 * 1024
+	return &BaseEngine{
 		broadcastLimiter: rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
 		broadcastHandler: func(ctx context.Context, h Engine, msg Event) {
 			h.self(ctx, nil, msg)
@@ -94,12 +95,6 @@ func NewBaseEngine(h Handler, configs ...EngineConfig) *BaseEngine {
 		MaxUploadSize:        100 * 1024 * 1024,
 		handler:              h,
 	}
-	for _, conf := range configs {
-		if err := conf(e); err != nil {
-			log.Println("warning:", fmt.Errorf("could not apply config to engine: %w", err))
-		}
-	}
-	return e
 }
 
 func (e *BaseEngine) Handler(hand Handler) {

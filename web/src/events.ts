@@ -1,5 +1,6 @@
 import { Socket } from "./socket";
 import { Forms } from "./forms";
+import { Upload } from "./upload";
 import { UpdateURLParams, GetParams, GetURLParams, Params } from "./params";
 import { EventDispatch, LiveEvent } from "./event";
 
@@ -328,13 +329,14 @@ class Submit extends LiveHandler {
 
             const hasFiles = Forms.hasFiles(element as HTMLFormElement);
             if (hasFiles === true) {
-                const request = new XMLHttpRequest();
-                request.open("POST", "");
-                request.addEventListener('load', () => {
-                    this.sendEvent(element, params);
-                });
-
-                request.send(new FormData(element as HTMLFormElement));
+                const formData = new FormData(element as HTMLFormElement);
+                for (let pair of formData.entries()) {
+                    if (!(pair[1] instanceof File)) {
+                        return;
+                    }
+                    const u = new Upload(pair[0], pair[1]);
+                    u.begin();
+                };
             } else {
                 this.sendEvent(element, params);
             }
@@ -357,10 +359,7 @@ class Submit extends LiveHandler {
             vals[k] = data[k];
         });
         element.classList.add(`${this.attribute}-loading`);
-        Socket.sendAndTrack(
-            new LiveEvent(t, vals, LiveEvent.GetID()),
-            element
-        );
+        Socket.sendAndTrack(new LiveEvent(t, vals, LiveEvent.GetID()), element);
     }
 }
 

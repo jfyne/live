@@ -9,6 +9,7 @@ export const EventBeforeDestroy = "live:beforedestroy";
 export const EventDestroyed = "live:destroyed";
 export const EventDisconnected = "live:disconnected";
 export const EventReconnected = "live:reconnected";
+export const EventUpload = "live:upload";
 
 export const ClassConnected = "live-connected";
 export const ClassDisconnected = "live-disconnected";

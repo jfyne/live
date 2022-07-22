@@ -50,7 +50,7 @@ func ParseFS(c ComponentRender, f fs.FS, file string) (*template.Template, error
 func templateFuncs(c ComponentRender) template.FuncMap {
 	return template.FuncMap{
 		"Event": c.Event,
-		"Render": func(c ComponentRender) template.HTML {
+		"Component": func(c ComponentRender) template.HTML {
 			var buf bytes.Buffer
 			if err := c.Render().Render(&buf); err != nil {
 				return template.HTML(fmt.Sprintf("error rendering: %s", err))

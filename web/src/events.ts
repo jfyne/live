@@ -152,6 +152,15 @@ class Click extends LiveHandler {
 }
 
 /**
+ * live-contextmenu attribute handling.
+ */
+class Contextmenu extends LiveHandler {
+    constructor() {
+        super("contextmenu", "live-contextmenu");
+    }
+}
+
+/**
  * live-mousedown attribute handling.
  */
 class Mousedown extends LiveHandler {
@@ -410,6 +419,7 @@ class Patch extends LiveHandler {
  */
 export class Events {
     private static clicks: Click;
+    private static contextmenu: Contextmenu;
     private static mousedown: Mousedown;
     private static mouseup: Mouseup;
     private static focus: Focus;
@@ -430,6 +440,7 @@ export class Events {
      */
     public static init() {
         this.clicks = new Click();
+        this.contextmenu = new Contextmenu();
         this.mousedown = new Mousedown();
         this.mouseup = new Mouseup();
         this.focus = new Focus();
@@ -453,6 +464,7 @@ export class Events {
      */
     public static rewire() {
         this.clicks.attach();
+        this.contextmenu.attach();
         this.mousedown.attach();
         this.mouseup.attach();
         this.focus.attach();

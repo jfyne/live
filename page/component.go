@@ -1,6 +1,7 @@
 package page
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -11,13 +12,13 @@ import (
 	"github.com/jfyne/live"
 )
 
-// EventHandler for a component, only needs the params as the event is scoped to both the socket and then component
+// ComponentEventHandler for a component, only needs the params as the event is scoped to both the socket and then component
 // itself. Returns any component state that needs updating.
-type EventHandler func(ctx context.Context, p live.Params) (any, error)
+type ComponentEventHandler func(ctx context.Context, p live.Params) (any, error)
 
-// SelfHandler for a component, only needs the data as the event is scoped to both the socket and then component
+// ComponentSelfHandler for a component, only needs the data as the event is scoped to both the socket and then component
 // itself. Returns any component state that needs updating.
-type SelfHandler func(ctx context.Context, data any) (any, error)
+type ComponentSelfHandler func(ctx context.Context, data any) (any, error)
 
 // ComponentMount describes the needed function for mounting a component.
 type ComponentMount interface {
@@ -30,8 +31,8 @@ type ComponentRender interface {
 	Event(string) string
 }
 
-// ComponentLifecycle describes all that is neded to describe a component.
-type ComponentLifecycle interface {
+// Component describes all that is neded to describe a component.
+type Component interface {
 	isComponent
 	componentInit
 	componentRegister
@@ -52,13 +53,13 @@ type isComponent interface {
 	_assignUploads(live.UploadContext)
 }
 
-// Component is a self contained component on the page. Components can be reused accross the application
+// BaseComponent is a self contained component on the page. Components can be reused accross the application
 // or used to compose complex interfaces by splitting events handlers and render logic into
 // smaller pieces.
 //
 // Remember to use a unique ID and use the Event function which scopes the event-name
 // to trigger the event in the right component.
-type Component struct {
+type BaseComponent struct {
 	// ID identifies the component on the page. This should be something stable, so that during the mount
 	// it can be found again by the socket.
 	// When reusing the same component this ID should be unique to avoid conflicts.
@@ -75,24 +76,30 @@ type Component struct {
 	Uploads live.UploadContext
 }
 
-func (c Component) _isComponent() {}
-func (c *Component) _assignUploads(uploads live.UploadContext) {
+func (c BaseComponent) String() string {
+	buf := &bytes.Buffer{}
+	c.Render().Render(buf)
+	return buf.String()
+}
+
+func (c BaseComponent) _isComponent() {}
+func (c *BaseComponent) _assignUploads(uploads live.UploadContext) {
 	c.Uploads = uploads
 }
 
-func (c *Component) init(ID string, h *live.Handler, s live.Socket) {
+func (c *BaseComponent) init(ID string, h *live.Handler, s live.Socket) {
 	c.ID = ID
 	c.Handler = h
 	c.Socket = s
 }
 
 // Mount a default component mount function.
-func (c Component) Mount(ctx context.Context) error {
+func (c BaseComponent) Mount(ctx context.Context) error {
 	return nil
 }
 
 // Render a default component render function.
-func (c Component) Render() RenderFunc {
+func (c BaseComponent) Render() RenderFunc {
 	return func(w io.Writer) error {
 		return nil
 	}
@@ -101,7 +108,7 @@ func (c Component) Render() RenderFunc {
 var compMethodDetect = regexp.MustCompile(`On([A-Za-z]*)`)
 var compMethodSplit = regexp.MustCompile(`[A-Z][^A-Z]*`)
 
-func (c *Component) register(ID string, h *live.Handler, s live.Socket, t any) error {
+func (c *BaseComponent) register(ID string, h *live.Handler, s live.Socket, t any) error {
 	c.ID = ID
 	c.Handler = h
 	c.Socket = s
@@ -117,7 +124,7 @@ func (c *Component) register(ID string, h *live.Handler, s live.Socket, t any) e
 		if len(parts) < 2 {
 			continue
 		}
-		c.HandleEvent(eventName(parts), func(ctx context.Context, p live.Params) (any, error) {
+		c.handleEvent(eventName(parts), func(ctx context.Context, p live.Params) (any, error) {
 			res := va.MethodByName(method.Name).Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(p)})
 			switch len(res) {
 			case 0:
@@ -132,7 +139,7 @@ func (c *Component) register(ID string, h *live.Handler, s live.Socket, t any) e
 				return t, nil
 			}
 		})
-		c.HandleSelf(eventName(parts), func(ctx context.Context, data any) (any, error) {
+		c.handleSelf(eventName(parts), func(ctx context.Context, data any) (any, error) {
 			res := va.MethodByName(method.Name).Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(data)})
 			switch len(res) {
 			case 0:
@@ -160,7 +167,7 @@ func eventName(parts []string) string {
 }
 
 // Start begins the component's lifecycle.
-func Start(ctx context.Context, ID string, h *live.Handler, s live.Socket, comp ComponentLifecycle) error {
+func NewComponent(ctx context.Context, ID string, h *live.Handler, s live.Socket, comp Component) error {
 	if err := comp.register(ID, h, s, comp); err != nil {
 		return fmt.Errorf("could not spawn component on register: %w", err)
 	}
@@ -172,12 +179,12 @@ func Start(ctx context.Context, ID string, h *live.Handler, s live.Socket, comp 
 
 // Self sends an event scoped not only to this socket, but to this specific component instance. Or any
 // components sharing the same ID.
-func (c *Component) Self(ctx context.Context, event string, data any) error {
+func (c *BaseComponent) Self(ctx context.Context, event string, data any) error {
 	return c.Socket.Self(ctx, c.Event(event), data)
 }
 
 // HandleSelf handles scoped incoming events send by a components Self function.
-func (c *Component) HandleSelf(event string, handler SelfHandler) {
+func (c *BaseComponent) handleSelf(event string, handler ComponentSelfHandler) {
 	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s live.Socket, d any) (any, error) {
 		_, err := handler(ctx, d)
 		if err != nil {
@@ -189,7 +196,7 @@ func (c *Component) HandleSelf(event string, handler SelfHandler) {
 }
 
 // HandleEvent handles a component event sent from a connected socket.
-func (c *Component) HandleEvent(event string, handler EventHandler) {
+func (c *BaseComponent) handleEvent(event string, handler ComponentEventHandler) {
 	c.Handler.HandleEvent(c.Event(event), func(ctx context.Context, s live.Socket, p live.Params) (any, error) {
 		_, err := handler(ctx, p)
 		if err != nil {
@@ -201,7 +208,7 @@ func (c *Component) HandleEvent(event string, handler EventHandler) {
 }
 
 // HandleParams handles parameter changes. Caution these handlers are not scoped to a specific component.
-func (c *Component) HandleParams(handler EventHandler) {
+func (c *BaseComponent) handleParams(handler ComponentEventHandler) {
 	c.Handler.HandleParams(func(ctx context.Context, s live.Socket, p live.Params) (any, error) {
 		_, err := handler(ctx, p)
 		if err != nil {
@@ -214,6 +221,6 @@ func (c *Component) HandleParams(handler EventHandler) {
 
 // Event scopes an event string so that it applies to this instance of this component
 // only.
-func (c Component) Event(event string) string {
+func (c BaseComponent) Event(event string) string {
 	return c.ID + "--" + event
 }

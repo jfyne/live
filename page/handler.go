@@ -10,7 +10,7 @@ import (
 )
 
 // ComponentConstructor a func for creating a new component.
-type ComponentConstructor func(ctx context.Context, h *live.Handler, s live.Socket) (ComponentLifecycle, error)
+type ComponentConstructor func(ctx context.Context, h *live.Handler, s live.Socket) (Component, error)
 
 // NewHandler creates a new handler for components.
 func NewHandler(construct ComponentConstructor) *live.Handler {
@@ -47,7 +47,7 @@ func withComponentMount(construct ComponentConstructor) live.HandlerConfig {
 func withComponentRenderer() live.HandlerConfig {
 	return func(h *live.Handler) error {
 		h.HandleRender(func(_ context.Context, data *live.RenderContext) (io.Reader, error) {
-			c, ok := data.Assigns.(ComponentLifecycle)
+			c, ok := data.Assigns.(Component)
 			if !ok {
 				return nil, fmt.Errorf("root render data is not a component")
 			}

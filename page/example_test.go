@@ -10,7 +10,7 @@ import (
 type Greeter struct {
 	Name string
 
-	Component
+	BaseComponent
 }
 
 func NewGreeter(name string) *Greeter {
@@ -27,7 +27,7 @@ func (g Greeter) Render() RenderFunc {
 }
 
 func Example() {
-	h := NewHandler(func(_ context.Context, _ *live.Handler, _ live.Socket) (ComponentLifecycle, error) {
+	h := NewHandler(func(_ context.Context, _ *live.Handler, _ live.Socket) (Component, error) {
 		root := NewGreeter("World!")
 		return root, nil
 	})

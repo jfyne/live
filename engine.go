@@ -113,7 +113,7 @@ func (e *BaseEngine) Mount() MountHandler {
 }
 
 func (e *BaseEngine) Unmount() UnmountHandler {
-	return e.handler.getUnmount()
+	return e.handler.unmountHandler
 }
 
 func (e *BaseEngine) Params() []EventHandler {

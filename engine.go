@@ -26,6 +26,10 @@ type Engine interface {
 	// is called on initial GET request and later when the websocket connects.
 	// Data to render the handler should be fetched here and returned.
 	Mount() MountHandler
+	// UnmountHandler the func that is called by a handler to report that a connection
+	// is closed. This is called on websocket close. Can be used to track number of
+	// connected users.
+	Unmount() UnmountHandler
 	// Params called to handle any incoming paramters after mount.
 	Params() []EventHandler
 	// Render is called to generate the HTML of a Socket. It is defined
@@ -108,6 +112,10 @@ func (e *BaseEngine) Mount() MountHandler {
 	return e.handler.getMount()
 }
 
+func (e *BaseEngine) Unmount() UnmountHandler {
+	return e.handler.getUnmount()
+}
+
 func (e *BaseEngine) Params() []EventHandler {
 	return e.handler.getParams()
 }
@@ -180,6 +188,10 @@ func (e *BaseEngine) DeleteSocket(sock Socket) {
 	e.socketsMu.Lock()
 	defer e.socketsMu.Unlock()
 	delete(e.socketMap, sock.ID())
+	err := e.Unmount()(sock)
+	if err != nil {
+		log.Println("socket unmount error", err)
+	}
 }
 
 // CallEvent route an event to the correct handler.

@@ -18,6 +18,11 @@ type HandlerConfig func(h Handler) error
 // in the socket.
 type MountHandler func(ctx context.Context, c Socket) (interface{}, error)
 
+// UnmountHandler the func that is called by a handler to report that a connection
+// is closed. This is called on websocket close. Can be used to track number of
+// connected users.
+type UnmountHandler func(c Socket) error
+
 // RenderHandler the func that is called to render the current state of the
 // data for the socket.
 type RenderHandler func(ctx context.Context, rc *RenderContext) (io.Reader, error)
@@ -39,6 +44,8 @@ type Handler interface {
 	// HandleMount handles initial setup on first request, and then later when
 	// the socket first connets.
 	HandleMount(handler MountHandler)
+	// HandleUnmount used to track webcocket disconnections.
+	HandleUnmount(handler UnmountHandler)
 	// HandleRender used to set the render method for the handler.
 	HandleRender(handler RenderHandler)
 	// HandleError for when an error occurs.
@@ -54,6 +61,7 @@ type Handler interface {
 	HandleParams(handler EventHandler)
 
 	getMount() MountHandler
+	getUnmount() UnmountHandler
 	getRender() RenderHandler
 	getError() ErrorHandler
 	getEvent(t string) (EventHandler, error)
@@ -67,6 +75,8 @@ type BaseHandler struct {
 	// is called on initial GET request and later when the websocket connects.
 	// Data to render the handler should be fetched here and returned.
 	mountHandler MountHandler
+	// unmountHandler used to track webcocket disconnections.
+	unmountHandler UnmountHandler
 	// Render is called to generate the HTML of a Socket. It is defined
 	// by default and will render any template provided.
 	renderHandler RenderHandler
@@ -90,6 +100,9 @@ func NewHandler(configs ...HandlerConfig) *BaseHandler {
 		mountHandler: func(ctx context.Context, s Socket) (interface{}, error) {
 			return nil, nil
 		},
+		unmountHandler: func(s Socket) error {
+			return nil
+		},
 		renderHandler: func(ctx context.Context, rc *RenderContext) (io.Reader, error) {
 			return nil, ErrNoRenderer
 		},
@@ -111,6 +124,9 @@ func NewHandler(configs ...HandlerConfig) *BaseHandler {
 
 func (h *BaseHandler) HandleMount(f MountHandler) {
 	h.mountHandler = f
+}
+func (h *BaseHandler) HandleUnmount(f UnmountHandler) {
+	h.unmountHandler = f
 }
 func (h *BaseHandler) HandleRender(f RenderHandler) {
 	h.renderHandler = f
@@ -139,6 +155,9 @@ func (h *BaseHandler) HandleParams(handler EventHandler) {
 
 func (h *BaseHandler) getMount() MountHandler {
 	return h.mountHandler
+}
+func (h *BaseHandler) getUnmount() UnmountHandler {
+	return h.unmountHandler
 }
 func (h *BaseHandler) getRender() RenderHandler {
 	return h.renderHandler

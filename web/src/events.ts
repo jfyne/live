@@ -282,31 +282,44 @@ class Change {
         element.setAttribute(`${this.attribute}-wired`, "");
         return false;
     }
-
+    
     public attach() {
+        let forms: Element[] = [];
         document
             .querySelectorAll(`form[${this.attribute}]`)
             .forEach((element: Element) => {
                 element.addEventListener("ack", (_) => {
                     element.classList.remove(`${this.attribute}-loading`);
                 });
+                forms.push(element);
                 element
-                    .querySelectorAll("input,select,textarea")
+                    .querySelectorAll(`input,select,textarea`)
                     .forEach((childElement: Element) => {
-                        if (this.isWired(childElement) == true) {
-                            return;
-                        }
-                        childElement.addEventListener("input", (e) => {
-                            if (this.limiter.hasDebounce(childElement)) {
-                                this.limiter.debounce(childElement, e, () => {
-                                    this.handler(element as HTMLFormElement);
-                                });
-                            } else {
-                                this.handler(element as HTMLFormElement);
-                            }
-                        });
+                        this.addEvent(element, childElement);
                     });
             });
+        forms.forEach((element: Element) => {
+            document
+                .querySelectorAll(`[form=${element.getAttribute("id")}]`)
+                .forEach((childElement) => {
+                    this.addEvent(element, childElement);
+                });
+        });
+    };
+
+    private addEvent(element: Element, childElement: Element) {
+        if (this.isWired(childElement)) {
+            return;
+        }
+        childElement.addEventListener("input", (e) => {
+            if (this.limiter.hasDebounce(childElement)) {
+                this.limiter.debounce(childElement, e, () => {
+                    this.handler(element as HTMLFormElement);
+                });
+            } else {
+                this.handler(element as HTMLFormElement);
+            }
+        });
     }
 
     private handler(element: HTMLFormElement) {

@@ -28,15 +28,11 @@ class LiveHandler {
                 }
                 const params = GetParams(element as HTMLElement);
                 element.addEventListener(this.event, (e) => {
-                    if (this.limiter.hasDebounce(element)) {
-                        this.limiter.debounce(
-                            element,
-                            e,
-                            this.handler(element as HTMLFormElement, params)
-                        );
-                    } else {
-                        this.handler(element as HTMLFormElement, params)(e);
-                    }
+                    this.limiter.limit(
+                        element,
+                        e,
+                        this.handler(element as HTMLFormElement, params)
+                    );
                 });
                 element.addEventListener("ack", (_) => {
                     element.classList.remove(`${this.attribute}-loading`);
@@ -114,18 +110,22 @@ class Limiter {
     private debounceAttr = "live-debounce";
     private debounceEvent: any;
 
+    private throttleAttr = "live-throttle";
+    private throttleEvent: any;
+    private throttleFunc: any;
+
     public hasDebounce(element: Element): boolean {
         return element.hasAttribute(this.debounceAttr);
     }
 
+    public hasThrottle(element: Element): boolean {
+        return element.hasAttribute(this.throttleAttr);
+    }
+
     public debounce(element: Element, e: Event, fn: EventListener) {
         clearTimeout(this.debounceEvent);
-        if (!this.hasDebounce(element)) {
-            fn(e);
-            return;
-        }
         const debounce = element.getAttribute(this.debounceAttr);
-        if (debounce === null) {
+        if (!this.hasDebounce(element) || debounce === null) {
             fn(e);
             return;
         }
@@ -139,6 +139,32 @@ class Limiter {
         this.debounceEvent = setTimeout(() => {
             fn(e);
         }, parseInt(debounce));
+    }
+
+    public throttle(element: Element, e: Event, fn: EventListener) {
+        const throttle = element.getAttribute(this.throttleAttr);
+        if (!this.hasThrottle(element) || throttle === null) {
+            fn(e);
+            return;
+        }
+        if (this.throttleEvent) {
+            this.throttleFunc = () => { fn(e); }
+        } else {
+            fn(e);
+            this.throttleEvent = setTimeout(() => {
+                if (this.throttleFunc) {
+                    this.throttleFunc();
+                    this.throttleFunc = null;
+                    this.throttleEvent = null;
+                }
+            }, parseInt(throttle));
+        }
+    }
+
+    public limit(element: Element, e: Event, fn: EventListener) {
+        this.debounce(element, e, (ev: Event) => {
+            this.throttle(element, ev, fn);
+        });
     }
 }
 
@@ -312,13 +338,9 @@ class Change {
             return;
         }
         childElement.addEventListener("input", (e) => {
-            if (this.limiter.hasDebounce(childElement)) {
-                this.limiter.debounce(childElement, e, () => {
-                    this.handler(element as HTMLFormElement);
-                });
-            } else {
+            this.limiter.limit(childElement, e, () => {
                 this.handler(element as HTMLFormElement);
-            }
+            });
         });
     }
 

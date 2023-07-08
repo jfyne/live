@@ -1,5 +1,7 @@
 # ⚡ live
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/jfyne/live#.svg)](https://pkg.go.dev/github.com/jfyne/live#)
+
 Real-time user experiences with server-rendered HTML in Go. Inspired by and
 borrowing from Phoenix LiveViews.
 

@@ -70,7 +70,7 @@ func NewThermoModel(s Socket) *ThermoModel {
 
 // thermoMount initialises the thermostat state. Data returned in the mount function will
 // automatically be assigned to the socket.
-func thermoMount(ctx context.Context, s Socket) (interface{}, error) {
+func thermoMount(ctx context.Context, s Socket) (any, error) {
 	return NewThermoModel(s), nil
 }
 
@@ -78,14 +78,14 @@ func thermoMount(ctx context.Context, s Socket) (interface{}, error) {
 // is called with the original request context of the socket, the socket itself containing the current
 // state and and params that came from the event. Params contain query string parameters and any
 // `live-value-` bindings.
-func tempUp(ctx context.Context, s Socket, p Params) (interface{}, error) {
+func tempUp(ctx context.Context, s Socket, p Params) (any, error) {
 	model := NewThermoModel(s)
 	model.C += 0.1
 	return model, nil
 }
 
 // tempDown on the temp down event, decrease the thermostat temperature by .1 C.
-func tempDown(ctx context.Context, s Socket, p Params) (interface{}, error) {
+func tempDown(ctx context.Context, s Socket, p Params) (any, error) {
 	model := NewThermoModel(s)
 	model.C -= 0.1
 	return model, nil
@@ -159,39 +159,35 @@ package page
 
 import (
 	"context"
-	"io"
 	"net/http"
 
 	"github.com/jfyne/live"
 )
 
-// NewGreeter creates a new greeter component.
-func NewGreeter(ID string, h live.Handler, s live.Socket, name string) (*Component, error) {
-	return NewComponent(
-		ID,
-		h,
-		s,
-		WithMount(func(ctx context.Context, c *Component) error {
-			c.State = name
-			return nil
-		}),
-		WithRender(func(w io.Writer, c *Component) error {
-			// Render the greeter, here we are including the script just to make this toy example work.
-			return HTML(`
-                <div class="greeter">Hello {{.}}</div>
-                <script src="/live.js"></script>
-            `, c).Render(w)
-		}),
-	)
+type Greeter struct {
+	Name string
+
+	Component
+}
+
+func NewGreeter(name string) *Greeter {
+	return &Greeter{
+		Name: name,
+	}
+}
+
+func (g Greeter) Render() RenderFunc {
+	return HTML(`
+        <div class="greeter">Hello {{.Name}}</div>
+        <script src="/live.js"></script>
+    `, g)
 }
 
 func Example() {
-	h := live.NewHandler(
-		WithComponentMount(func(ctx context.Context, h live.Handler, s live.Socket) (*Component, error) {
-			return NewGreeter("hello-id", h, s, "World!")
-		}),
-		WithComponentRenderer(),
-	)
+	h := NewHandler(func(_ context.Context, _ *live.Handler, _ live.Socket) (ComponentLifecycle, error) {
+		root := NewGreeter("World!")
+		return root, nil
+	})
 
 	http.Handle("/", live.NewHttpHandler(live.NewCookieStore("session-name", []byte("weak-secret")), h))
 	http.Handle("/live.js", live.Javascript{})
@@ -217,7 +213,7 @@ Clicking on this tag will result in the browser URL being updated, and then an e
 trigger the handler's `HandleParams` callback. With the query string being available in the params map of the handler.
 
 ```go
-h.HandleParams(func(s *live.Socket, p live.Params) (interface{}, error) {
+h.HandleParams(func(s *live.Socket, p live.Params) (any, error) {
     ...
     page := p.Int("page")
     ...

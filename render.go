@@ -14,7 +14,7 @@ import (
 type RenderContext struct {
 	Socket  Socket
 	Uploads UploadContext
-	Assigns interface{}
+	Assigns any
 }
 
 // RenderSocket takes the engine and current socket and renders it to html.
@@ -52,7 +52,7 @@ func RenderSocket(ctx context.Context, e Engine, s Socket) (*html.Node, error) {
 
 // WithTemplateRenderer set the handler to use an `html/template` renderer.
 func WithTemplateRenderer(t *template.Template) HandlerConfig {
-	return func(h Handler) error {
+	return func(h *Handler) error {
 		h.HandleRender(func(ctx context.Context, rc *RenderContext) (io.Reader, error) {
 			var buf bytes.Buffer
 			if err := t.Execute(&buf, rc); err != nil {

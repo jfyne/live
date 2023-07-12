@@ -31,7 +31,7 @@ type Event struct {
 	T        string          `json:"t"`
 	ID       int             `json:"i,omitempty"`
 	Data     json.RawMessage `json:"d,omitempty"`
-	SelfData interface{}     `json:"s,omitempty"`
+	SelfData any             `json:"s,omitempty"`
 }
 
 // Params extract params from inbound message.

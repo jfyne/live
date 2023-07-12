@@ -27,7 +27,7 @@ func NewThermoModel(s Socket) *ThermoModel {
 
 // thermoMount initialises the thermostat state. Data returned in the mount function will
 // automatically be assigned to the socket.
-func thermoMount(ctx context.Context, s Socket) (interface{}, error) {
+func thermoMount(ctx context.Context, s Socket) (any, error) {
 	return NewThermoModel(s), nil
 }
 
@@ -35,14 +35,14 @@ func thermoMount(ctx context.Context, s Socket) (interface{}, error) {
 // is called with the original request context of the socket, the socket itself containing the current
 // state and and params that came from the event. Params contain query string parameters and any
 // `live-value-` bindings.
-func tempUp(ctx context.Context, s Socket, p Params) (interface{}, error) {
+func tempUp(ctx context.Context, s Socket, p Params) (any, error) {
 	model := NewThermoModel(s)
 	model.C += 0.1
 	return model, nil
 }
 
 // tempDown on the temp down event, decrease the thermostat temperature by .1 C.
-func tempDown(ctx context.Context, s Socket, p Params) (interface{}, error) {
+func tempDown(ctx context.Context, s Socket, p Params) (any, error) {
 	model := NewThermoModel(s)
 	model.C -= 0.1
 	return model, nil

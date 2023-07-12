@@ -71,7 +71,6 @@ type TransportMessage struct {
 // LocalTransport a pubsub transport that allows handlers to communicate
 // locally.
 type LocalTransport struct {
-	ctx   context.Context
 	queue chan TransportMessage
 }
 

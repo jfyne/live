@@ -31,6 +31,6 @@ func (t *TestStore) Save(w http.ResponseWriter, r *http.Request, session Session
 
 // Clear a session.
 func (t *TestStore) Clear(w http.ResponseWriter, r *http.Request) error {
-	t.s = map[string]interface{}{}
+	t.s = map[string]any{}
 	return nil
 }

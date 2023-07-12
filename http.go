@@ -52,7 +52,7 @@ func WithWebsocketAcceptOptions(options *websocket.AcceptOptions) EngineConfig {
 }
 
 // NewHttpHandler returns the net/http handler for live.
-func NewHttpHandler(store HttpSessionStore, handler Handler, configs ...EngineConfig) *HttpEngine {
+func NewHttpHandler(store HttpSessionStore, handler *Handler, configs ...EngineConfig) *HttpEngine {
 	e := &HttpEngine{
 		sessionStore: store,
 		BaseEngine:   NewBaseEngine(handler),
@@ -116,7 +116,8 @@ func (h *HttpEngine) post(ctx context.Context, w http.ResponseWriter, r *http.Re
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, h.MaxUploadSize)
-	if err := r.ParseMultipartForm(h.MaxUploadSize); err != nil {
+	err = r.ParseMultipartForm(h.MaxUploadSize)
+	if err != nil {
 		h.Error()(ctx, fmt.Errorf("could not parse form for uploads: %w", err))
 		return
 	}
@@ -211,8 +212,6 @@ func handleFileUpload(h *HttpEngine, sock Socket, config *UploadConfig, u *Uploa
 		return
 	}
 	u.Size = written
-
-	return
 }
 
 // get renderer.

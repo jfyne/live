@@ -6,7 +6,7 @@ import (
 )
 
 // Params event params.
-type Params map[string]interface{}
+type Params map[string]any
 
 // String helper to get a string from the params.
 func (p Params) String(key string) string {
@@ -30,7 +30,7 @@ func (p Params) Checkbox(key string) bool {
 	return false
 }
 
-func mapString(p map[string]interface{}, key string) string {
+func mapString(p map[string]any, key string) string {
 	v, ok := p[key]
 	if !ok {
 		return ""
@@ -47,7 +47,7 @@ func (p Params) Int(key string) int {
 	return mapInt(p, key)
 }
 
-func mapInt(p map[string]interface{}, key string) int {
+func mapInt(p map[string]any, key string) int {
 	v, ok := p[key]
 	if !ok {
 		return 0
@@ -74,7 +74,7 @@ func (p Params) Float32(key string) float32 {
 	return mapFloat32(p, key)
 }
 
-func mapFloat32(p map[string]interface{}, key string) float32 {
+func mapFloat32(p map[string]any, key string) float32 {
 	v, ok := p[key]
 	if !ok {
 		return 0.0

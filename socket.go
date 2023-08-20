@@ -83,6 +83,7 @@ type BaseSocket struct {
 
 	data   interface{}
 	dataMu sync.Mutex
+	selfMu sync.Mutex
 }
 
 // NewBaseSocket creates a new default socket.
@@ -128,6 +129,8 @@ func (s *BaseSocket) Connected() bool {
 // Self sends an event to this socket itself. Will be handled in the
 // handlers HandleSelf function.
 func (s *BaseSocket) Self(ctx context.Context, event string, data interface{}) error {
+	s.selfMu.Lock()
+	defer s.selfMu.Unlock()
 	msg := Event{T: event, SelfData: data}
 	s.engine.self(ctx, s, msg)
 	return nil

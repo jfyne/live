@@ -15,6 +15,19 @@ test("simple replace", () => {
     expect(document.body.innerHTML).toEqual(`<div _l0="">World</div>`);
 });
 
+test("blank update", () => {
+    document.body.innerHTML = `<div _l0="">Hello</div>`;
+    const event = new LiveEvent("patch", [
+        {
+            Anchor: "_l0",
+            Action: 1,
+            HTML: `<div _l0=""></div>`,
+        },
+    ]);
+    Patch.handle(event);
+    expect(document.body.innerHTML).toEqual(`<div _l0=""></div>`);
+})
+
 test("double update", () => {
     document.body.innerHTML = `<div _l0="">Hello</div><div _l1="">World</div>`;
     const p = new LiveEvent("patch", [

@@ -25,6 +25,15 @@ func TestSingleTextChange(t *testing.T) {
 	}, t)
 }
 
+//	func TestBlankChanges(t *testing.T) {
+//		runDiffTest(diffTest{
+//			root:     "<div>Filled</div>",
+//			proposed: "<div></div>",
+//			patches: []Patch{
+//				{Anchor: "_l_0_1_0", Action: Replace, HTML: `<div _l_0_1_0=""></div>`},
+//			},
+//		}, t)
+//	}
 func TestMultipleTextChange(t *testing.T) {
 	runDiffTest(diffTest{
 		root:     `<div>Hello</div><div>World</div>`,

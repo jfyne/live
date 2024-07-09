@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"os"
 	"strings"
+	"sync"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 )
-
-const _debug = false
 
 // LiveRendered an attribute key to show that a DOM has been rendered by live.
 const LiveRendered = "live-rendered"
@@ -49,22 +49,23 @@ func (n anchorGenerator) inc() anchorGenerator {
 
 // level increase the depth.
 func (n anchorGenerator) level() anchorGenerator {
-	o := make([]int, len(n.idx))
+	o := make([]int, len(n.idx), len(n.idx)+2)
 	copy(o, n.idx)
 	o = append(o, liveAnchorSep, 0)
 	return anchorGenerator{idx: o}
 }
 
 func (n anchorGenerator) String() string {
-	out := liveAnchorPrefix
+	var sb strings.Builder
+	sb.WriteString(liveAnchorPrefix)
 	for _, i := range n.idx {
 		if i == liveAnchorSep {
-			out += "_"
+			sb.WriteByte('_')
 		} else {
-			out += fmt.Sprintf("%d", i)
+			fmt.Fprintf(&sb, "%d", i)
 		}
 	}
-	return out
+	return sb.String()
 }
 
 // Patch a location in the frontend dom.
@@ -75,45 +76,36 @@ type Patch struct {
 }
 
 func (p Patch) String() string {
-	action := ""
-	switch p.Action {
-	case Noop:
-		action = "NO"
-	case Replace:
-		action = "RE"
-	case Append:
-		action = "AP"
-	case Prepend:
-		action = "PR"
-	}
-
+	action := [...]string{"NO", "RE", "AP", "PR"}[p.Action]
 	return fmt.Sprintf("%s %s %s", p.Anchor, action, p.HTML)
 }
 
-// Diff compare two node states and return patches.
 func Diff(current, proposed *html.Node) ([]Patch, error) {
 	patches := diffTrees(current, proposed)
 	output := make([]Patch, len(patches))
 
-	for idx, p := range patches {
-		var buf bytes.Buffer
-		if p.Node != nil {
-			if err := html.Render(&buf, p.Node); err != nil {
-				return nil, fmt.Errorf("failed to render patch: %w", err)
-			}
-		} else {
-			if _, err := buf.WriteString(""); err != nil {
-				return nil, fmt.Errorf("failed to render blank patch: %w", err)
-			}
-		}
+	var wg sync.WaitGroup
+	wg.Add(len(patches))
 
-		output[idx] = Patch{
-			Anchor: p.Anchor,
-			//Path:   p.Path[2:],
-			Action: p.Action,
-			HTML:   buf.String(),
-		}
+	for idx, p := range patches {
+		go func(idx int, p patch) {
+			defer wg.Done()
+			var buf bytes.Buffer
+			if p.Node != nil {
+				if err := html.Render(&buf, p.Node); err != nil {
+					// Handle error
+					return
+				}
+			}
+			output[idx] = Patch{
+				Anchor: p.Anchor,
+				Action: p.Action,
+				HTML:   buf.String(),
+			}
+		}(idx, p)
 	}
+
+	wg.Wait()
 
 	return output, nil
 }
@@ -127,7 +119,6 @@ type patch struct {
 
 // differ handles state for recursive diffing.
 type differ struct {
-	// `live-update` handler.
 	updateNode     *html.Node
 	updateModifier PatchAction
 }
@@ -172,11 +163,9 @@ func shapeTree(root *html.Node) {
 	}
 
 	debugNodeLog("checking", root)
-	if !nodeRelevant(root) {
-		if root.Parent != nil {
-			debugNodeLog("removingNode", root)
-			root.Parent.RemoveChild(root)
-		}
+	if !nodeRelevant(root) && root.Parent != nil {
+		debugNodeLog("removingNode", root)
+		root.Parent.RemoveChild(root)
 	}
 }
 
@@ -398,7 +387,7 @@ func getFirstSibling(node *html.Node) *html.Node {
 }
 
 func debugNodeLog(msg string, node *html.Node) {
-	if !_debug {
+	if os.Getenv("DEBUG") == "" {
 		return
 	}
 

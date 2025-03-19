@@ -12,20 +12,20 @@ import (
 
 // RenderContext contains the sockets current data for rendering.
 type RenderContext struct {
-	Socket  Socket
+	Socket  *Socket
 	Uploads UploadContext
 	Assigns interface{}
 }
 
 // RenderSocket takes the engine and current socket and renders it to html.
-func RenderSocket(ctx context.Context, e Engine, s Socket) (*html.Node, error) {
+func RenderSocket(ctx context.Context, e *Engine, s *Socket) (*html.Node, error) {
 	rc := &RenderContext{
 		Socket:  s,
 		Uploads: s.Uploads(),
 		Assigns: s.Assigns(),
 	}
 
-	output, err := e.Render()(ctx, rc)
+	output, err := e.Handler.RenderHandler(ctx, rc)
 	if err != nil {
 		return nil, fmt.Errorf("render error: %w", err)
 	}
@@ -52,14 +52,14 @@ func RenderSocket(ctx context.Context, e Engine, s Socket) (*html.Node, error) {
 
 // WithTemplateRenderer set the handler to use an `html/template` renderer.
 func WithTemplateRenderer(t *template.Template) HandlerConfig {
-	return func(h Handler) error {
-		h.HandleRender(func(ctx context.Context, rc *RenderContext) (io.Reader, error) {
+	return func(h *Handler) error {
+		h.RenderHandler = func(ctx context.Context, rc *RenderContext) (io.Reader, error) {
 			var buf bytes.Buffer
 			if err := t.Execute(&buf, rc); err != nil {
 				return nil, err
 			}
 			return &buf, nil
-		})
+		}
 		return nil
 	}
 }

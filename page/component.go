@@ -21,14 +21,14 @@ type RenderHandler func(w io.Writer, c *Component) error
 
 // EventHandler for a component, only needs the params as the event is scoped to both the socket and then component
 // itself. Returns any component state that needs updating.
-type EventHandler func(ctx context.Context, p live.Params) (interface{}, error)
+type EventHandler func(ctx context.Context, p live.Params) (any, error)
 
 // SelfHandler for a component, only needs the data as the event is scoped to both the socket and then component
 // itself. Returns any component state that needs updating.
-type SelfHandler func(ctx context.Context, data interface{}) (interface{}, error)
+type SelfHandler func(ctx context.Context, data any) (any, error)
 
 // ComponentConstructor a func for creating a new component.
-type ComponentConstructor func(ctx context.Context, h live.Handler, s live.Socket) (*Component, error)
+type ComponentConstructor func(ctx context.Context, h *live.Handler, s *live.Socket) (*Component, error)
 
 // Component is a self contained component on the page. Components can be reused accross the application
 // or used to compose complex interfaces by splitting events handlers and render logic into
@@ -43,11 +43,11 @@ type Component struct {
 	ID string
 
 	// Handler a reference to the host handler.
-	Handler live.Handler
+	Handler *live.Handler
 
 	// Socket a reference to the socket that this component
 	// is scoped too.
-	Socket live.Socket
+	Socket *live.Socket
 
 	// Register the component. This should be used to setup event handling.
 	Register RegisterHandler
@@ -59,14 +59,14 @@ type Component struct {
 	Render RenderHandler
 
 	// State the components state.
-	State interface{}
+	State any
 
 	// Any uploads.
 	Uploads live.UploadContext
 }
 
 // NewComponent creates a new component and returns it. It does not register it or mount it.
-func NewComponent(ID string, h live.Handler, s live.Socket, configurations ...ComponentConfig) (*Component, error) {
+func NewComponent(ID string, h *live.Handler, s *live.Socket, configurations ...ComponentConfig) (*Component, error) {
 	c := &Component{
 		ID:       ID,
 		Handler:  h,
@@ -101,13 +101,13 @@ func Init(ctx context.Context, construct func() (*Component, error)) (*Component
 
 // Self sends an event scoped not only to this socket, but to this specific component instance. Or any
 // components sharing the same ID.
-func (c *Component) Self(ctx context.Context, s live.Socket, event string, data interface{}) error {
+func (c *Component) Self(ctx context.Context, s *live.Socket, event string, data any) error {
 	return s.Self(ctx, c.Event(event), data)
 }
 
 // HandleSelf handles scoped incoming events send by a components Self function.
 func (c *Component) HandleSelf(event string, handler SelfHandler) {
-	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s live.Socket, d interface{}) (interface{}, error) {
+	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s *live.Socket, d any) (any, error) {
 		state, err := handler(ctx, d)
 		if err != nil {
 			return s.Assigns(), err
@@ -119,7 +119,7 @@ func (c *Component) HandleSelf(event string, handler SelfHandler) {
 
 // HandleEvent handles a component event sent from a connected socket.
 func (c *Component) HandleEvent(event string, handler EventHandler) {
-	c.Handler.HandleEvent(c.Event(event), func(ctx context.Context, s live.Socket, p live.Params) (interface{}, error) {
+	c.Handler.HandleEvent(c.Event(event), func(ctx context.Context, s *live.Socket, p live.Params) (any, error) {
 		state, err := handler(ctx, p)
 		if err != nil {
 			return s.Assigns(), err
@@ -131,7 +131,7 @@ func (c *Component) HandleEvent(event string, handler EventHandler) {
 
 // HandleParams handles parameter changes. Caution these handlers are not scoped to a specific component.
 func (c *Component) HandleParams(handler EventHandler) {
-	c.Handler.HandleParams(func(ctx context.Context, s live.Socket, p live.Params) (interface{}, error) {
+	c.Handler.HandleParams(func(ctx context.Context, s *live.Socket, p live.Params) (any, error) {
 		state, err := handler(ctx, p)
 		if err != nil {
 			return s.Assigns(), err

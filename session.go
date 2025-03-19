@@ -10,11 +10,11 @@ import (
 const sessionID string = "_lsid"
 
 // Session persisted over page loads.
-type Session map[string]interface{}
+type Session map[string]any
 
 // NewSession create a new session.
 func NewSession() Session {
-	return map[string]interface{}{
+	return map[string]any{
 		sessionID: NewID(),
 	}
 }

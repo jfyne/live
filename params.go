@@ -6,7 +6,7 @@ import (
 )
 
 // Params event params.
-type Params map[string]interface{}
+type Params map[string]any
 
 // String helper to get a string from the params.
 func (p Params) String(key string) string {

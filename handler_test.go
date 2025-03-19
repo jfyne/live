@@ -9,17 +9,13 @@ import (
 	"testing"
 )
 
-type Tester struct {
-	*BaseHandler
-}
-
 func TestHandler(t *testing.T) {
 	output := `<html _l00=""><head _l000=""></head><body _l001="" live-rendered="">test</body></html>`
 
-	h := &Tester{NewHandler()}
-	h.HandleRender(func(ctx context.Context, data *RenderContext) (io.Reader, error) {
+	h := NewHandler()
+	h.RenderHandler = func(ctx context.Context, data *RenderContext) (io.Reader, error) {
 		return strings.NewReader(output), nil
-	})
+	}
 
 	e := NewHttpHandler(NewTestStore("test"), h)
 
@@ -42,7 +38,7 @@ func TestHandler(t *testing.T) {
 }
 
 func TestHandlerErrorNoRenderer(t *testing.T) {
-	h := &Tester{NewHandler()}
+	h := NewHandler()
 
 	e := NewHttpHandler(NewTestStore("test"), h)
 

@@ -20,8 +20,9 @@ import (
 	"nhooyr.io/websocket"
 )
 
-var _ Engine = &HttpEngine{}
-var _ Socket = &HttpSocket{}
+// var _ Engine = &HttpEngine{}
+//var _ Socket = &HttpSocket{}
+
 var _ HttpSessionStore = &CookieStore{}
 
 // sessionCookie the name of the session cookie.
@@ -34,41 +35,38 @@ type HttpSessionStore interface {
 	Clear(http.ResponseWriter, *http.Request) error
 }
 
-// HttpEngine serves live for net/http.
-type HttpEngine struct {
-	acceptOptions *websocket.AcceptOptions
-	sessionStore  HttpSessionStore
-	*BaseEngine
-}
+//// HttpEngine serves live for net/http.
+//type HttpEngine struct {
+//	acceptOptions *websocket.AcceptOptions
+//	sessionStore  HttpSessionStore
+//	*Engine
+//}
 
-// WithWebsocketAcceptOptions apply websocket accept options to the HTTP engine.
-func WithWebsocketAcceptOptions(options *websocket.AcceptOptions) EngineConfig {
-	return func(e Engine) error {
-		if httpEngine, ok := e.(*HttpEngine); ok {
-			httpEngine.acceptOptions = options
-		}
-		return nil
-	}
-}
+//// WithWebsocketAcceptOptions apply websocket accept options to the HTTP engine.
+//func WithWebsocketAcceptOptions(options *websocket.AcceptOptions) EngineConfig {
+//	return func(e *HttpEngine) error {
+//		if httpEngine, ok := e.(*HttpEngine); ok {
+//			httpEngine.acceptOptions = options
+//		}
+//		return nil
+//	}
+//}
 
-// NewHttpHandler returns the net/http handler for live.
-func NewHttpHandler(store HttpSessionStore, handler Handler, configs ...EngineConfig) *HttpEngine {
-	e := &HttpEngine{
-		sessionStore: store,
-		BaseEngine:   NewBaseEngine(handler),
-	}
-	for _, conf := range configs {
-		if err := conf(e); err != nil {
-			log.Println("warning:", fmt.Errorf("could not apply config to engine: %w", err))
-		}
-	}
-	return e
-}
+//// NewHttpHandler returns the net/http handler for live.
+//func NewHttpHandler(handler *Handler, configs ...EngineConfig) *Engine {
+//	e := NewEngine(handler)
+//	for _, conf := range configs {
+//		if err := conf(e); err != nil {
+//			log.Println("warning:", fmt.Errorf("could not apply config to engine: %w", err))
+//		}
+//	}
+//	return e
+//}
 
 // ServeHTTP serves this handler.
-func (h *HttpEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/favicon.ico" {
-		if h.IgnoreFaviconRequest {
+		if e.IgnoreFaviconRequest {
 			w.WriteHeader(404)
 			return
 		}
@@ -88,44 +86,44 @@ func (h *HttpEngine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !upgrade {
 		switch r.Method {
 		case http.MethodPost:
-			h.post(ctx, w, r)
+			e.post(ctx, w, r)
 		default:
-			h.get(ctx, w, r)
+			e.get(ctx, w, r)
 		}
 		return
 	}
 
 	// Upgrade to the websocket version.
-	h.serveWS(ctx, w, r)
+	e.serveWS(ctx, w, r)
 }
 
 // post handler.
-func (h *HttpEngine) post(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func (e *Engine) post(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	// Get session.
-	session, err := h.sessionStore.Get(r)
+	session, err := e.sessionStore.Get(r)
 	if err != nil {
-		h.Error()(ctx, fmt.Errorf("no session found: %w", err))
+		e.Handler.ErrorHandler(ctx, fmt.Errorf("no session found: %w", err))
 		return
 	}
 
 	// Get socket.
-	sock, err := h.GetSocket(session)
+	sock, err := e.GetSocket(session)
 	if err != nil {
-		h.Error()(ctx, err)
+		e.Handler.ErrorHandler(ctx, err)
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, h.MaxUploadSize)
-	if err := r.ParseMultipartForm(h.MaxUploadSize); err != nil {
-		h.Error()(ctx, fmt.Errorf("could not parse form for uploads: %w", err))
+	r.Body = http.MaxBytesReader(w, r.Body, e.MaxUploadSize)
+	if err := r.ParseMultipartForm(e.MaxUploadSize); err != nil {
+		e.Handler.ErrorHandler(ctx, fmt.Errorf("could not parse form for uploads: %w", err))
 		return
 	}
 
-	uploadDir := filepath.Join(h.UploadStagingLocation, string(sock.ID()))
-	if h.UploadStagingLocation == "" {
+	uploadDir := filepath.Join(e.UploadStagingLocation, string(sock.ID()))
+	if e.UploadStagingLocation == "" {
 		uploadDir, err = os.MkdirTemp("", string(sock.ID()))
 		if err != nil {
-			h.Error()(ctx, fmt.Errorf("%s upload dir creation failed: %w", sock.ID(), err))
+			e.Handler.ErrorHandler(ctx, fmt.Errorf("%s upload dir creation failed: %w", sock.ID(), err))
 			return
 		}
 	}
@@ -134,11 +132,11 @@ func (h *HttpEngine) post(ctx context.Context, w http.ResponseWriter, r *http.Re
 		for _, fileHeader := range r.MultipartForm.File[config.Name] {
 			u := uploadFromFileHeader(fileHeader)
 			sock.AssignUpload(config.Name, u)
-			handleFileUpload(h, sock, config, u, uploadDir, fileHeader)
+			handleFileUpload(e, sock, config, u, uploadDir, fileHeader)
 
-			render, err := RenderSocket(ctx, h, sock)
+			render, err := RenderSocket(ctx, e, sock)
 			if err != nil {
-				h.Error()(ctx, err)
+				e.Handler.ErrorHandler(ctx, err)
 				return
 			}
 			sock.UpdateRender(render)
@@ -153,7 +151,7 @@ func uploadFromFileHeader(fh *multipart.FileHeader) *Upload {
 	}
 }
 
-func handleFileUpload(h *HttpEngine, sock Socket, config *UploadConfig, u *Upload, uploadDir string, fileHeader *multipart.FileHeader) {
+func handleFileUpload(h *Engine, sock *Socket, config *UploadConfig, u *Upload, uploadDir string, fileHeader *multipart.FileHeader) {
 	// Check file claims to be within the max size.
 	if fileHeader.Size > config.MaxSize {
 		u.Errors = append(u.Errors, fmt.Errorf("%s greater than max allowed size of %d", fileHeader.Filename, config.MaxSize))
@@ -211,22 +209,19 @@ func handleFileUpload(h *HttpEngine, sock Socket, config *UploadConfig, u *Uploa
 		return
 	}
 	u.Size = written
-
-	return
 }
 
 // get renderer.
-func (h *HttpEngine) get(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-
+func (e *Engine) get(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	// Get session.
-	session, err := h.sessionStore.Get(r)
+	session, err := e.sessionStore.Get(r)
 	if err != nil {
 		if r.URL.Query().Get("live-repair") != "" {
-			h.Error()(ctx, fmt.Errorf("session corrupted: %w", err))
+			e.Handler.ErrorHandler(ctx, fmt.Errorf("session corrupted: %w", err))
 			return
 		} else {
 			log.Println(fmt.Errorf("session corrupted trying to repair: %w", err))
-			h.sessionStore.Clear(w, r)
+			e.sessionStore.Clear(w, r)
 			q := r.URL.Query()
 			q.Set("live-repair", "1")
 			r.URL.RawQuery = q.Encode()
@@ -236,30 +231,30 @@ func (h *HttpEngine) get(ctx context.Context, w http.ResponseWriter, r *http.Req
 	}
 
 	// Get socket.
-	sock := NewHttpSocket(session, h, false)
+	sock := NewSocket(session, e, false)
 
 	// Run mount, this generates the state for the page we are on.
-	data, err := h.Mount()(ctx, sock)
+	data, err := e.Handler.MountHandler(ctx, sock)
 	if err != nil {
-		h.Error()(ctx, err)
+		e.Handler.ErrorHandler(ctx, err)
 		return
 	}
 	sock.Assign(data)
 
 	// Handle any query parameters that are on the page.
-	for _, ph := range h.Params() {
+	for _, ph := range e.Handler.paramsHandlers {
 		data, err := ph(ctx, sock, NewParamsFromRequest(r))
 		if err != nil {
-			h.Error()(ctx, err)
+			e.Handler.ErrorHandler(ctx, err)
 			return
 		}
 		sock.Assign(data)
 	}
 
 	// Render the HTML to display the page.
-	render, err := RenderSocket(ctx, h, sock)
+	render, err := RenderSocket(ctx, e, sock)
 	if err != nil {
-		h.Error()(ctx, err)
+		e.Handler.ErrorHandler(ctx, err)
 		return
 	}
 	sock.UpdateRender(render)
@@ -267,8 +262,8 @@ func (h *HttpEngine) get(ctx context.Context, w http.ResponseWriter, r *http.Req
 	var rendered bytes.Buffer
 	html.Render(&rendered, render)
 
-	if err := h.sessionStore.Save(w, r, session); err != nil {
-		h.Error()(ctx, err)
+	if err := e.sessionStore.Save(w, r, session); err != nil {
+		e.Handler.ErrorHandler(ctx, err)
 		return
 	}
 
@@ -277,32 +272,32 @@ func (h *HttpEngine) get(ctx context.Context, w http.ResponseWriter, r *http.Req
 }
 
 // serveWS serve a websocket request to the handler.
-func (h *HttpEngine) serveWS(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+func (e *Engine) serveWS(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	// Get the session from the http request.
-	session, err := h.sessionStore.Get(r)
+	session, err := e.sessionStore.Get(r)
 	if err != nil {
-		h.Error()(ctx, err)
+		e.Handler.ErrorHandler(ctx, err)
 		return
 	}
 
 	// https://github.com/nhooyr/websocket/issues/218
 	// https://github.com/gorilla/websocket/issues/731
 	if strings.Contains(r.UserAgent(), "Safari") {
-		if h.acceptOptions == nil {
-			h.acceptOptions = &websocket.AcceptOptions{}
+		if e.acceptOptions == nil {
+			e.acceptOptions = &websocket.AcceptOptions{}
 		}
-		h.acceptOptions.CompressionMode = websocket.CompressionDisabled
+		e.acceptOptions.CompressionMode = websocket.CompressionDisabled
 	}
 
-	c, err := websocket.Accept(w, r, h.acceptOptions)
+	c, err := websocket.Accept(w, r, e.acceptOptions)
 	if err != nil {
-		h.Error()(ctx, err)
+		e.Handler.ErrorHandler(ctx, err)
 		return
 	}
 	defer c.Close(websocket.StatusInternalError, "")
 	writeTimeout(ctx, time.Second*5, c, Event{T: EventConnect})
 	{
-		err := h._serveWS(ctx, r, session, c)
+		err := e._serveWS(ctx, r, session, c)
 		if errors.Is(err, context.Canceled) {
 			return
 		}
@@ -319,12 +314,12 @@ func (h *HttpEngine) serveWS(ctx context.Context, w http.ResponseWriter, r *http
 }
 
 // _serveWS implement the logic for a web socket connection.
-func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Session, c *websocket.Conn) error {
+func (e *Engine) _serveWS(ctx context.Context, r *http.Request, session Session, c *websocket.Conn) error {
 	// Get the sessions socket and register it with the server.
-	sock := NewHttpSocket(session, h, true)
+	sock := NewSocket(session, e, true)
 	sock.assignWS(c)
-	h.AddSocket(sock)
-	defer h.DeleteSocket(sock)
+	e.AddSocket(sock)
+	defer e.DeleteSocket(sock)
 
 	// Internal errors.
 	internalErrors := make(chan error)
@@ -349,7 +344,7 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 				}
 				switch m.T {
 				case EventParams:
-					if err := h.CallParams(ctx, sock, m); err != nil {
+					if err := e.CallParams(ctx, sock, m); err != nil {
 						switch {
 						case errors.Is(err, ErrNoEventHandler):
 							log.Println("event error", m, err)
@@ -358,7 +353,7 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 						}
 					}
 				default:
-					if err := h.CallEvent(ctx, m.T, sock, m); err != nil {
+					if err := e.CallEvent(ctx, m.T, sock, m); err != nil {
 						switch {
 						case errors.Is(err, ErrNoEventHandler):
 							log.Println("event error", m, err)
@@ -367,7 +362,7 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 						}
 					}
 				}
-				render, err := RenderSocket(ctx, h, sock)
+				render, err := RenderSocket(ctx, e, sock)
 				if err != nil {
 					internalErrors <- fmt.Errorf("socket handle error: %w", err)
 				} else {
@@ -386,14 +381,14 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 
 	// Run mount again now that eh socket is connected, passing true indicating
 	// a connection has been made.
-	data, err := h.Mount()(ctx, sock)
+	data, err := e.Handler.MountHandler(ctx, sock)
 	if err != nil {
 		return fmt.Errorf("socket mount error: %w", err)
 	}
 	sock.Assign(data)
 
 	// Run params again now that the socket is connected.
-	for _, ph := range h.Params() {
+	for _, ph := range e.Handler.paramsHandlers {
 		data, err := ph(ctx, sock, NewParamsFromRequest(r))
 		if err != nil {
 			return fmt.Errorf("socket params error: %w", err)
@@ -404,7 +399,7 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 	// Run render now that we are connected for the first time and we have just
 	// mounted again. This will generate and send any patches if there have
 	// been changes.
-	render, err := RenderSocket(ctx, h, sock)
+	render, err := RenderSocket(ctx, e, sock)
 	if err != nil {
 		return fmt.Errorf("socket render error: %w", err)
 	}
@@ -443,23 +438,16 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 	}
 }
 
-type HttpSocket struct {
-	*BaseSocket
-}
-
-// NewHttpSocket creates a new http socket.
-func NewHttpSocket(s Session, e Engine, connected bool) *HttpSocket {
-	return &HttpSocket{
-		BaseSocket: NewBaseSocket(s, e, connected),
-	}
-}
-
-// assignWS connect a web socket to a socket.
-func (s *HttpSocket) assignWS(ws *websocket.Conn) {
-	s.closeSlow = func() {
-		ws.Close(websocket.StatusPolicyViolation, "socket too slow to keep up with messages")
-	}
-}
+//type HttpSocket struct {
+//	*Socket
+//}
+//
+//// NewHttpSocket creates a new http socket.
+//func NewHttpSocket(s Session, e *Engine, connected bool) *HttpSocket {
+//	return &HttpSocket{
+//		Socket: NewSocket(s, e, connected),
+//	}
+//}
 
 func httpContext(w http.ResponseWriter, r *http.Request) context.Context {
 	ctx := r.Context()

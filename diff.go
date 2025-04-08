@@ -3,7 +3,7 @@ package live
 import (
 	"bytes"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
@@ -408,5 +408,5 @@ func debugNodeLog(msg string, node *html.Node) {
 
 	var d bytes.Buffer
 	html.Render(&d, node)
-	log.Println(msg, node.Type, `s"`+node.Data+`"e`, `s"`+d.String()+`"e`)
+	slog.Debug(msg, "type", node.Type, "data", `s"`+node.Data+`"e`, "render", `s"`+d.String()+`"e`)
 }

@@ -133,7 +133,7 @@ func Example() {
 	// This handles the `live-click="temp-down"` button.
 	h.HandleEvent("temp-down", tempDown)
 
-	http.Handle("/thermostat", NewHttpHandler(NewCookieStore("session-name", []byte("weak-secret")), h))
+	http.Handle("/thermostat", NewHttpHandler(context.Background(), h))
 
 	// This serves the JS needed to make live work.
 	http.Handle("/live.js", Javascript{})
@@ -193,7 +193,7 @@ func Example() {
 		WithComponentRenderer(),
 	)
 
-	http.Handle("/", live.NewHttpHandler(live.NewCookieStore("session-name", []byte("weak-secret")), h))
+	http.Handle("/", live.NewHttpHandler(context.Background(), h))
 	http.Handle("/live.js", live.Javascript{})
 	http.ListenAndServe(":8080", nil)
 }

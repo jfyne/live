@@ -17,7 +17,7 @@ func TestHandler(t *testing.T) {
 		return strings.NewReader(output), nil
 	}
 
-	e := NewHttpHandler(NewTestStore("test"), h)
+	e := NewHttpHandler(context.Background(), h)
 
 	req, err := http.NewRequest("GET", "/test", nil)
 	if err != nil {
@@ -40,7 +40,7 @@ func TestHandler(t *testing.T) {
 func TestHandlerErrorNoRenderer(t *testing.T) {
 	h := NewHandler()
 
-	e := NewHttpHandler(NewTestStore("test"), h)
+	e := NewHttpHandler(context.Background(), h)
 
 	req, err := http.NewRequest("GET", "/test", nil)
 	if err != nil {

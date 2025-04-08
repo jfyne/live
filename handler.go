@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 )
 
 //var _ Handler = &BaseHandler{}
@@ -38,36 +38,6 @@ type EventHandler func(context.Context, *Socket, Params) (any, error)
 // SelfHandler a function to handle self events, returns the data that should
 // be set to the socket after handling.
 type SelfHandler func(context.Context, *Socket, any) (any, error)
-
-//// Handler methods.
-//type Handler interface {
-//	// HandleMount handles initial setup on first request, and then later when
-//	// the socket first connets.
-//	HandleMount(handler MountHandler)
-//	// HandleUnmount used to track webcocket disconnections.
-//	HandleUnmount(handler UnmountHandler)
-//	// HandleRender used to set the render method for the handler.
-//	HandleRender(handler RenderHandler)
-//	// HandleError for when an error occurs.
-//	HandleError(handler ErrorHandler)
-//	// HandleEvent handles an event that comes from the client. For example a click
-//	// from `live-click="myevent"`.
-//	HandleEvent(t string, handler EventHandler)
-//	// HandleSelf handles an event that comes from the server side socket. For example calling
-//	// h.Self(socket, msg) will be handled here.
-//	HandleSelf(t string, handler SelfHandler)
-//	// HandleParams handles a URL query parameter change. This is useful for handling
-//	// things like pagincation, or some filtering.
-//	HandleParams(handler EventHandler)
-//
-//	getMount() MountHandler
-//	getUnmount() UnmountHandler
-//	getRender() RenderHandler
-//	getError() ErrorHandler
-//	getEvent(t string) (EventHandler, error)
-//	getSelf(t string) (SelfHandler, error)
-//	getParams() []EventHandler
-//}
 
 // Handler.
 type Handler struct {
@@ -116,7 +86,7 @@ func NewHandler(configs ...HandlerConfig) *Handler {
 	}
 	for _, conf := range configs {
 		if err := conf(h); err != nil {
-			log.Println("warning:", fmt.Errorf("could not apply config to handler: %w", err))
+			slog.Warn("apply config", "err", err)
 		}
 	}
 	return h

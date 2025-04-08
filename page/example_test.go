@@ -36,7 +36,7 @@ func Example() {
 		WithComponentRenderer(),
 	)
 
-	http.Handle("/", live.NewHttpHandler(live.NewCookieStore("session-name", []byte("weak-secret")), h))
+	http.Handle("/", live.NewHttpHandler(context.Background(), h))
 	http.Handle("/live.js", live.Javascript{})
 	http.ListenAndServe(":8080", nil)
 }

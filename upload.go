@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 )
 
@@ -94,7 +94,7 @@ func (u *UploadProgress) Write(p []byte) (n int, err error) {
 	u.Upload.Progress = float32(u.Upload.bytesRead) / float32(u.Upload.Size)
 	render, err := RenderSocket(context.Background(), u.Engine, u.Socket)
 	if err != nil {
-		log.Println("error in upload progress:", err)
+		slog.Error("error in upload progress", "err", err)
 		return
 	}
 	u.Socket.UpdateRender(render)
@@ -108,7 +108,7 @@ func ValidateUploads(s *Socket, p Params) {
 
 	input, ok := p[upKey].(map[string]interface{})
 	if !ok {
-		log.Println("warning:", ErrUploadNotFound)
+		slog.Warn("validate uploads", "err", ErrUploadNotFound)
 		return
 	}
 

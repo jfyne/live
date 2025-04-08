@@ -3,6 +3,7 @@ package live
 import (
 	"context"
 	"log"
+	"log/slog"
 )
 
 // PubSubTransport is how the messages should be sent to the listeners.
@@ -49,7 +50,7 @@ func (p *PubSub) Subscribe(topic string, h *Engine) {
 	// given topic.
 	h.BroadcastHandler = func(ctx context.Context, h *Engine, msg Event) {
 		if err := p.transport.Publish(ctx, topic, msg); err != nil {
-			log.Println("could not publish broadcast:", err)
+			slog.Error("could not publish broadcast", "err", err)
 		}
 	}
 }

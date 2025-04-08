@@ -4,74 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
-	"sync"
+	"slices"
+	"time"
 
+	"github.com/coder/websocket"
+	"github.com/rs/xid"
 	"golang.org/x/net/html"
-	"nhooyr.io/websocket"
 )
 
 const (
 	// maxMessageBufferSize the maximum number of messages per socket in a buffer.
 	maxMessageBufferSize = 16
-)
 
-//var _ Socket = &Socket{}
+	// cookieSocketID name for a cookie which holds the current socket ID.
+	cookieSocketID = "_psid"
+
+	// infiniteTTL
+	infiniteTTL = 10_000 * (24 * time.Hour)
+)
 
 type SocketID string
 
-//// Socket describes a connected user, and the state that they
-//// are in.
-//type Socket interface {
-//	// ID return an ID for this socket.
-//	ID() SocketID
-//	// Assigns returns the data currently assigned to this
-//	// socket.
-//	Assigns() any
-//	// Assign set data to this socket. This will happen automatically
-//	// if you return data from an `EventHander`.
-//	Assign(data any)
-//	// Connected returns true if this socket is connected via the websocket.
-//	Connected() bool
-//	// Self send an event to this socket itself. Will be handled in the
-//	// handlers HandleSelf function.
-//	Self(ctx context.Context, event string, data any) error
-//	// Broadcast send an event to all sockets on this same engine.
-//	Broadcast(event string, data any) error
-//	// Send an event to this socket's client, to be handled there.
-//	Send(event string, data any, options ...EventConfig) error
-//	// PatchURL sends an event to the client to update the
-//	// query params in the URL.
-//	PatchURL(values url.Values)
-//	// Redirect sends a redirect event to the client. This will trigger the browser to
-//	// redirect to a URL.
-//	Redirect(u *url.URL)
-//	// AllowUploads indicates that his socket should allow uploads.
-//	AllowUploads(config *UploadConfig)
-//	// UploadConfigs return the list of configures uploads for this socket.
-//	UploadConfigs() []*UploadConfig
-//	// Uploads returns uploads to this socket.
-//	Uploads() UploadContext
-//	// AssignUploads set uploads to a upload config on this socket.
-//	AssignUpload(config string, upload *Upload)
-//	// ClearUploads clears the sockets upload map.
-//	ClearUploads()
-//	// ClearUpload clear a specific upload.
-//	ClearUpload(config string, upload *Upload)
-//	// LatestRender return the latest render that this socket generated.
-//	LatestRender() *html.Node
-//	// UpdateRender set the latest render.
-//	UpdateRender(render *html.Node)
-//	// Session returns the sockets session.
-//	Session() Session
-//	// Messages returns the channel of events on this socket.
-//	Messages() chan Event
-//}
-
 // Socket describes a socket from the outside.
 type Socket struct {
-	session Session
-	id      SocketID
+	id SocketID
 
 	engine        *Engine
 	connected     bool
@@ -82,44 +40,79 @@ type Socket struct {
 	uploadConfigs []*UploadConfig
 	uploads       UploadContext
 
-	data   any
-	dataMu sync.Mutex
-	selfMu sync.Mutex
+	selfChan chan socketSelfOp
+}
+
+type socketSelfOp struct {
+	Event Event
+	resp  chan bool
+	err   chan error
+}
+
+// NewID returns a new ID.
+func NewID() string {
+	return xid.New().String()
+}
+
+// NewSocketFromRequest creates a new default socket from a request.
+func NewSocketFromRequest(ctx context.Context, e *Engine, r *http.Request) (*Socket, error) {
+	c, err := r.Cookie(cookieSocketID)
+	if err != nil {
+		return nil, fmt.Errorf("socket id not found: %w", err)
+	}
+	return NewSocket(ctx, e, SocketID(c.Value)), nil
 }
 
 // NewSocket creates a new default socket.
-func NewSocket(s Session, e *Engine, connected bool) *Socket {
-	return &Socket{
-		session:       s,
+func NewSocket(ctx context.Context, e *Engine, withID SocketID) *Socket {
+	s := &Socket{
+		id:            withID,
 		engine:        e,
-		connected:     connected,
+		connected:     withID != "",
 		uploadConfigs: []*UploadConfig{},
 		msgs:          make(chan Event, maxMessageBufferSize),
+		selfChan:      make(chan socketSelfOp),
 	}
-}
-
-// ID generates a unique ID for this socket.
-func (s *Socket) ID() SocketID {
-	if s.id == "" {
+	if withID == "" {
 		s.id = SocketID(NewID())
 	}
+	go s.operate(ctx)
+	return s
+}
+
+func (s *Socket) WriteFlashCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieSocketID,
+		Value:    string(s.id),
+		Path:     "/",
+		HttpOnly: false,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   1,
+	})
+}
+
+// ID gets the socket ID.
+func (s *Socket) ID() SocketID {
 	return s.id
 }
 
 // Assigns returns the data currently assigned to this
 // socket.
 func (s *Socket) Assigns() any {
-	s.dataMu.Lock()
-	defer s.dataMu.Unlock()
-	return s.data
+	state, _ := s.engine.socketStateStore.Get(s.id)
+	return state.Data
 }
 
 // Assign sets data to this socket. This will happen automatically
 // if you return data from an `EventHander`.
 func (s *Socket) Assign(data any) {
-	s.dataMu.Lock()
-	defer s.dataMu.Unlock()
-	s.data = data
+	state, _ := s.engine.socketStateStore.Get(s.id)
+	state.Data = data
+	ttl := 10 * time.Second
+	if s.connected {
+		ttl = infiniteTTL
+	}
+	s.engine.socketStateStore.Set(s.id, state, ttl)
 }
 
 // Connected returns if this socket is connected via the websocket.
@@ -130,11 +123,30 @@ func (s *Socket) Connected() bool {
 // Self sends an event to this socket itself. Will be handled in the
 // handlers HandleSelf function.
 func (s *Socket) Self(ctx context.Context, event string, data any) error {
-	s.selfMu.Lock()
-	defer s.selfMu.Unlock()
-	msg := Event{T: event, SelfData: data}
-	s.engine.self(ctx, s, msg)
-	return nil
+	op := socketSelfOp{
+		Event: Event{T: event, SelfData: data},
+		resp:  make(chan bool),
+		err:   make(chan error),
+	}
+	s.selfChan <- op
+	select {
+	case <-op.resp:
+		return nil
+	case err := <-op.err:
+		return err
+	}
+}
+
+func (s *Socket) operate(ctx context.Context) {
+	for {
+		select {
+		case op := <-s.selfChan:
+			s.engine.self(ctx, s, op.Event)
+			op.resp <- true
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // Broadcast sends an event to all sockets on this same engine.
@@ -221,7 +233,7 @@ func (s *Socket) ClearUpload(config string, upload *Upload) {
 	}
 	for idx, u := range s.uploads[config] {
 		if u.Name == upload.Name {
-			s.uploads[config] = append(s.uploads[config][:idx], s.uploads[config][idx+1:]...)
+			s.uploads[config] = slices.Delete(s.uploads[config], idx, idx+1)
 			return
 		}
 	}
@@ -235,11 +247,6 @@ func (s *Socket) LatestRender() *html.Node {
 // UpdateRender replaces the last render result of this socket.
 func (s *Socket) UpdateRender(render *html.Node) {
 	s.currentRender = render
-}
-
-// Session returns the session of this socket.
-func (s *Socket) Session() Session {
-	return s.session
 }
 
 // Messages returns a channel of event messages sent and received by this socket.

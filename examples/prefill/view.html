@@ -1,0 +1,42 @@
+{{ define "title" }} Example Prefill {{ end }}
+{{ define "view" }}
+<style>
+    fieldset {
+        border: none;
+        align-items: center;
+    }
+
+    section {
+        margin-top: 2rem;
+    }
+</style>
+
+<h1>User edit form</h1>
+
+<!-- Forms require an ID so that we can track changes in them -->
+<form id="test-form" live-change="validate" live-submit="save">
+    <span>
+        {{ if len .Assigns.Validation }}
+        <div>{{ .Assigns.Validation }}</div>
+        {{ end }}
+    </span>
+    <div>
+        <label>
+            Name
+            <input type="text" name="name" value="{{ .Assigns.Name }}">
+        </label>
+        <label>
+            Age
+            <input type="number" name="age" value="{{ .Assigns.Age }}">
+        </label>
+    </div>
+    <div>
+        <input type="submit" value="Save">
+    </div>
+</form>
+
+<section>
+    Name: {{ .Assigns.Name }}, {{ .Assigns.Age }}
+</section>
+
+{{ end }}

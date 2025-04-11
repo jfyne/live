@@ -3,11 +3,14 @@ import { Patch } from "./patch";
 import { Events } from "./events";
 import { UpdateURLParams } from "./params";
 
+const privateSocketID = "_psid"
+
 /**
  * Represents the websocket connection to
  * the backend server.
  */
 export class Socket {
+    private static id: string | undefined;
     private static conn: WebSocket;
     private static ready: boolean = false;
     private static disconnectNotified: boolean = false;
@@ -18,10 +21,34 @@ export class Socket {
 
     constructor() {}
 
+    static getID() {
+        if (this.id) {
+            return this.id;
+        }
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${privateSocketID}=`);
+        if (parts && parts.length === 2) {
+            const val = parts.pop()
+            if (!val) {
+                return ""
+            }
+            return val.split(';').shift();
+        }
+        return "";
+    }
+
+    static setCookie() {
+        var date = new Date();
+        date.setTime(date.getTime() + (60*1000));
+        document.cookie = `${privateSocketID}=${this.id}; expires=${date.toUTCString()}; path=/`;
+    }
+
     static dial() {
         this.trackedEvents = {};
+        this.id = this.getID();
+        this.setCookie();
 
-        console.debug("Socket.dial called");
+        console.debug("Socket.dial called", this.id);
         this.conn = new WebSocket(
             `${location.protocol === "https:" ? "wss" : "ws"}://${
                 location.host

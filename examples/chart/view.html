@@ -1,0 +1,52 @@
+{{ define "title" }}Example chart{{ end }} {{ define "view" }}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<style>
+.container {
+    height: 70vh;
+}
+#chart {
+    width: 50vw;
+}
+.center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>
+<div class="container center">
+    <div id="chart"></div>
+</div>
+
+<script live-hook="regenerate" type="application/json" id="chart-options">
+    {
+      "chart": {
+        "type": "line"
+      },
+      "series": [{
+        "name": "sales",
+        "data": {{ .Assigns.Sales }}
+      }],
+      "xaxis": {
+        "categories": [1991,1992,1993,1994,1995,1996,1997,1998,1999]
+      }
+    }
+</script>
+
+<script>
+window.getOptions = function() {
+    return JSON.parse(document.querySelector("#chart-options").innerHTML);
+}
+window.chart = new ApexCharts(document.querySelector("#chart"), window.getOptions());
+window.chart.render();
+</script>
+
+<script>
+    window.Hooks = {
+        "regenerate": {
+            updated: function() {
+                window.chart.updateOptions(window.getOptions(), false, true, true);
+            }
+        }
+    }
+</script>
+{{ end }}

@@ -1,0 +1,18 @@
+{
+    "name": "live-npm-example",
+    "version": "0.0.0",
+    "type": "module",
+    "description": "An example of importing the live package.",
+    "scripts": {
+        "prepare": "npx esbuild --bundle index.js --outfile=main.js"
+    },
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "@jfyne/live": "^0.9.2",
+        "alpinejs": "^2.8.1"
+    },
+    "devDependencies": {
+        "esbuild": "^0.8.44"
+    }
+}

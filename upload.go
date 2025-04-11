@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 )
 
@@ -83,8 +83,8 @@ func (u UploadContext) HasErrors() bool {
 // object with progress.
 type UploadProgress struct {
 	Upload *Upload
-	Engine Engine
-	Socket Socket
+	Engine *Engine
+	Socket *Socket
 }
 
 // Write interface to track progress of an upload.
@@ -94,7 +94,7 @@ func (u *UploadProgress) Write(p []byte) (n int, err error) {
 	u.Upload.Progress = float32(u.Upload.bytesRead) / float32(u.Upload.Size)
 	render, err := RenderSocket(context.Background(), u.Engine, u.Socket)
 	if err != nil {
-		log.Println("error in upload progress:", err)
+		slog.Error("error in upload progress", "err", err)
 		return
 	}
 	u.Socket.UpdateRender(render)
@@ -103,12 +103,12 @@ func (u *UploadProgress) Write(p []byte) (n int, err error) {
 
 // ValidateUploads checks proposed uploads for errors, should be called
 // in a validation check function.
-func ValidateUploads(s Socket, p Params) {
+func ValidateUploads(s *Socket, p Params) {
 	s.ClearUploads()
 
 	input, ok := p[upKey].(map[string]interface{})
 	if !ok {
-		log.Println("warning:", ErrUploadNotFound)
+		slog.Warn("validate uploads", "err", ErrUploadNotFound)
 		return
 	}
 
@@ -157,7 +157,7 @@ func ValidateUploads(s Socket, p Params) {
 type ConsumeHandler func(u *Upload) error
 
 // ConsumeUploads helper function to consume the staged uploads.
-func ConsumeUploads(s Socket, name string, ch ConsumeHandler) []error {
+func ConsumeUploads(s *Socket, name string, ch ConsumeHandler) []error {
 	errs := []error{}
 	all := s.Uploads()
 	uploads, ok := all[name]
@@ -175,22 +175,16 @@ func ConsumeUploads(s Socket, name string, ch ConsumeHandler) []error {
 
 // WithMaxUploadSize set the handler engine to have a maximum upload size.
 func WithMaxUploadSize(size int64) EngineConfig {
-	return func(e Engine) error {
-		switch v := e.(type) {
-		case *BaseEngine:
-			v.MaxUploadSize = size
-		}
+	return func(e *Engine) error {
+		e.MaxUploadSize = size
 		return nil
 	}
 }
 
 // WithUploadStagingLocation set the handler engine with a specific upload staging location.
 func WithUploadStagingLocation(stagingLocation string) EngineConfig {
-	return func(e Engine) error {
-		switch v := e.(type) {
-		case *BaseEngine:
-			v.UploadStagingLocation = stagingLocation
-		}
+	return func(e *Engine) error {
+		e.UploadStagingLocation = stagingLocation
 		return nil
 	}
 }

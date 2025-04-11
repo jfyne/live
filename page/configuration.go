@@ -38,8 +38,8 @@ func WithRender(fn RenderHandler) ComponentConfig {
 
 // WithComponentMount set the live.Handler to mount the root component.
 func WithComponentMount(construct ComponentConstructor) live.HandlerConfig {
-	return func(h live.Handler) error {
-		h.HandleMount(func(ctx context.Context, s live.Socket) (interface{}, error) {
+	return func(h *live.Handler) error {
+		h.MountHandler = func(ctx context.Context, s *live.Socket) (any, error) {
 			root, err := construct(ctx, h, s)
 			if err != nil {
 				return nil, fmt.Errorf("failed to construct root component: %w", err)
@@ -53,15 +53,15 @@ func WithComponentMount(construct ComponentConstructor) live.HandlerConfig {
 				return nil, err
 			}
 			return root, nil
-		})
+		}
 		return nil
 	}
 }
 
 // WithComponentRenderer set the live.Handler to use a root component to render.
 func WithComponentRenderer() live.HandlerConfig {
-	return func(h live.Handler) error {
-		h.HandleRender(func(_ context.Context, data *live.RenderContext) (io.Reader, error) {
+	return func(h *live.Handler) error {
+		h.RenderHandler = func(_ context.Context, data *live.RenderContext) (io.Reader, error) {
 			c, ok := data.Assigns.(*Component)
 			if !ok {
 				return nil, fmt.Errorf("root render data is not a component")
@@ -72,7 +72,7 @@ func WithComponentRenderer() live.HandlerConfig {
 				return nil, err
 			}
 			return &buf, nil
-		})
+		}
 		return nil
 	}
 }

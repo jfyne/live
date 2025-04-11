@@ -3,6 +3,7 @@ package live
 import (
 	"context"
 	"log"
+	"log/slog"
 )
 
 // PubSubTransport is how the messages should be sent to the listeners.
@@ -19,14 +20,14 @@ type PubSubTransport interface {
 // nodes in a cluster.
 type PubSub struct {
 	transport PubSubTransport
-	handlers  map[string][]Engine
+	handlers  map[string][]*Engine
 }
 
 // NewPubSub creates a new PubSub handler.
 func NewPubSub(ctx context.Context, t PubSubTransport) *PubSub {
 	p := &PubSub{
 		transport: t,
-		handlers:  map[string][]Engine{},
+		handlers:  map[string][]*Engine{},
 	}
 	go func(ctx context.Context, ps *PubSub) {
 		if err := t.Listen(ctx, ps); err != nil {
@@ -42,16 +43,16 @@ func (p *PubSub) Publish(ctx context.Context, topic string, msg Event) error {
 }
 
 // Subscribe adds a handler to a PubSub topic.
-func (p *PubSub) Subscribe(topic string, h Engine) {
+func (p *PubSub) Subscribe(topic string, h *Engine) {
 	p.handlers[topic] = append(p.handlers[topic], h)
 
 	// This adjusts the handlers broadcast function to publish onto the
 	// given topic.
-	h.HandleBroadcast(func(ctx context.Context, h Engine, msg Event) {
+	h.BroadcastHandler = func(ctx context.Context, h *Engine, msg Event) {
 		if err := p.transport.Publish(ctx, topic, msg); err != nil {
-			log.Println("could not publish broadcast:", err)
+			slog.Error("could not publish broadcast", "err", err)
 		}
-	})
+	}
 }
 
 // Recieve a message from the transport.
@@ -71,7 +72,6 @@ type TransportMessage struct {
 // LocalTransport a pubsub transport that allows handlers to communicate
 // locally.
 type LocalTransport struct {
-	ctx   context.Context
 	queue chan TransportMessage
 }
 

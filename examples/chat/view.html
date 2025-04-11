@@ -1,0 +1,33 @@
+{{ define "title" }} Live Chat {{ end }}
+{{ define "view" }}
+
+<main>
+    <div class="window" live-update="append">
+        {{ range $msg := .Assigns.Messages }}
+        <div id="{{$msg.ID}}" class="message">
+            <span>{{$msg.User}}</span>
+            <div>{{$msg.Msg}}</div>
+        </div>
+        {{ end }}
+    </div>
+    <div class="actions">
+        <form id="chatinput" live-submit="send" live-hook="chat">
+            <input autocomplete="off" autofocus type="text" name="message">
+            <button type="submit">Send</button>
+        </form>
+    </div>
+</main>
+
+<script>
+    window.Hooks = {
+        "chat": {
+            mounted: function() {
+                this.el.addEventListener("submit", () => {
+                    this.el.querySelector("input").value = "";
+                });
+            }
+        }
+    };
+</script>
+
+{{ end }}

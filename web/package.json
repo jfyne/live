@@ -23,11 +23,11 @@
         "url": "https://github.com/jfyne/live"
     },
     "devDependencies": {
-        "@types/jest": "^27.0.2",
-        "esbuild": "^0.25.0",
-        "jest": "^27.3.1",
+        "@types/jest": "~29.x",
+        "esbuild": "~0.25.x",
+        "jest": "~29.x",
         "prettier": "^2.4.1",
-        "ts-jest": "^27.0.7",
+        "ts-jest": "~29.x",
         "typescript": "^5.8.3"
     }
 }

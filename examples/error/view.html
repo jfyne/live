@@ -1,0 +1,21 @@
+{{ define "title" }} Error event {{ end }}
+{{ define "view" }}
+
+<main live-hook="err">
+    <button live-click="problem" live-value-msg="I'm a problem">Make a problem</button>
+</main>
+
+<script>
+    window.Hooks = {
+        "err": {
+            mounted: function() {
+                this.handleEvent("err", (data) => {
+                    console.error(data);
+                    window.alert(data.err);
+                });
+            }
+        }
+    };
+</script>
+
+{{ end }}

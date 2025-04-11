@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+    <head>
+        <title>{{ template "title" . }}</title>
+        <meta name="color-scheme" content="light dark">
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css"
+        >
+        <style>
+            body {
+                border-top: 5px solid red;
+                margin: 0;
+                padding: 1rem;
+            }
+            body.live-connected {
+                border-top: none;
+            }
+        </style>
+    </head>
+    <body>
+        {{ template "view" . }}
+        <!-- This is embedded in the binary and enables live to work -->
+        <script type="text/javascript" src="/live.js"></script>
+    </body>
+</html>

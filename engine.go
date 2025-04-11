@@ -496,6 +496,8 @@ func (e *Engine) serveWS(ctx context.Context, w http.ResponseWriter, r *http.Req
 			return
 		case websocket.StatusGoingAway:
 			return
+		case -1:
+			return
 		default:
 			slog.Error("ws closed", "err", fmt.Errorf("ws closed with status (%d): %w", websocket.CloseStatus(err), err))
 			return

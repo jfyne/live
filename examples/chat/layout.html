@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{{ template "title" . }}</title>
+        <meta name="color-scheme" content="light dark">
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css"
+        >
+        <style>
+            html {
+                padding: 0;
+                margin: 0;
+                overflow: hidden;
+            }
+            body {
+                height: 100vh;
+                padding: 0;
+                margin: 0;
+            }
+            main {
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            }
+            .window {
+                height: 90vh;
+                overflow-y: scroll;
+            }
+            .message {
+                display: flex;
+                align-items: center;
+            }
+            .message span {
+                min-width: 10rem;
+                width: 10rem;
+                text-align: right;
+                font-family: monospace;
+                margin-right: 1rem;
+                font-size: .8rem;
+            }
+            .actions {
+                height: 10vh;
+                display: flex;
+                align-items: center;
+                padding: 0 1rem;
+            }
+            .actions form {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            .actions form input {
+                pointer-events: none;
+                flex: 1 0 90%;
+                padding: .5rem;
+                border: 1px solid black;
+            }
+            .actions form button {
+                pointer-events: none;
+                margin-left: 1rem;
+                padding: .5rem;
+                border: 1px solid black;
+            }
+            body.live-connected .actions form input {
+                pointer-events: initial;
+            }
+            body.live-connected .actions form button {
+                pointer-events: initial;
+            }
+        </style>
+    </head>
+    <body>
+        {{ template "view" . }}
+        <script type="text/javascript" src="/live.js"></script>
+    </body>
+</html>

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>{{ template "title" . }}</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl" crossorigin="anonymous">
+
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, Segoe UI,
+                    Helvetica, Arial, sans-serif, Apple Color Emoji,
+                    Segoe UI Emoji;
+            }
+        </style>
+    </head>
+    <body>
+        {{ template "view" . }}
+        <script type="text/javascript" src="/static/main.js"></script>
+    </body>
+</html>

@@ -13,10 +13,6 @@ an interactive web app just using Go and its templates.
 The structures provided in this package are compatible with `net/http`, so will play
 nicely with middleware and other frameworks.
 
-## Other implementations
-
-- [Fiber](https://github.com/jfyne/live-contrib/tree/main/livefiber) a live handler for [Fiber](https://github.com/gofiber/fiber).
-
 ## Community
 
 For bugs please use github issues. If you have a question about design or adding features, I
@@ -25,6 +21,22 @@ am happy to chat about it in the discussions tab.
 Discord server is [here](https://discord.gg/TuMNaXJMUG).
 
 ## Getting Started
+
+### Examples
+
+- [Alpinejs](https://github.com/jfyne/live/tree/master/examples/alpine)
+- [Buttons](https://github.com/jfyne/live/tree/master/examples/buttons)
+- [Chat](https://github.com/jfyne/live/tree/master/examples/chat)
+- [Clock](https://github.com/jfyne/live/tree/master/examples/clock)
+- [Clocks](https://github.com/jfyne/live/tree/master/examples/clocks)
+- [Cluster](https://github.com/jfyne/live/tree/master/examples/cluster)
+- [Error](https://github.com/jfyne/live/tree/master/examples/error)
+- [Pagination](https://github.com/jfyne/live/tree/master/examples/pagination)
+- [Todo](https://github.com/jfyne/live/tree/master/examples/todo)
+
+#### Live components
+
+- [World Clocks](https://github.com/jfyne/live/tree/master/examples/clocks)
 
 ### Install
 
@@ -504,7 +516,7 @@ All `live-` event bindings apply their own css classes when pushed. For example 
 <button live-click="clicked" live-window-keydown="key">...</button>
 ```
 
-On click, would receive the `live-click-loading` class, and on keydown would 
+On click, would receive the `live-click-loading` class, and on keydown would
 receive the `live-keydown-loading` class. The css loading classes are maintained
 until an acknowledgement is received on the client for the pushed event.
 
@@ -540,7 +552,7 @@ to progress and errors.
 
 ### Entry validation
 
-File selection triggers the usual form change event and there is a helper function to validate the uploads. 
+File selection triggers the usual form change event and there is a helper function to validate the uploads.
 Use `live.ValidateUploads` to validate the incoming files. Any validation errors will be available in the `.Uploads`
 context in the template.
 

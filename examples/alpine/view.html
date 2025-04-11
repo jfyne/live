@@ -1,0 +1,114 @@
+{{ define "title" }} Alpine Example {{ end }} {{ define "view" }}
+<div class="container">
+    <script>
+        function autocomplete() {
+            return {
+                isOpen: false,
+                open() {
+                    this.isOpen = true;
+                },
+                close() {
+                    this.isOpen = false;
+                },
+            };
+        }
+    </script>
+
+    <div class="autocomplete" x-data="autocomplete()" @click.away="close()">
+        <form id="autocomplete" live-submit="submit" live-change="suggest">
+            <div>
+                <input
+                    id="searh-input"
+                    name="search"
+                    type="text"
+                    x-on:focus="open"
+                    placeholder="Search for an item..."
+                />
+            </div>
+            <div class="suggestions">
+                <ul
+                    id="autocomplete-suggestions"
+                    x-show="isOpen"
+                    x-ref="suggestions"
+                >
+                    {{ range $idx, $i := .Assigns.Suggestions }}
+                    <li
+                        id="item-{{$idx}}"
+                        x-ref="item-{{$idx}}"
+                        live-click="selected"
+                        live-value-id="{{$i.ID}}"
+                        class="item"
+                    >
+                        {{$i.Name}}
+                    </li>
+                    {{ end }}
+                </ul>
+            </div>
+        </form>
+    </div>
+
+    <div>
+        <h4>Selected items</h4>
+
+        <div class="selected">
+            <ul>
+                {{ range $idx, $i := .Assigns.Selected }}
+                <li id="selected-item-{{$idx}}" class="item">{{$i.Name}}</li>
+                {{ end }}
+            </ul>
+        </div>
+    </div>
+</div>
+<style>
+    .container {
+        padding: 24px 0;
+    }
+
+    .autocomplete {
+        position: relative;
+    }
+
+    .suggestions {
+        position: absolute;
+        width: 100%;
+        border-radius: 6px;
+        background-color: white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+        overflow: auto;
+        max-height: 250px;
+    }
+
+    .suggestions ul {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .suggestions .item {
+        display: flex;
+        align-items: center;
+        padding: 12px 15px;
+        margin: 0;
+    }
+
+    .suggestions .item:hover {
+        cursor: pointer;
+    }
+
+    .selected ul {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .selected .item {
+        display: flex;
+        padding: 12px 15px;
+        margin: 0;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        border: 1px solid lightgray;
+    }
+</style>
+{{ end }}

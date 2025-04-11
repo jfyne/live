@@ -1,0 +1,56 @@
+{{ define "title" }} Example file upload {{ end }}
+{{ define "view" }}
+<style>
+    fieldset {
+        border: none;
+        display: flex;
+        align-items: center;
+    }
+
+    .task {
+        display: flex;
+        align-items: center;
+    }
+    .task .done {
+        text-decoration: line-through;
+    }
+</style>
+
+<h1>Upload .pngs less than a MB</h1>
+
+<!-- Forms require an ID so that we can track changes in them -->
+<form id="test-form" live-change="validate" live-submit="save">
+    <fieldset>
+        <label>
+            <div>
+            {{ if index .Uploads "photos" }}
+                {{ range $upload := (index .Uploads "photos") }}
+                    {{ if len $upload.Errors }}
+                    {{ range $uerr := $upload.Errors }}
+                        <div class="error">{{ customError $upload $uerr}}</div>
+                    {{ end }}
+                    {{ else }}
+                        <h2>{{ $upload.Name }}</h2>
+                        <progress value="{{ $upload.Progress }}"></progress>
+                    {{ end }}
+                {{ end }}
+            {{ end }}
+            </div>
+            <input type="file" name="photos" multiple>
+        </label>
+    </fieldset>
+    <fieldset>
+        <input type="submit" 
+        {{ if .Uploads.HasErrors }}
+        disabled="true"
+        {{ end }}
+        >
+    </fieldset>
+</form>
+
+<ul>
+    {{ range $u := .Assigns.Uploads }}
+    <li><img src="/static/{{$u}}" alt="{{$u}}"/></li>
+    {{ end }}
+
+{{ end }}

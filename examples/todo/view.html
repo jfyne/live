@@ -1,0 +1,43 @@
+{{ define "title" }} Example form {{ end }}
+{{ define "view" }}
+<style>
+    fieldset {
+        border: none;
+        display: flex;
+        align-items: center;
+    }
+
+    .task {
+        display: flex;
+        align-items: center;
+    }
+    .task .done {
+        text-decoration: line-through;
+    }
+</style>
+
+<h1>Todo list</h1>
+
+<!-- Forms require an ID so that we can track changes in them -->
+<form id="test-form" live-change="validate" live-submit="save">
+    {{ if index .Assigns.Form.Errors "message" }}
+        <div class="error">{{index .Assigns.Form.Errors "message"}}</div>
+    {{ end }}
+    <fieldset>
+        <label>
+            <input type="text" name="task" live-debounce="blur">
+            <input type="checkbox" name="complete">
+        </label>
+    </fieldset>
+    <fieldset>
+        <input type="submit">
+    </fieldset>
+</form>
+
+{{ range $t := .Assigns.Tasks }}
+<span class="task">
+    <input live-click="done" live-value-id="{{$t.ID}}" type="checkbox" {{ if $t.Complete }}checked{{end}}><pre {{ if $t.Complete }}class="done"{{end}}>{{$t.Name}}</pre>
+</span>
+{{ end }}
+
+{{ end }}

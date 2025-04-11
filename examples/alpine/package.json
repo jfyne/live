@@ -13,6 +13,6 @@
         "alpinejs": "^2.8.1"
     },
     "devDependencies": {
-        "esbuild": "^0.8.44"
+        "esbuild": "^0.25.2"
     }
 }

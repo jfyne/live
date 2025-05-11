@@ -60,6 +60,12 @@ func NewSocketFromRequest(ctx context.Context, e *Engine, r *http.Request) (*Soc
 	if err != nil {
 		return nil, fmt.Errorf("socket id not found: %w", err)
 	}
+
+	existingSock, err := e.GetSocket(SocketID(c.Value))
+	if err == nil {
+		return existingSock, nil
+	}
+
 	return NewSocket(ctx, e, SocketID(c.Value)), nil
 }
 
@@ -87,7 +93,7 @@ func (s *Socket) WriteFlashCookie(w http.ResponseWriter) {
 		Path:     "/",
 		HttpOnly: false,
 		SameSite: http.SameSiteStrictMode,
-		MaxAge:   1,
+		MaxAge:   3600,
 	})
 }
 

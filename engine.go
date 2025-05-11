@@ -106,6 +106,7 @@ func (e *Engine) operate(ctx context.Context) {
 			s, ok := socketMap[op.ID]
 			if !ok {
 				op.err <- ErrNoSocket
+				continue
 			}
 			op.resp <- s
 		case op := <-e.deleteSocketC:
@@ -201,6 +202,7 @@ func (e *Engine) AddSocket(sock *Socket) {
 		Socket: sock,
 		resp:   make(chan struct{}),
 	}
+	defer close(op.resp)
 	e.addSocketC <- op
 	<-op.resp
 }
@@ -212,6 +214,8 @@ func (e *Engine) GetSocket(ID SocketID) (*Socket, error) {
 		resp: make(chan *Socket),
 		err:  make(chan error),
 	}
+	defer close(op.resp)
+	defer close(op.err)
 	e.getSocketC <- op
 	select {
 	case s := <-op.resp:
@@ -227,6 +231,7 @@ func (e *Engine) DeleteSocket(sock *Socket) {
 		ID:   sock.ID(),
 		resp: make(chan struct{}),
 	}
+	defer close(op.resp)
 	e.deleteSocketC <- op
 	<-op.resp
 	if err := e.Handler.UnmountHandler(sock); err != nil {

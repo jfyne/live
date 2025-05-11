@@ -21,6 +21,7 @@
 <!-- Forms require an ID so that we can track changes in them -->
 <form id="test-form" live-change="validate" live-submit="save">
     <fieldset>
+        <input type="hidden" name="_psid" value="{{ $.Socket.ID }}">
         <label>
             <div>
             {{ if index .Uploads "photos" }}
@@ -40,8 +41,8 @@
         </label>
     </fieldset>
     <fieldset>
-        <input type="submit" 
-        {{ if .Uploads.HasErrors }}
+        <input type="submit"
+        {{ if or .Uploads.HasErrors (not (index .Uploads "photos" ))}}
         disabled="true"
         {{ end }}
         >
@@ -52,5 +53,6 @@
     {{ range $u := .Assigns.Uploads }}
     <li><img src="/static/{{$u}}" alt="{{$u}}"/></li>
     {{ end }}
+</ul>
 
 {{ end }}

@@ -61,6 +61,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Create a temporary directory to store uploads
+	staticPath, err := os.MkdirTemp("", "static-")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	h := live.NewHandler(live.WithTemplateRenderer(t))
 
 	// In the mount function we call `AllowUploads` on the socket which configures
@@ -94,7 +100,7 @@ func main() {
 
 		// `ConsumeUploads` helper function is used to iterate over the "photos" input files
 		// that have been uploaded.
-		live.ConsumeUploads(s, "photos", func(u *live.Upload) error {
+		errs := live.ConsumeUploads(s, "photos", func(u *live.Upload) error {
 			// First we get the staged file.
 			file, err := u.File()
 			if err != nil {
@@ -107,7 +113,7 @@ func main() {
 			}()
 
 			// Create a new file in our static directory to copy the staged file into.
-			dst, err := os.Create(filepath.Join("uploads", "static", u.Name))
+			dst, err := os.Create(filepath.Join(staticPath, u.Name))
 			if err != nil {
 				return err
 			}
@@ -123,6 +129,9 @@ func main() {
 
 			return nil
 		})
+		if len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
 
 		return m, nil
 	})
@@ -134,7 +143,7 @@ func main() {
 		live.WithMaxUploadSize(10*1024*1024)))
 
 	// Set up the static file handling for the uploads we have consumed.
-	fs := http.FileServer(http.Dir(filepath.Join("uploads", "static")))
+	fs := http.FileServer(http.Dir(staticPath))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	http.Handle("/live.js", live.Javascript{})

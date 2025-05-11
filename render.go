@@ -14,7 +14,7 @@ import (
 type RenderContext struct {
 	Socket  *Socket
 	Uploads UploadContext
-	Assigns interface{}
+	Assigns any
 }
 
 // RenderSocket takes the engine and current socket and renders it to html.

@@ -56,11 +56,31 @@ func NewID() string {
 
 // NewSocketFromRequest creates a new default socket from a request.
 func NewSocketFromRequest(ctx context.Context, e *Engine, r *http.Request) (*Socket, error) {
-	c, err := r.Cookie(cookieSocketID)
+	sockID, err := socketIDFromReq(r)
 	if err != nil {
 		return nil, fmt.Errorf("socket id not found: %w", err)
 	}
-	return NewSocket(ctx, e, SocketID(c.Value)), nil
+
+	existingSock, err := e.GetSocket(sockID)
+	if err == nil {
+		return existingSock, nil
+	}
+
+	return NewSocket(ctx, e, sockID), nil
+}
+
+func socketIDFromReq(r *http.Request) (SocketID, error) {
+	c, err := r.Cookie(cookieSocketID)
+	if err == nil {
+		return SocketID(c.Value), nil
+	}
+
+	v := r.FormValue(cookieSocketID)
+	if v != "" {
+		return SocketID(v), nil
+	}
+
+	return "", fmt.Errorf("socket id not found in cookie or form data")
 }
 
 // NewSocket creates a new default socket.

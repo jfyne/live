@@ -45,7 +45,7 @@ type Handler struct {
 	// is called on initial GET request and later when the websocket connects.
 	// Data to render the handler should be fetched here and returned.
 	MountHandler MountHandler
-	// UnmountHandler used to track webcocket disconnections.
+	// UnmountHandler used to track websocket disconnections.
 	UnmountHandler UnmountHandler
 	// Render is called to generate the HTML of a Socket. It is defined
 	// by default and will render any template provided.
@@ -105,7 +105,7 @@ func (h *Handler) HandleSelf(t string, handler SelfHandler) {
 }
 
 // HandleParams handles a URL query parameter change. This is useful for handling
-// things like pagincation, or some filtering.
+// things like pagination, or some filtering.
 func (h *Handler) HandleParams(handler EventHandler) {
 	h.paramsHandlers = append(h.paramsHandlers, handler)
 }

@@ -229,7 +229,7 @@ Clicking on this tag will result in the browser URL being updated, and then an e
 trigger the handler's `HandleParams` callback. With the query string being available in the params map of the handler.
 
 ```go
-h.HandleParams(func(s *live.Socket, p live.Params) (interface{}, error) {
+h.HandleParams(func(s *live.Socket, p live.Params) (any, error) {
     ...
     page := p.Int("page")
     ...

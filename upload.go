@@ -89,7 +89,7 @@ type UploadProgress struct {
 
 // Write interface to track progress of an upload.
 func (u *UploadProgress) Write(p []byte) (n int, err error) {
-	n, err = len(p), nil
+	n = len(p)
 	u.Upload.bytesRead += int64(n)
 	u.Upload.Progress = float32(u.Upload.bytesRead) / float32(u.Upload.Size)
 	render, err := RenderSocket(context.Background(), u.Engine, u.Socket)
@@ -106,14 +106,14 @@ func (u *UploadProgress) Write(p []byte) (n int, err error) {
 func ValidateUploads(s *Socket, p Params) {
 	s.ClearUploads()
 
-	input, ok := p[upKey].(map[string]interface{})
+	input, ok := p[upKey].(map[string]any)
 	if !ok {
 		slog.Warn("validate uploads", "err", ErrUploadNotFound)
 		return
 	}
 
 	for _, c := range s.UploadConfigs() {
-		uploads, ok := input[c.Name].([]interface{})
+		uploads, ok := input[c.Name].([]any)
 		if !ok {
 			s.AssignUpload(c.Name, &Upload{Errors: []error{ErrUploadNotFound}})
 			continue
@@ -122,7 +122,7 @@ func ValidateUploads(s *Socket, p Params) {
 			s.AssignUpload(c.Name, &Upload{Errors: []error{&UploadError{err: ErrUploadTooManyFiles}}})
 		}
 		for _, u := range uploads {
-			f, ok := u.(map[string]interface{})
+			f, ok := u.(map[string]any)
 			if !ok {
 				s.AssignUpload(c.Name, &Upload{Errors: []error{&UploadError{err: ErrUploadNotFound}}})
 				continue

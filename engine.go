@@ -40,6 +40,14 @@ func WithSocketStateStore(sss SocketStateStore) EngineConfig {
 	}
 }
 
+func WithWebsocketMaxMessageSize(n int64) EngineConfig {
+	return func(e *Engine) error {
+		n = max(n, -1)
+		e.MaxMessageSize = n
+		return nil
+	}
+}
+
 // BroadcastHandler a way for processes to communicate.
 type BroadcastHandler func(ctx context.Context, e *Engine, msg Event)
 
@@ -65,6 +73,9 @@ type Engine struct {
 	// MaxUploadSize the maximum upload size in bytes to allow. This defaults
 	// too 100MB.
 	MaxUploadSize int64
+
+	// MaxMessageSize is the maximum size of websocket messages before they are rejected. Defaults to 32K (32768). Can be set to -1 to disable.
+	MaxMessageSize int64
 
 	// UploadStagingLocation where uploads are stored before they are consumed. This defaults
 	// too the default OS temp directory.
@@ -133,6 +144,7 @@ func NewHttpHandler(ctx context.Context, h *Handler, configs ...EngineConfig) *E
 		},
 		IgnoreFaviconRequest: true,
 		MaxUploadSize:        maxUploadSize,
+		MaxMessageSize:       32768,
 		Handler:              h,
 		addSocketC:           make(chan engineAddSocket),
 		getSocketC:           make(chan engineGetSocket),
@@ -490,6 +502,7 @@ func (e *Engine) serveWS(ctx context.Context, w http.ResponseWriter, r *http.Req
 		return
 	}
 	defer c.Close(websocket.StatusInternalError, "")
+	c.SetReadLimit(e.MaxMessageSize)
 	writeTimeout(ctx, time.Second*5, c, Event{T: EventConnect})
 	{
 		err := e._serveWS(ctx, r, c)

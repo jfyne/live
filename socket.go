@@ -9,7 +9,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/coder/websocket"
 	"github.com/rs/xid"
 	"golang.org/x/net/html"
 )
@@ -36,6 +35,9 @@ type Socket struct {
 	currentRender *html.Node
 	msgs          chan Event
 	closeSlow     func()
+
+	// transport is the connection transport.
+	transport Transport
 
 	uploadConfigs []*UploadConfig
 	uploads       UploadContext
@@ -274,9 +276,15 @@ func (s *Socket) Messages() chan Event {
 	return s.msgs
 }
 
-// assignWS connect a web socket to a socket.
-func (s *Socket) assignWS(ws *websocket.Conn) {
+// assignTransport connect a transport to a socket.
+func (s *Socket) assignTransport(t Transport) {
+	s.transport = t
 	s.closeSlow = func() {
-		ws.Close(websocket.StatusPolicyViolation, "socket too slow to keep up with messages")
+		t.Close(context.Background(), "socket too slow to keep up with messages")
 	}
+}
+
+// Transport returns the socket transport.
+func (s *Socket) Transport() Transport {
+	return s.transport
 }

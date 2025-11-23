@@ -331,18 +331,33 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := httpContext(w, r)
 
-	if !upgrade {
-		switch r.Method {
-		case http.MethodPost:
-			e.post(ctx, w, r)
-		default:
-			e.get(ctx, w, r)
-		}
+	if upgrade {
+		// Upgrade to the websocket version.
+		e.serveWS(ctx, w, r)
 		return
 	}
 
-	// Upgrade to the websocket version.
-	e.serveWS(ctx, w, r)
+	// Check for SSE request (Accept header).
+	if r.Method == http.MethodGet && strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+		e.serveSSE(ctx, w, r)
+		return
+	}
+
+	// Check for Event POST.
+	// We distinguish uploads from events by Content-Type.
+	if r.Method == http.MethodPost {
+		ct := r.Header.Get("Content-Type")
+		if strings.Contains(ct, "application/json") {
+			e.serveMessage(ctx, w, r)
+			return
+		}
+		// If not JSON, assume it's a file upload (multipart/form-data)
+		e.post(ctx, w, r)
+		return
+	}
+
+	// Default to initial page load.
+	e.get(ctx, w, r)
 }
 
 // post handler.
@@ -503,34 +518,87 @@ func (e *Engine) serveWS(ctx context.Context, w http.ResponseWriter, r *http.Req
 	}
 	defer c.Close(websocket.StatusInternalError, "")
 	c.SetReadLimit(e.MaxMessageSize)
-	writeTimeout(ctx, time.Second*5, c, Event{T: EventConnect})
-	{
-		err := e._serveWS(ctx, r, c)
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		switch websocket.CloseStatus(err) {
-		case websocket.StatusNormalClosure:
-			return
-		case websocket.StatusGoingAway:
-			return
-		case -1:
-			return
-		default:
-			slog.Error("ws closed", "err", fmt.Errorf("ws closed with status (%d): %w", websocket.CloseStatus(err), err))
-			return
-		}
+
+	transport := &WebSocketTransport{Conn: c, MaxMessageSize: e.MaxMessageSize}
+	transport.WriteMessage(ctx, Event{T: EventConnect})
+
+	err = e.handleConnection(ctx, r, transport)
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	switch websocket.CloseStatus(err) {
+	case websocket.StatusNormalClosure:
+		return
+	case websocket.StatusGoingAway:
+		return
+	case -1:
+		return
+	default:
+		slog.Error("ws closed", "err", fmt.Errorf("ws closed with status (%d): %w", websocket.CloseStatus(err), err))
+		return
 	}
 }
 
-// _serveWS implement the logic for a web socket connection.
-func (e *Engine) _serveWS(ctx context.Context, r *http.Request, c *websocket.Conn) error {
+// serveSSE serve an SSE request.
+func (e *Engine) serveSSE(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	transport, err := NewSSETransport(w)
+	if err != nil {
+		e.Handler.ErrorHandler(ctx, err)
+		return
+	}
+
+	transport.WriteMessage(ctx, Event{T: EventConnect})
+
+	if err := e.handleConnection(ctx, r, transport); err != nil {
+		// Log error but we probably can't write to w anymore if connection broke
+		slog.Error("sse closed", "err", err)
+	}
+}
+
+// serveMessage serves a message POST request.
+func (e *Engine) serveMessage(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	sockID, err := socketIDFromReq(r)
+	if err != nil {
+		http.Error(w, "socket id not found", http.StatusBadRequest)
+		return
+	}
+
+	sock, err := e.GetSocket(sockID)
+	if err != nil {
+		http.Error(w, "socket not found", http.StatusNotFound)
+		return
+	}
+
+	var msg Event
+	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+		http.Error(w, "invalid message", http.StatusBadRequest)
+		return
+	}
+	// Ensure the message has the socket ID (optional, but good for consistency)
+	// msg.ID is int, socketID is string. We don't set it here.
+
+	t, ok := sock.Transport().(*SSETransport)
+	if !ok {
+		// If the socket is not using SSE transport, we probably shouldn't be receiving messages here?
+		// Or maybe we allow mixing transports?
+		// For now, assume if they POST, they expect the socket to handle it.
+		// But only SSETransport has PostMessage.
+		http.Error(w, "socket transport does not support POST messages", http.StatusBadRequest)
+		return
+	}
+
+	t.PostMessage(msg)
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleConnection implement the logic for a socket connection.
+func (e *Engine) handleConnection(ctx context.Context, r *http.Request, t Transport) error {
 	// Get the sessions socket and register it with the server.
 	sock, err := NewSocketFromRequest(ctx, e, r)
 	if err != nil {
 		return fmt.Errorf("failed precondition: %w", err)
 	}
-	sock.assignWS(c)
+	sock.assignTransport(t)
 	e.AddSocket(sock)
 	defer e.DeleteSocket(sock)
 
@@ -540,52 +608,42 @@ func (e *Engine) _serveWS(ctx context.Context, r *http.Request, c *websocket.Con
 	// Event errors.
 	eventErrors := make(chan ErrorEvent)
 
-	// Handle events coming from the websocket connection.
+	// Handle events coming from the transport.
 	go func() {
 		for {
-			t, d, err := c.Read(ctx)
+			m, err := t.ReadMessage(ctx)
 			if err != nil {
 				internalErrors <- err
 				break
 			}
-			switch t {
-			case websocket.MessageText:
-				var m Event
-				if err := json.Unmarshal(d, &m); err != nil {
-					internalErrors <- err
-					break
-				}
-				switch m.T {
-				case EventParams:
-					if err := e.CallParams(ctx, sock, m); err != nil {
-						switch {
-						case errors.Is(err, ErrNoEventHandler):
-							slog.Error("event params error", "event", m, "err", err)
-						default:
-							eventErrors <- ErrorEvent{Source: m, Err: err.Error()}
-						}
-					}
-				default:
-					if err := e.CallEvent(ctx, m.T, sock, m); err != nil {
-						switch {
-						case errors.Is(err, ErrNoEventHandler):
-							slog.Error("event default error", "event", m, "err", err)
-						default:
-							eventErrors <- ErrorEvent{Source: m, Err: err.Error()}
-						}
+			switch m.T {
+			case EventParams:
+				if err := e.CallParams(ctx, sock, m); err != nil {
+					switch {
+					case errors.Is(err, ErrNoEventHandler):
+						slog.Error("event params error", "event", m, "err", err)
+					default:
+						eventErrors <- ErrorEvent{Source: m, Err: err.Error()}
 					}
 				}
-				render, err := RenderSocket(ctx, e, sock)
-				if err != nil {
-					internalErrors <- fmt.Errorf("socket handle error: %w", err)
-				} else {
-					sock.UpdateRender(render)
+			default:
+				if err := e.CallEvent(ctx, m.T, sock, m); err != nil {
+					switch {
+					case errors.Is(err, ErrNoEventHandler):
+						slog.Error("event default error", "event", m, "err", err)
+					default:
+						eventErrors <- ErrorEvent{Source: m, Err: err.Error()}
+					}
 				}
-				if err := sock.Send(EventAck, nil, WithID(m.ID)); err != nil {
-					internalErrors <- fmt.Errorf("socket send error: %w", err)
-				}
-			case websocket.MessageBinary:
-				slog.Warn("binary messages unhandled")
+			}
+			render, err := RenderSocket(ctx, e, sock)
+			if err != nil {
+				internalErrors <- fmt.Errorf("socket handle error: %w", err)
+			} else {
+				sock.UpdateRender(render)
+			}
+			if err := sock.Send(EventAck, nil, WithID(m.ID)); err != nil {
+				internalErrors <- fmt.Errorf("socket send error: %w", err)
 			}
 		}
 		close(internalErrors)
@@ -618,11 +676,11 @@ func (e *Engine) _serveWS(ctx context.Context, r *http.Request, c *websocket.Con
 	}
 	sock.UpdateRender(render)
 
-	// Send events to the websocket connection.
+	// Send events to the transport.
 	for {
 		select {
 		case msg := <-sock.msgs:
-			if err := writeTimeout(ctx, time.Second*5, c, msg); err != nil {
+			if err := t.WriteMessage(ctx, msg); err != nil {
 				return fmt.Errorf("writing to socket error: %w", err)
 			}
 		case ee := <-eventErrors:
@@ -630,7 +688,7 @@ func (e *Engine) _serveWS(ctx context.Context, r *http.Request, c *websocket.Con
 			if err != nil {
 				return fmt.Errorf("writing to socket error: %w", err)
 			}
-			if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: d}); err != nil {
+			if err := t.WriteMessage(ctx, Event{T: EventError, Data: d}); err != nil {
 				return fmt.Errorf("writing to socket error: %w", err)
 			}
 		case err := <-internalErrors:
@@ -639,7 +697,7 @@ func (e *Engine) _serveWS(ctx context.Context, r *http.Request, c *websocket.Con
 				if err != nil {
 					return fmt.Errorf("writing to socket error: %w", err)
 				}
-				if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: d}); err != nil {
+				if err := t.WriteMessage(ctx, Event{T: EventError, Data: d}); err != nil {
 					return fmt.Errorf("writing to socket error: %w", err)
 				}
 				// Something catastrophic has happened.

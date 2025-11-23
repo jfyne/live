@@ -2,24 +2,29 @@ import { EventDispatch, LiveEvent } from "./event";
 import { Patch } from "./patch";
 import { Events } from "./events";
 import { UpdateURLParams } from "./params";
+import { Transport, WebSocketTransport, SSETransport } from "./transport";
 
 const privateSocketID = "_psid"
 
 /**
- * Represents the websocket connection to
- * the backend server.
+ * Represents the connection to the backend server.
  */
 export class Socket {
     private static id: string | undefined;
-    private static conn: WebSocket;
+    private static transport: Transport;
     private static ready: boolean = false;
     private static disconnectNotified: boolean = false;
+    private static transportType: "websocket" | "sse" = "sse"; // Default to SSE
 
     private static trackedEvents: {
         [id: number]: { ev: LiveEvent; el: HTMLElement };
     };
 
     constructor() {}
+
+    static setTransportType(t: "websocket" | "sse") {
+        this.transportType = t;
+    }
 
     static getID() {
         if (this.id) {
@@ -48,60 +53,68 @@ export class Socket {
         this.id = this.getID();
         this.setCookie();
 
-        console.debug("Socket.dial called", this.id);
-        this.conn = new WebSocket(
-            `${location.protocol === "https:" ? "wss" : "ws"}://${
-                location.host
-            }${location.pathname}${location.search}${location.hash}`
-        );
-        this.conn.addEventListener("close", (ev) => {
-            this.ready = false;
-            console.warn(
-                `WebSocket Disconnected code: ${ev.code}, reason: ${ev.reason}`
-            );
-            if (ev.code !== 1001) {
-                if (this.disconnectNotified === false) {
-                    EventDispatch.disconnected();
-                    this.disconnectNotified = true;
+        console.debug("Socket.dial called", this.id, this.transportType);
+
+        const url = `${location.protocol}//${location.host}${location.pathname}${location.search}${location.hash}`;
+
+        if (this.transportType === "websocket") {
+            this.transport = new WebSocketTransport();
+        } else {
+            this.transport = new SSETransport();
+        }
+
+        this.transport.connect(
+            url,
+            // onOpen
+            () => {
+                EventDispatch.reconnected();
+                this.disconnectNotified = false;
+                this.ready = true;
+            },
+            // onClose
+            (code, reason) => {
+                this.ready = false;
+                console.warn(
+                    `Transport Disconnected code: ${code}, reason: ${reason}`
+                );
+                if (code !== 1001) {
+                    if (this.disconnectNotified === false) {
+                        EventDispatch.disconnected();
+                        this.disconnectNotified = true;
+                    }
+                    setTimeout(() => {
+                        Socket.dial();
+                    }, 1000);
                 }
-                setTimeout(() => {
-                    Socket.dial();
-                }, 1000);
+            },
+            // onMessage
+            (e: LiveEvent) => {
+                switch (e.typ) {
+                    case "patch":
+                        Patch.handle(e);
+                        Events.rewire();
+                        break;
+                    case "params":
+                        UpdateURLParams(`${window.location.pathname}?${e.data}`);
+                        break;
+                    case "redirect":
+                        window.location.replace(e.data);
+                        break;
+                    case "ack":
+                        this.ack(e);
+                        break;
+                    case "err":
+                        EventDispatch.error();
+                    // Fallthrough here.
+                    default:
+                        EventDispatch.handleEvent(e);
+                }
+            },
+            // onError
+            () => {
+                // Typically handled in close or specific logging
             }
-        });
-        // Ping on open.
-        this.conn.addEventListener("open", (_) => {
-            EventDispatch.reconnected();
-            this.disconnectNotified = false;
-            this.ready = true;
-        });
-        this.conn.addEventListener("message", (ev) => {
-            if (typeof ev.data !== "string") {
-                console.error("unexpected message type", typeof ev.data);
-                return;
-            }
-            const e = LiveEvent.fromMessage(ev.data);
-            switch (e.typ) {
-                case "patch":
-                    Patch.handle(e);
-                    Events.rewire();
-                    break;
-                case "params":
-                    UpdateURLParams(`${window.location.pathname}?${e.data}`);
-                    break;
-                case "redirect":
-                    window.location.replace(e.data);
-                    break;
-                case "ack":
-                    this.ack(e);
-                    break;
-                case "err":
-                    EventDispatch.error();
-                // Fallthrough here.
-                default:
-                    EventDispatch.handleEvent(e);
-            }
-        });
+        );
     }
 
     /**
@@ -117,7 +130,7 @@ export class Socket {
             ev: e,
             el: element,
         };
-        this.conn.send(e.serialize());
+        this.transport.send(e);
     }
 
     static send(e: LiveEvent) {
@@ -125,7 +138,7 @@ export class Socket {
             console.warn("connection not ready for send of event", e);
             return;
         }
-        this.conn.send(e.serialize());
+        this.transport.send(e);
     }
 
     /**

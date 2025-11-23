@@ -1,10 +1,11 @@
-import { Live } from "./live";
+import { Live, LiveConfig } from "./live";
 import { Hooks } from "./interop";
 
 declare global {
     interface Window {
         Hooks: Hooks;
         Live: Live;
+        LiveConfig: LiveConfig;
     }
 }
 
@@ -13,6 +14,7 @@ document.addEventListener("DOMContentLoaded", (_) => {
         console.error("window.Live already defined");
     }
     const hooks = window.Hooks || {};
-    window.Live = new Live(hooks);
+    const config = window.LiveConfig || {};
+    window.Live = new Live(hooks, undefined, config);
     window.Live.init();
 });

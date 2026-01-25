@@ -30,6 +30,7 @@ const (
 type Event struct {
 	T        string          `json:"t"`
 	ID       int             `json:"i,omitempty"`
+	Island   string          `json:"island,omitempty"`
 	Data     json.RawMessage `json:"d,omitempty"`
 	SelfData any             `json:"s,omitempty"`
 }

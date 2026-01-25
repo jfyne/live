@@ -30,7 +30,7 @@ A complete rewrite of the Live framework from full-page live views to a pure isl
 
 Each deliverable below represents a complete, tested feature that should be implemented and committed as a single unit of work. Tests are written alongside implementation.
 
-### Deliverable 1: Island Core Types ✓ Commit Point
+### Deliverable 1: Island Core Types [x] COMPLETED
 **Files**: `island.go`, `island_test.go`, `errors.go`
 
 Implementation:
@@ -52,7 +52,7 @@ Tests (`island_test.go`):
 
 ---
 
-### Deliverable 2: Island Registry ✓ Commit Point
+### Deliverable 2: Island Registry [x] COMPLETED
 **Files**: `registry.go`, `registry_test.go`
 
 Implementation:
@@ -72,7 +72,7 @@ Tests (`registry_test.go`):
 
 ---
 
-### Deliverable 3: Island Instance ✓ Commit Point
+### Deliverable 3: Island Instance [x] COMPLETED
 **Files**: `instance.go`, `instance_test.go`
 
 Implementation:
@@ -95,7 +95,7 @@ Tests (`instance_test.go`):
 
 ---
 
-### Deliverable 4: Types and Protocol Changes ✓ Commit Point
+### Deliverable 4: Types and Protocol Changes [x] COMPLETED
 **Files**: `types.go`, `event.go`, `patch.go`
 
 Implementation:
@@ -113,7 +113,7 @@ Tests (modify existing `event_test.go`, `diff_test.go`):
 
 ---
 
-### Deliverable 5: Transport Interface (Server) ✓ Commit Point
+### Deliverable 5: Transport Interface (Server) [x] COMPLETED
 **Files**: `transport.go`, `transport_test.go`
 
 Implementation:
@@ -131,7 +131,7 @@ Tests (`transport_test.go`):
 
 ---
 
-### Deliverable 6: WebSocket Transport (Server) ✓ Commit Point
+### Deliverable 6: WebSocket Transport (Server) [x] COMPLETED
 **Files**: `transport_websocket.go`, `transport_websocket_test.go`, `transport_endpoints.go`
 
 Implementation:
@@ -152,7 +152,7 @@ Tests (`transport_websocket_test.go`):
 
 ---
 
-### Deliverable 7: Island State Store ✓ Commit Point
+### Deliverable 7: Island State Store [x] COMPLETED
 **Files**: `statestore.go`, `statestore_test.go`
 
 Implementation:
@@ -171,7 +171,7 @@ Tests (`statestore_test.go`):
 
 ---
 
-### Deliverable 8: Session ✓ Commit Point
+### Deliverable 8: Session [x] COMPLETED
 **Files**: `session.go`, `session_test.go`
 
 Implementation:
@@ -190,7 +190,7 @@ Tests (`session_test.go`):
 
 ---
 
-### Deliverable 9: Island-Scoped Anchoring ✓ Commit Point
+### Deliverable 9: Island-Scoped Anchoring [x] COMPLETED
 **Files**: `diff.go`, `diff_test.go`
 
 Implementation:
@@ -209,7 +209,7 @@ Tests (modify `diff_test.go`):
 
 ---
 
-### Deliverable 10: Island Rendering and Diffing ✓ Commit Point
+### Deliverable 10: Island Rendering and Diffing [x] COMPLETED
 **Files**: `render.go`, `diff.go`, `render_test.go`
 
 Implementation:
@@ -228,7 +228,7 @@ Tests (`render_test.go`, extend `diff_test.go`):
 
 ---
 
-### Deliverable 11: Island Engine ✓ Commit Point
+### Deliverable 11: Island Engine [x] COMPLETED
 **Files**: `engine.go` (create new v2 version), `engine_test.go`
 
 Implementation:
@@ -252,7 +252,7 @@ Tests (`engine_test.go`):
 
 ---
 
-### Deliverable 12: Client Transport Layer ✓ Commit Point
+### Deliverable 12: Client Transport Layer [x] COMPLETED
 **Files**: `web/src/transport/transport.ts`, `web/src/transport/message.ts`, `web/src/transport/websocket.ts`, `web/src/transport/websocket.spec.ts`
 
 **Delete**: `web/src/socket.ts` (replaced by transport abstraction)
@@ -276,7 +276,7 @@ Tests (`websocket.spec.ts`):
 
 ---
 
-### Deliverable 13: SSE and Transport Negotiation ✓ Commit Point
+### Deliverable 13: SSE and Transport Negotiation [x] COMPLETED
 **Files**: `web/src/transport/sse.ts`, `web/src/transport/sse.spec.ts`, `web/src/transport/negotiator.ts`, `web/src/transport/negotiator.spec.ts`
 
 Implementation:
@@ -292,7 +292,7 @@ Tests:
 
 ---
 
-### Deliverable 14: Connection Manager ✓ Commit Point
+### Deliverable 14: Connection Manager [x] COMPLETED
 **Files**: `web/src/connection.ts`, `web/src/connection.spec.ts`
 
 Implementation:
@@ -312,7 +312,7 @@ Tests (`connection.spec.ts`):
 
 ---
 
-### Deliverable 15: LiveIsland Custom Element ✓ Commit Point
+### Deliverable 15: LiveIsland Custom Element [x] COMPLETED
 **Files**: `web/src/island.ts`, `web/src/island.spec.ts`
 
 **Delete**: `web/src/live.ts` (old single-page initialization)
@@ -336,7 +336,7 @@ Tests (`island.spec.ts`):
 
 ---
 
-### Deliverable 16: Island-Scoped Event Wiring ✓ Commit Point
+### Deliverable 16: Island-Scoped Event Wiring [x] COMPLETED
 **Files**: `web/src/events.ts` (replace contents), `web/src/events.spec.ts`
 
 Implementation:
@@ -357,7 +357,7 @@ Tests (`events.spec.ts`):
 
 ---
 
-### Deliverable 17: Island-Scoped Patch Handling ✓ Commit Point
+### Deliverable 17: Island-Scoped Patch Handling [x] COMPLETED
 **Files**: `web/src/patch.ts` (replace contents), `web/src/patch.spec.ts`
 
 Implementation:
@@ -379,7 +379,7 @@ Tests (`patch.spec.ts`):
 
 ---
 
-### Deliverable 18: Island Hooks and Entry Point ✓ Commit Point
+### Deliverable 18: Island Hooks and Entry Point [x] COMPLETED
 **Files**: `web/src/hooks.ts`, `web/src/auto.ts` (replace contents), `web/src/index.ts` (replace contents)
 
 **Keep**: `web/src/interop.ts` (Hook interface still valid), `web/src/forms.ts` (form utils still needed)
@@ -400,7 +400,7 @@ Tests (`hooks.spec.ts`):
 
 ---
 
-### Deliverable 19: Client Build Configuration ✓ Commit Point
+### Deliverable 19: Client Build Configuration [x] COMPLETED
 **Files**: `web/package.json`
 
 Implementation:
@@ -412,7 +412,7 @@ Implementation:
 
 ---
 
-### Deliverable 22: SSE Transport (Server) ✓ Commit Point
+### Deliverable 22: SSE Transport (Server) [x] COMPLETED
 **Files**: `transport_sse.go`, `transport_sse_test.go`
 
 Implementation:
@@ -431,7 +431,7 @@ Tests (`transport_sse_test.go`):
 
 ---
 
-### Deliverable 23: Remove v1 Code ✓ Commit Point
+### Deliverable 23: Remove v1 Code [x] COMPLETED
 **Files Deleted**:
 - `page/component.go` - v1 component abstraction (replaced by Island)
 - `page/configuration.go` - v1 component configs
@@ -450,7 +450,7 @@ Implementation:
 
 ---
 
-### Deliverable 24: Counter Example ✓ Commit Point
+### Deliverable 24: Counter Example [x] COMPLETED
 **Files**: `examples/counter/main.go`, `examples/counter/index.html`, `examples/counter/counter.html`
 
 Implementation:
@@ -472,7 +472,7 @@ Manual Testing:
 
 ---
 
-### Deliverable 25: Integration Tests ✓ Commit Point
+### Deliverable 25: Integration Tests [x] COMPLETED
 **Files**: `integration_test.go`
 
 Implementation:

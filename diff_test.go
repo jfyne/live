@@ -2,6 +2,7 @@ package live
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -465,6 +466,460 @@ func runDiffTest(tt diffTest, t *testing.T) {
 			return
 		}
 	}
+}
+
+func TestIslandPatch(t *testing.T) {
+	patches := []Patch{
+		{Anchor: "_l_0_1_0", Action: Replace, HTML: `<div>Test 1</div>`},
+		{Anchor: "_l_0_1_1", Action: Append, HTML: `<div>Test 2</div>`},
+		{Anchor: "_l_0_1_2", Action: Prepend, HTML: `<div>Test 3</div>`},
+	}
+
+	islandID := IslandID("counter-1")
+	islandPatch := NewIslandPatch(islandID, patches)
+
+	// Verify IslandID is set on wrapper
+	if islandPatch.IslandID != islandID {
+		t.Errorf("IslandPatch.IslandID = %q, want %q", islandPatch.IslandID, islandID)
+	}
+
+	// Verify IslandID is set on each patch
+	for i, patch := range islandPatch.Patches {
+		if patch.IslandID != string(islandID) {
+			t.Errorf("Patch[%d].IslandID = %q, want %q", i, patch.IslandID, islandID)
+		}
+	}
+
+	// Verify patch count
+	if len(islandPatch.Patches) != len(patches) {
+		t.Errorf("len(IslandPatch.Patches) = %d, want %d", len(islandPatch.Patches), len(patches))
+	}
+}
+
+func TestIslandPatchJSON(t *testing.T) {
+	patches := []Patch{
+		{Anchor: "_l_0_1_0", Action: Replace, HTML: `<div>Test</div>`, IslandID: "test-island"},
+	}
+
+	islandPatch := IslandPatch{
+		IslandID: "test-island",
+		Patches:  patches,
+	}
+
+	// Marshal to JSON
+	data, err := json.Marshal(islandPatch)
+	if err != nil {
+		t.Fatalf("failed to marshal IslandPatch: %v", err)
+	}
+
+	// Unmarshal back
+	var unmarshaled IslandPatch
+	if err := json.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("failed to unmarshal IslandPatch: %v", err)
+	}
+
+	// Verify fields
+	if unmarshaled.IslandID != islandPatch.IslandID {
+		t.Errorf("IslandID mismatch after unmarshal: got %q, want %q", unmarshaled.IslandID, islandPatch.IslandID)
+	}
+
+	if len(unmarshaled.Patches) != len(islandPatch.Patches) {
+		t.Fatalf("Patches count mismatch: got %d, want %d", len(unmarshaled.Patches), len(islandPatch.Patches))
+	}
+
+	if unmarshaled.Patches[0].IslandID != islandPatch.Patches[0].IslandID {
+		t.Errorf("Patch.IslandID mismatch: got %q, want %q", unmarshaled.Patches[0].IslandID, islandPatch.Patches[0].IslandID)
+	}
+}
+
+func TestPatchIslandIDField(t *testing.T) {
+	tests := []struct {
+		name     string
+		patch    Patch
+		hasIslandID bool
+	}{
+		{
+			name: "patch with island ID",
+			patch: Patch{
+				Anchor:   "_l_0_1_0",
+				Action:   Replace,
+				HTML:     `<div>Test</div>`,
+				IslandID: "test-island-1",
+			},
+			hasIslandID: true,
+		},
+		{
+			name: "patch without island ID",
+			patch: Patch{
+				Anchor: "_l_0_1_0",
+				Action: Replace,
+				HTML:   `<div>Test</div>`,
+			},
+			hasIslandID: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.patch)
+			if err != nil {
+				t.Fatalf("failed to marshal patch: %v", err)
+			}
+
+			var result map[string]interface{}
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("failed to unmarshal result: %v", err)
+			}
+
+			_, hasIslandID := result["island_id"]
+			if tt.hasIslandID && !hasIslandID {
+				t.Error("expected island_id field in JSON, but it was missing")
+			}
+			if !tt.hasIslandID && hasIslandID {
+				t.Error("expected no island_id field in JSON, but it was present")
+			}
+
+			// Unmarshal and verify
+			var unmarshaled Patch
+			if err := json.Unmarshal(data, &unmarshaled); err != nil {
+				t.Fatalf("failed to unmarshal into Patch: %v", err)
+			}
+
+			if unmarshaled.IslandID != tt.patch.IslandID {
+				t.Errorf("IslandID mismatch: got %q, want %q", unmarshaled.IslandID, tt.patch.IslandID)
+			}
+		})
+	}
+}
+
+func TestIslandAnchorGenerator(t *testing.T) {
+	tests := []struct {
+		name     string
+		islandID string
+		ops      []string
+		expected string
+	}{
+		{
+			name:     "simple island anchor",
+			islandID: "counter-1",
+			ops:      []string{},
+			expected: "_i_counter-1",
+		},
+		{
+			name:     "island anchor with level",
+			islandID: "counter-1",
+			ops:      []string{"level"},
+			expected: "_i_counter-1_0",
+		},
+		{
+			name:     "island anchor with level and inc",
+			islandID: "counter-1",
+			ops:      []string{"level", "inc"},
+			expected: "_i_counter-1_1",
+		},
+		{
+			name:     "island anchor nested path",
+			islandID: "counter-1",
+			ops:      []string{"level", "inc", "level", "inc", "inc"},
+			expected: "_i_counter-1_1_2",
+		},
+		{
+			name:     "complex nested path",
+			islandID: "form-123",
+			ops:      []string{"level", "level", "inc"},
+			expected: "_i_form-123_0_1",
+		},
+		{
+			name:     "empty island ID",
+			islandID: "",
+			ops:      []string{"level"},
+			expected: "_i__0",
+		},
+		{
+			name:     "island ID with special chars",
+			islandID: "user-widget_v2",
+			ops:      []string{"level", "inc"},
+			expected: "_i_user-widget_v2_1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gen := newIslandAnchorGenerator(tt.islandID)
+			for _, op := range tt.ops {
+				switch op {
+				case "level":
+					gen = gen.level()
+				case "inc":
+					gen = gen.inc()
+				}
+			}
+			result := gen.String()
+			if result != tt.expected {
+				t.Errorf("islandAnchorGenerator.String() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIslandAnchorUniqueness(t *testing.T) {
+	// Test that same path in different islands produces unique anchors
+	island1 := newIslandAnchorGenerator("counter-1")
+	island2 := newIslandAnchorGenerator("counter-2")
+
+	// Apply same operations to both
+	island1 = island1.level().inc().level()
+	island2 = island2.level().inc().level()
+
+	anchor1 := island1.String()
+	anchor2 := island2.String()
+
+	if anchor1 == anchor2 {
+		t.Errorf("anchors should be unique across islands, but both are %q", anchor1)
+	}
+
+	expectedAnchor1 := "_i_counter-1_1_0"
+	expectedAnchor2 := "_i_counter-2_1_0"
+
+	if anchor1 != expectedAnchor1 {
+		t.Errorf("island1 anchor = %q, want %q", anchor1, expectedAnchor1)
+	}
+
+	if anchor2 != expectedAnchor2 {
+		t.Errorf("island2 anchor = %q, want %q", anchor2, expectedAnchor2)
+	}
+}
+
+func TestHasAnchorBackwardCompatibility(t *testing.T) {
+	tests := []struct {
+		name     string
+		attrs    []html.Attribute
+		expected bool
+	}{
+		{
+			name: "node with legacy anchor",
+			attrs: []html.Attribute{
+				{Key: "_l_0_1_0", Val: ""},
+			},
+			expected: true,
+		},
+		{
+			name: "node with island anchor",
+			attrs: []html.Attribute{
+				{Key: "_i_counter-1_0_1_0", Val: ""},
+			},
+			expected: true,
+		},
+		{
+			name: "node with no anchor",
+			attrs: []html.Attribute{
+				{Key: "class", Val: "container"},
+				{Key: "id", Val: "main"},
+			},
+			expected: false,
+		},
+		{
+			name: "node with both anchor types",
+			attrs: []html.Attribute{
+				{Key: "_l_0_1_0", Val: ""},
+				{Key: "_i_counter-1_0_1_0", Val: ""},
+			},
+			expected: true,
+		},
+		{
+			name: "node with similar but not anchor attribute",
+			attrs: []html.Attribute{
+				{Key: "_legacy", Val: ""},
+				{Key: "_island", Val: ""},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			node := &html.Node{
+				Type: html.ElementNode,
+				Data: "div",
+				Attr: tt.attrs,
+			}
+			result := hasAnchor(node)
+			if result != tt.expected {
+				t.Errorf("hasAnchor() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIslandAnchorGeneratorDeterministic(t *testing.T) {
+	// Verify that the same operations produce the same anchor consistently
+	gen1 := newIslandAnchorGenerator("test-island")
+	gen1 = gen1.level().inc().inc().level()
+
+	gen2 := newIslandAnchorGenerator("test-island")
+	gen2 = gen2.level().inc().inc().level()
+
+	anchor1 := gen1.String()
+	anchor2 := gen2.String()
+
+	if anchor1 != anchor2 {
+		t.Errorf("anchors should be deterministic: gen1=%q, gen2=%q", anchor1, anchor2)
+	}
+
+	expected := "_i_test-island_2_0"
+	if anchor1 != expected {
+		t.Errorf("anchor = %q, want %q", anchor1, expected)
+	}
+}
+
+func TestDiffIslandMultipleIslands(t *testing.T) {
+	t.Run("independent island diffs", func(t *testing.T) {
+		// Island 1
+		patches1, err := DiffIsland("counter-1", "<div>0</div>", "<div>1</div>")
+		if err != nil {
+			t.Fatalf("DiffIsland(counter-1) error = %v", err)
+		}
+
+		// Island 2
+		patches2, err := DiffIsland("counter-2", "<div>0</div>", "<div>2</div>")
+		if err != nil {
+			t.Fatalf("DiffIsland(counter-2) error = %v", err)
+		}
+
+		// Both should generate patches
+		if len(patches1) == 0 {
+			t.Error("island 1 should generate patches")
+		}
+		if len(patches2) == 0 {
+			t.Error("island 2 should generate patches")
+		}
+
+		// Patches should have correct island IDs
+		for _, p := range patches1 {
+			if p.IslandID != "counter-1" {
+				t.Errorf("island 1 patch has IslandID=%q, want counter-1", p.IslandID)
+			}
+		}
+		for _, p := range patches2 {
+			if p.IslandID != "counter-2" {
+				t.Errorf("island 2 patch has IslandID=%q, want counter-2", p.IslandID)
+			}
+		}
+
+		// Patches should have different anchors
+		if patches1[0].Anchor == patches2[0].Anchor {
+			t.Error("different islands should have different anchors")
+		}
+	})
+}
+
+func TestDiffIslandAnchorScope(t *testing.T) {
+	t.Run("island anchors use island prefix", func(t *testing.T) {
+		patches, err := DiffIsland("my-island", "<div>A</div>", "<div>B</div>")
+		if err != nil {
+			t.Fatalf("DiffIsland() error = %v", err)
+		}
+
+		for _, p := range patches {
+			if !strings.HasPrefix(p.Anchor, islandAnchorPrefix) {
+				t.Errorf("anchor %q should start with island prefix %q", p.Anchor, islandAnchorPrefix)
+			}
+			if !strings.Contains(p.Anchor, "my-island") {
+				t.Errorf("anchor %q should contain island ID", p.Anchor)
+			}
+		}
+	})
+
+	t.Run("legacy diff uses live prefix", func(t *testing.T) {
+		root, _ := html.Parse(strings.NewReader("<div>A</div>"))
+		proposed, _ := html.Parse(strings.NewReader("<div>B</div>"))
+		shapeTree(root)
+		shapeTree(proposed)
+
+		patches, err := Diff(root, proposed)
+		if err != nil {
+			t.Fatalf("Diff() error = %v", err)
+		}
+
+		for _, p := range patches {
+			if !strings.HasPrefix(p.Anchor, liveAnchorPrefix) {
+				t.Errorf("legacy anchor %q should start with live prefix %q", p.Anchor, liveAnchorPrefix)
+			}
+		}
+	})
+}
+
+func TestAnchorIslandTree(t *testing.T) {
+	t.Run("anchors all nodes with island ID", func(t *testing.T) {
+		root, err := html.Parse(strings.NewReader("<div><span>test</span></div>"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		shapeTree(root)
+
+		gen := newIslandAnchorGenerator("test-id")
+		anchorIslandTree(root, gen)
+
+		// Count anchored nodes
+		anchorCount := 0
+		var countAnchors func(*html.Node)
+		countAnchors = func(n *html.Node) {
+			if n.Type == html.ElementNode {
+				for _, attr := range n.Attr {
+					if strings.HasPrefix(attr.Key, "_i_test-id") {
+						anchorCount++
+						break
+					}
+				}
+			}
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				countAnchors(c)
+			}
+		}
+		countAnchors(root)
+
+		if anchorCount == 0 {
+			t.Error("should anchor at least one node")
+		}
+	})
+
+	t.Run("does not duplicate anchors", func(t *testing.T) {
+		root, err := html.Parse(strings.NewReader("<div>test</div>"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		shapeTree(root)
+
+		gen := newIslandAnchorGenerator("test-id")
+
+		// Anchor twice
+		anchorIslandTree(root, gen)
+		anchorIslandTree(root, gen)
+
+		// Count anchors on a single node
+		var checkNode func(*html.Node) bool
+		checkNode = func(n *html.Node) bool {
+			if n.Type == html.ElementNode && n.Data == "div" {
+				anchorCount := 0
+				for _, attr := range n.Attr {
+					if strings.HasPrefix(attr.Key, "_i_") {
+						anchorCount++
+					}
+				}
+				return anchorCount == 1
+			}
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				if checkNode(c) {
+					return true
+				}
+			}
+			return false
+		}
+
+		if !checkNode(root) {
+			t.Error("should not duplicate anchors when called multiple times")
+		}
+	})
 }
 
 var testPage string = `

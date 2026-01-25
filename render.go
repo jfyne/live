@@ -4,62 +4,41 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"html/template"
-	"io"
+	"strings"
 
 	"golang.org/x/net/html"
 )
 
-// RenderContext contains the sockets current data for rendering.
-type RenderContext struct {
-	Socket  *Socket
-	Uploads UploadContext
-	Assigns any
-}
-
-// renderSocket takes the engine and current socket and renders it to html.
-func renderSocket(ctx context.Context, e *Engine, s *Socket) (*html.Node, error) {
-	rc := &RenderContext{
-		Socket:  s,
-		Uploads: s.Uploads(),
-		Assigns: s.Assigns(),
+// RenderIsland renders a single island instance and returns the HTML with
+// island-scoped anchors. The island ID is extracted from the instance ID.
+func RenderIsland(ctx context.Context, instance *IslandInstance) (string, error) {
+	if instance == nil {
+		return "", fmt.Errorf("instance is nil")
 	}
 
-	output, err := e.Handler.RenderHandler(ctx, rc)
+	// Render the island using its render handler
+	htmlContent, err := instance.Render(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("render error: %w", err)
+		return "", fmt.Errorf("render error: %w", err)
 	}
-	render, err := html.Parse(output)
+
+	// Parse the HTML
+	render, err := html.Parse(strings.NewReader(string(htmlContent)))
 	if err != nil {
-		return nil, fmt.Errorf("html parse error: %w", err)
+		return "", fmt.Errorf("html parse error: %w", err)
 	}
+
+	// Shape the tree (remove insignificant whitespace, etc.)
 	shapeTree(render)
 
-	if s.latestRender() != nil {
-		patches, err := Diff(s.latestRender(), render)
-		if err != nil {
-			return nil, fmt.Errorf("diff error: %w", err)
-		}
-		if len(patches) != 0 {
-			s.Send(EventPatch, patches)
-		}
-	} else {
-		anchorTree(render, newAnchorGenerator())
+	// Anchor the tree with island-scoped anchors
+	anchorIslandTree(render, newIslandAnchorGenerator(instance.ID))
+
+	// Render back to HTML
+	var buf bytes.Buffer
+	if err := html.Render(&buf, render); err != nil {
+		return "", fmt.Errorf("html render error: %w", err)
 	}
 
-	return render, nil
-}
-
-// WithTemplateRenderer set the handler to use an `html/template` renderer.
-func WithTemplateRenderer(t *template.Template) HandlerConfig {
-	return func(h *Handler) error {
-		h.RenderHandler = func(ctx context.Context, rc *RenderContext) (io.Reader, error) {
-			var buf bytes.Buffer
-			if err := t.Execute(&buf, rc); err != nil {
-				return nil, err
-			}
-			return &buf, nil
-		}
-		return nil
-	}
+	return buf.String(), nil
 }

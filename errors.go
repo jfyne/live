@@ -34,3 +34,10 @@ var ErrIslandNotFound = errors.New("island not found")
 // ErrIslandAlreadyRegistered returned when attempting to register an island
 // with a name that is already registered.
 var ErrIslandAlreadyRegistered = errors.New("island already registered")
+
+// ErrAlreadyMounted returned when attempting to mount an island instance
+// that has already been mounted.
+var ErrAlreadyMounted = errors.New("island instance already mounted")
+
+// ErrTransportClosed returned when attempting to use a transport that has been closed.
+var ErrTransportClosed = errors.New("transport closed")

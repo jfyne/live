@@ -320,9 +320,9 @@ func hasAnchor(node *html.Node) bool {
 	for _, a := range node.Attr {
 		// Check for exact prefix matches: _l or _i followed by _ or end of string
 		if strings.HasPrefix(a.Key, liveAnchorPrefix+"_") ||
-		   strings.HasPrefix(a.Key, islandAnchorPrefix+"_") ||
-		   a.Key == liveAnchorPrefix ||
-		   a.Key == islandAnchorPrefix {
+			strings.HasPrefix(a.Key, islandAnchorPrefix+"_") ||
+			a.Key == liveAnchorPrefix ||
+			a.Key == islandAnchorPrefix {
 			return true
 		}
 	}

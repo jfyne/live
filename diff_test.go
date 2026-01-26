@@ -534,8 +534,8 @@ func TestIslandPatchJSON(t *testing.T) {
 
 func TestPatchIslandIDField(t *testing.T) {
 	tests := []struct {
-		name     string
-		patch    Patch
+		name        string
+		patch       Patch
 		hasIslandID bool
 	}{
 		{

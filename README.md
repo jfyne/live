@@ -2,561 +2,781 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/jfyne/live#.svg)](https://pkg.go.dev/github.com/jfyne/live#)
 
-Real-time user experiences with server-rendered HTML in Go. Inspired by and
-borrowing from Phoenix LiveViews.
+Real-time interactive UI components with server-rendered HTML in Go. Build dynamic web applications using only Go and HTML templates.
 
-Live is intended as a replacement for React, Vue, Angular etc. You can write
-an interactive web app just using Go and its templates.
+Live v2 introduces a pure **islands architecture** where independent, interactive components (islands) share a single transport connection. Each island maintains isolated state and lifecycle, enabling granular interactivity without full-page reloads.
 
-![](https://github.com/jfyne/live-examples/blob/main/chat.gif)
+## Version 2 Breaking Changes
 
-The structures provided in this package are compatible with `net/http`, so will play
-nicely with middleware and other frameworks.
+**This is version 2 of Live**, a complete rewrite with breaking changes from v1. v2 adopts a pure islands architecture, replacing the full-page LiveView pattern.
+
+### Major Changes from v1
+
+- **Islands-only architecture**: No more full-page `Handler` - use `Island` components instead
+- **New API**: `Island`, `IslandEngine`, `Session`, and `Transport` replace v1's `Handler`, `Engine`, and `Socket`
+- **Custom elements**: Client uses `<live-island>` custom elements instead of document-wide initialization
+- **Transport abstraction**: WebSocket, SSE, or polling (v1 was WebSocket-only)
+- **State isolation**: Each island instance has completely isolated state
+- **Multiple islands per page**: Share a single connection with message routing
+
+If you're using v1, see the [Migration Guide](#migration-from-v1) below.
+
+## Table of Contents
+
+- [Community](#community)
+- [Getting Started](#getting-started)
+  - [Installation](#installation)
+  - [Quick Example](#quick-example)
+- [Core Concepts](#core-concepts)
+  - [Islands](#islands)
+  - [Props and State](#props-and-state)
+  - [Event Handling](#event-handling)
+  - [Transport Layer](#transport-layer)
+- [Server-Side API](#server-side-api)
+  - [Creating an Island](#creating-an-island)
+  - [Registering Islands](#registering-islands)
+  - [Setting Up the Engine](#setting-up-the-engine)
+  - [Transport Endpoints](#transport-endpoints)
+- [Client-Side Usage](#client-side-usage)
+  - [The `<live-island>` Element](#the-live-island-element)
+  - [Passing Props](#passing-props)
+  - [Event Attributes](#event-attributes)
+- [Examples](#examples)
+- [Migration from v1](#migration-from-v1)
+- [Advanced Topics](#advanced-topics)
+- [API Reference](#api-reference)
 
 ## Community
 
-For bugs please use github issues. If you have a question about design or adding features, I
-am happy to chat about it in the discussions tab.
+For bugs, please use GitHub issues. For questions about design or adding features, use the discussions tab.
 
-Discord server is [here](https://discord.gg/TuMNaXJMUG).
+Discord server: [https://discord.gg/TuMNaXJMUG](https://discord.gg/TuMNaXJMUG)
 
 ## Getting Started
 
-### Examples
+### Installation
 
-- [Alpinejs](https://github.com/jfyne/live/tree/master/examples/alpine)
-- [Buttons](https://github.com/jfyne/live/tree/master/examples/buttons)
-- [Chat](https://github.com/jfyne/live/tree/master/examples/chat)
-- [Clock](https://github.com/jfyne/live/tree/master/examples/clock)
-- [Clocks](https://github.com/jfyne/live/tree/master/examples/clocks)
-- [Cluster](https://github.com/jfyne/live/tree/master/examples/cluster)
-- [Error](https://github.com/jfyne/live/tree/master/examples/error)
-- [Pagination](https://github.com/jfyne/live/tree/master/examples/pagination)
-- [Todo](https://github.com/jfyne/live/tree/master/examples/todo)
-
-#### Live components
-
-- [World Clocks](https://github.com/jfyne/live/tree/master/examples/clocks)
-
-### Install
-
-```
-go get github.com/jfyne/live
+```bash
+go get github.com/jfyne/live@v2
 ```
 
-See the [examples](https://github.com/jfyne/live/tree/master/examples) for usage.
+**Note**: Make sure to use the `v2` tag or the `v2` branch to get the islands architecture.
 
-### First handler
+### Quick Example
 
-Here is an example demonstrating how we would make a simple thermostat. Live is compatible
-with `net/http`.
+Here's a simple counter island to demonstrate the v2 API:
 
-[embedmd]:# (example_test.go)
+**Server (Go):**
+
 ```go
-package live
+package main
 
 import (
-	"bytes"
-	"context"
-	"html/template"
-	"io"
-	"net/http"
+    "bytes"
+    "context"
+    "html/template"
+    "io"
+    "log"
+    "net/http"
+    "time"
+
+    "github.com/jfyne/live"
 )
 
-// Model of our thermostat.
-type ThermoModel struct {
-	C float32
+// CounterState holds the state for a counter island
+type CounterState struct {
+    Count int
 }
 
-// Helper function to get the model from the socket data.
-func NewThermoModel(s *Socket) *ThermoModel {
-	m, ok := s.Assigns().(*ThermoModel)
-	// If we haven't already initialised set up.
-	if !ok {
-		m = &ThermoModel{
-			C: 19.5,
-		}
-	}
-	return m
+// NewCounterIsland creates a counter island definition
+func NewCounterIsland() (*live.Island, error) {
+    island, err := live.NewIsland(
+        "counter",
+        live.WithMount(func(ctx context.Context, props live.Props, children string) (any, error) {
+            // Initialize state from props
+            initialValue := props.Int("initial-value")
+            return &CounterState{Count: initialValue}, nil
+        }),
+        live.WithRender(func(ctx context.Context, rc *live.IslandRenderContext) (io.Reader, error) {
+            state := rc.State.(*CounterState)
+
+            tmpl := `
+                <div>
+                    <div class="count">{{.Count}}</div>
+                    <button live-click="dec">-</button>
+                    <button live-click="inc">+</button>
+                </div>
+            `
+
+            t, _ := template.New("counter").Parse(tmpl)
+            var buf bytes.Buffer
+            t.Execute(&buf, state)
+            return &buf, nil
+        }),
+    )
+    if err != nil {
+        return nil, err
+    }
+
+    // Register event handlers
+    island.HandleEvent("inc", func(ctx context.Context, state any, params live.Params) (any, error) {
+        s := state.(*CounterState)
+        s.Count++
+        return s, nil
+    })
+
+    island.HandleEvent("dec", func(ctx context.Context, state any, params live.Params) (any, error) {
+        s := state.(*CounterState)
+        s.Count--
+        return s, nil
+    })
+
+    return island, nil
 }
 
-// thermoMount initialises the thermostat state. Data returned in the mount function will
-// automatically be assigned to the socket.
-func thermoMount(ctx context.Context, s *Socket) (any, error) {
-	return NewThermoModel(s), nil
+func main() {
+    // Register the island
+    live.RegisterIsland("counter", NewCounterIsland)
+
+    ctx := context.Background()
+    stateStore := live.NewMemoryIslandStateStore(ctx, 1*time.Minute)
+    engine := live.NewIslandEngine(ctx, live.DefaultRegistry(), stateStore)
+
+    // Set up WebSocket endpoint
+    wsConfig := live.DefaultTransportConfig()
+    http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+        transport, _ := live.UpgradeWebSocket(r.Context(), w, r, wsConfig)
+        sessionID := live.SessionID("session-123")
+        session := live.NewSession(r.Context(), sessionID, transport)
+
+        engine.AddSession(session)
+        defer engine.DeleteSession(sessionID)
+
+        // Handle events
+        for event := range transport.Events() {
+            if event.T == "subscribe" {
+                params, _ := event.Params()
+                islandType := params.String("type")
+                props := make(live.Props)
+                for k, v := range params {
+                    if k != "type" && k != "id" {
+                        props[k] = v
+                    }
+                }
+                engine.MountIsland(sessionID, live.IslandID(event.Island), islandType, props)
+            } else {
+                engine.RouteEvent(sessionID, event)
+            }
+        }
+    })
+
+    // Serve HTML
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        w.Write([]byte(indexHTML))
+    })
+
+    log.Println("Server running on :8080")
+    http.ListenAndServe(":8080", nil)
 }
 
-// tempUp on the temp up event, increase the thermostat temperature by .1 C. An EventHandler function
-// is called with the original request context of the socket, the socket itself containing the current
-// state and and params that came from the event. Params contain query string parameters and any
-// `live-value-` bindings.
-func tempUp(ctx context.Context, s *Socket, p Params) (any, error) {
-	model := NewThermoModel(s)
-	model.C += 0.1
-	return model, nil
-}
-
-// tempDown on the temp down event, decrease the thermostat temperature by .1 C.
-func tempDown(ctx context.Context, s *Socket, p Params) (any, error) {
-	model := NewThermoModel(s)
-	model.C -= 0.1
-	return model, nil
-}
-
-// Example shows a simple temperature control using the
-// "live-click" event.
-func Example() {
-
-	// Setup the handler.
-	h := NewHandler()
-
-	// Mount function is called on initial HTTP load and then initial web
-	// socket connection. This should be used to create the initial state,
-	// the socket Connected func will be true if the mount call is on a web
-	// socket connection.
-	h.MountHandler = thermoMount
-
-	// Provide a render function. Here we are doing it manually, but there is a
-	// provided WithTemplateRenderer which can be used to work with `html/template`
-	h.RenderHandler = func(ctx context.Context, data *RenderContext) (io.Reader, error) {
-		tmpl, err := template.New("thermo").Parse(`
-            <div>{{.Assigns.C}}</div>
-            <button live-click="temp-up">+</button>
-            <button live-click="temp-down">-</button>
-            <!-- Include to make live work -->
-            <script src="/live.js"></script>
-        `)
-		if err != nil {
-			return nil, err
-		}
-		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, data); err != nil {
-			return nil, err
-		}
-		return &buf, nil
-	}
-
-	// This handles the `live-click="temp-up"` button. First we load the model from
-	// the socket, increment the temperature, and then return the new state of the
-	// model. Live will now calculate the diff between the last time it rendered and now,
-	// produce a set of diffs and push them to the browser to update.
-	h.HandleEvent("temp-up", tempUp)
-
-	// This handles the `live-click="temp-down"` button.
-	h.HandleEvent("temp-down", tempDown)
-
-	http.Handle("/thermostat", NewHttpHandler(context.Background(), h))
-
-	// This serves the JS needed to make live work.
-	http.Handle("/live.js", Javascript{})
-
-	http.ListenAndServe(":8080", nil)
-}
+const indexHTML = `<!DOCTYPE html>
+<html>
+<head><title>Counter</title></head>
+<body>
+    <h1>Live v2 Counter</h1>
+    <live-island type="counter" id="counter-1" data-initial-value="0">
+        <div><div class="count">0</div></div>
+    </live-island>
+    <script src="/custom-island.js"></script>
+</body>
+</html>`
 ```
 
-Notice the `script` tag. Live's javascript is embedded within the library for ease of use, and
-is required to be included for it to work. You can also use the companion
-[npm package](https://www.npmjs.com/package/@jfyne/live) to add to any existing web app build
-pipeline.
-
-### Live components
-
-Live can also render components. These are an easy way to encapsulate event logic and make it repeatable across a page.
-The [components examples](https://github.com/jfyne/live/tree/master/examples/components) show how to create
-components. Those are then used in the [world clocks example](https://github.com/jfyne/live/tree/master/examples/clocks).
-
-[embedmd]:# (page/example_test.go)
-```go
-package page
-
-import (
-	"context"
-	"io"
-	"net/http"
-
-	"github.com/jfyne/live"
-)
-
-// NewGreeter creates a new greeter component.
-func NewGreeter(ID string, h *live.Handler, s *live.Socket, name string) (*Component, error) {
-	return NewComponent(
-		ID,
-		h,
-		s,
-		WithMount(func(ctx context.Context, c *Component) error {
-			c.State = name
-			return nil
-		}),
-		WithRender(func(w io.Writer, c *Component) error {
-			// Render the greeter, here we are including the script just to make this toy example work.
-			return HTML(`
-                <div class="greeter">Hello {{.}}</div>
-                <script src="/live.js"></script>
-            `, c).Render(w)
-		}),
-	)
-}
-
-func Example() {
-	h := live.NewHandler(
-		WithComponentMount(func(ctx context.Context, h *live.Handler, s *live.Socket) (*Component, error) {
-			return NewGreeter("hello-id", h, s, "World!")
-		}),
-		WithComponentRenderer(),
-	)
-
-	http.Handle("/", live.NewHttpHandler(context.Background(), h))
-	http.Handle("/live.js", live.Javascript{})
-	http.ListenAndServe(":8080", nil)
-}
-```
-
-## Navigation
-
-Live provides functionality to use the browsers pushState API to update its query parameters. This can be done from
-both the client side and the server side.
-
-### Client side
-
-The `live-patch` handler should be placed on an `a` tag element as it reads the `href` attribute in order to apply
-the URL patch.
+**Client (HTML):**
 
 ```html
-<a live-patch href="?page=2">Next page</a>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Counter Example</title>
+</head>
+<body>
+    <h1>Live v2 Counter</h1>
+
+    <!-- Counter island with initial value of 0 -->
+    <live-island type="counter" id="counter-1" data-initial-value="0">
+        <div>
+            <div class="count">0</div>
+            <button live-click="dec">-</button>
+            <button live-click="inc">+</button>
+        </div>
+    </live-island>
+
+    <!-- Counter island with initial value of 5 -->
+    <live-island type="counter" id="counter-2" data-initial-value="5">
+        <div>
+            <div class="count">5</div>
+            <button live-click="dec">-</button>
+            <button live-click="inc">+</button>
+        </div>
+    </live-island>
+
+    <!-- Load the live island client library -->
+    <script src="/custom-island.js"></script>
+</body>
+</html>
 ```
 
-Clicking on this tag will result in the browser URL being updated, and then an event sent to the backend which will
-trigger the handler's `HandleParams` callback. With the query string being available in the params map of the handler.
+The content inside `<live-island>` is the initial server-rendered HTML, replaced by the server once the island mounts.
+
+## Core Concepts
+
+### Islands
+
+An **island** is an independent, interactive component with its own:
+- **State**: Isolated state that persists across events
+- **Lifecycle**: Mount, render, unmount handlers
+- **Events**: User interactions (clicks, form submissions, etc.)
+- **Props**: Initial configuration passed from HTML attributes
+
+Islands are defined once via `NewIsland()` and registered globally. Multiple instances can be created from a single island definition.
+
+### Props and State
+
+**Props** are passed to an island from its HTML attributes and are read-only:
+
+```html
+<live-island type="counter" id="counter-1" data-initial-value="10">
+```
 
 ```go
-h.HandleParams(func(s *live.Socket, p live.Params) (any, error) {
-    ...
-    page := p.Int("page")
-    ...
+live.WithMount(func(ctx context.Context, props live.Props, children string) (any, error) {
+    initialValue := props.Int("initial-value") // Reads data-initial-value
+    return &CounterState{Count: initialValue}, nil
 })
 ```
 
-### Server side
+**State** is the internal data of an island instance, updated by event handlers:
 
-Using the Socket's `PatchURL` func the serverside can make the client update the browsers URL, which will then trigger the `HandleParams` func.
-
-### Redirect
-
-The server can also trigger a redirect if the Socket's `Redirect` func is called. This will simulate an HTTP redirect
-using `window.location.replace`.
-
-## Features
-
-### Click Events
-
-- [ ] live-capture-click
-- [x] live-click
-- [x] live-value-*
-
-The `live-click` binding is used to send click events to the server.
-
-```html
-<div live-click="inc" live-value-myvar1="val1" live-value-myvar2="val2"></div>
+```go
+island.HandleEvent("inc", func(ctx context.Context, state any, params live.Params) (any, error) {
+    s := state.(*CounterState)
+    s.Count++ // Mutate state
+    return s, nil // Return updated state
+})
 ```
 
-See the [buttons example](https://github.com/jfyne/live/tree/master/examples/buttons) for usage.
+After an event handler returns, Live re-renders the island with the new state and sends a patch to the client.
 
-### Focus / Blur Events
+### Event Handling
 
-- [x] live-window-focus
-- [x] live-window-blur
-- [x] live-focus
-- [x] live-blur
+Islands handle user interactions via event handlers registered with `HandleEvent()`:
 
-Focus and blur events may be bound to DOM elements that emit such events,
-using the `live-blur`, and `live-focus` bindings, for example:
-
-```html
-<input name="email" live-focus="myfocus" live-blur="myblur"/>
+```go
+island.HandleEvent("inc", func(ctx context.Context, state any, params live.Params) (any, error) {
+    // Handle the event, update state
+    return newState, nil
+})
 ```
 
-### Key Events
+Events are triggered by `live-*` attributes in the HTML:
 
-- [x] live-window-keyup
-- [x] live-window-keydown
-- [x] live-keyup
-- [x] live-keydown
-- [x] live-key
+```html
+<button live-click="inc">Increment</button>
+<form live-submit="save">...</form>
+<input live-change="update" />
+```
 
-The onkeydown, and onkeyup events are supported via the `live-keydown`, and `live-keyup`
-bindings. Each binding supports a `live-key` attribute, which triggers the event for the
-specific key press. If no `live-key` is provided, the event is triggered for any key press.
-When pushed, the value sent to the server will contain the "key" that was pressed.
+When a user clicks the button, the client sends an event with `t: "inc"` to the server, which routes it to the correct island instance.
 
-See the [buttons example](https://github.com/jfyne/live/tree/master/examples/buttons) for usage.
+### Transport Layer
 
-### Form Events
+Live v2 abstracts the transport layer, supporting multiple protocols:
 
-- [ ] live-auto-recover
-- [ ] live-trigger-action
-- [ ] live-disable-with
-- [ ] live-feedback-for
-- [x] live-submit
-- [x] live-change
+- **WebSocket** (default): Bidirectional, low-latency
+- **SSE (Server-Sent Events)**: Server-to-client streaming with HTTP POST for client events
+- **Polling** (future): Fallback for restricted environments
 
-To handle form changes and submissions, use the `live-change` and `live-submit` events. In general,
-it is preferred to handle input changes at the form level, where all form fields are passed to the
-handler's event handler given any single input change. For example, to handle real-time form validation
-and saving, your template would use both `live-change` and `live-submit` bindings.
+The client automatically negotiates the best available transport. All islands on a page share a single connection.
 
-See the [form example](https://github.com/jfyne/live/tree/master/examples/todo) for usage.
+## Server-Side API
 
-### Rate Limiting
+### Creating an Island
 
-- [x] live-debounce
-- [ ] live-throttle
+Use `NewIsland()` with functional options to define an island:
 
-All events can be rate-limited on the client by using the `live-debounce` and `live-throttle` bindings,
-with the following behavior:
+```go
+func NewCounterIsland() (*live.Island, error) {
+    island, err := live.NewIsland(
+        "counter", // Island type name
+        live.WithMount(mountHandler),
+        live.WithRender(renderHandler),
+        live.WithUnmount(unmountHandler),
+    )
+    if err != nil {
+        return nil, err
+    }
 
-`live-debounce` accepts either an integer timeout value (in milliseconds),
-or "blur". When an integer is provided, emitting the event is delayed by the specified milliseconds. When
-"blur" is provided, emitting the event is delayed until the field is blurred by the user. Debouncing is typically
-used for input elements.
+    // Register event handlers
+    island.HandleEvent("inc", incHandler)
+    island.HandleEvent("dec", decHandler)
 
-`live-throttle` accepts an integer timeout value to throttle the event in milliseconds. Unlike debounce,
-throttle will immediately emit the event, then rate limit it at once per provided timeout. Throttling is
-typically used to rate limit clicks, mouse and keyboard actions.
-
-### Dom Patching
-
-- [x] live-update
-
-A container can be marked with `live-update`, allowing the DOM patch operations
-to avoid updating or removing portions of the view, or to append or prepend the
-updates rather than replacing the existing contents. This is useful for client-side
-interop with existing libraries that do their own DOM operations. The following
-`live-update` values are supported:
-
-- `replace` - replaces the element with the contents
-- `ignore` - ignores updates to the DOM regardless of new content changes
-- `append` - append the new DOM contents instead of replacing
-- `prepend` - prepend the new DOM contents instead of replacing
-
-When using `live-update` If using "append" or "prepend", a DOM ID must be set
-for each child.
-
-See the [chat example](https://github.com/jfyne/live/tree/master/examples/chat) for usage.
-
-### JS Interop
-
-- [x] live-hook
-
-### Hooks
-
-Hooks take the following form. They allow additional javascript to hook into the live lifecycle.
-These should be used to implement custom behavior and bind additional events which are not supported
-out of the box.
-
-[embedmd]:# (web/src/interop.ts)
-```ts
-/**
- * Hooks supplied for interop.
- */
-export interface Hooks {
-    [id: string]: Hook;
-}
-
-/**
- * A hook for running external JS.
- */
-export interface Hook {
-    /**
-     * The element has been added to the DOM and its server
-     * LiveHandler has finished mounting
-     */
-    mounted?: () => void;
-
-    /**
-     * The element is about to be updated in the DOM.
-     * Note: any call here must be synchronous as the operation
-     * cannot be deferred or cancelled.
-     */
-    beforeUpdate?: () => void;
-
-    /**
-     * The element has been updated in the DOM by the server
-     */
-    updated?: () => void;
-
-    /**
-     * The element is about to be removed from the DOM.
-     * Note: any call here must be synchronous as the operation
-     * cannot be deferred or cancelled.
-     */
-    beforeDestroy?: () => void;
-
-    /**
-     * The element has been removed from the page, either by
-     * a parent update, or by the parent being removed entirely
-     */
-    destroyed?: () => void;
-
-    /**
-     * The element's parent LiveHandler has disconnected from
-     * the server
-     */
-    disconnected?: () => void;
-
-    /**
-     * The element's parent LiveHandler has reconnected to the
-     * server
-     */
-    reconnected?: () => void;
-}
-
-/**
- * The DOM management interface. This allows external JS libraries to
- * interop with Live.
- */
-export interface DOM {
-    /**
-     * The fromEl and toEl DOM nodes are passed to the function
-     * just before the DOM patch operations occurs in Live. This
-     * allows external libraries to (re)initialize DOM elements
-     * or copy attributes as necessary as Live performs its own
-     * patch operations. The update operation cannot be cancelled
-     * or deferred, and the return value is ignored.
-     */
-    onBeforeElUpdated?: (fromEl: Element, toEl: Element) => void;
+    return island, nil
 }
 ```
 
-In scope when these functions are called:
+**Handler signatures:**
 
-- `el` - attribute referencing the bound DOM node,
-- `pushEvent(event: { t: string, d: any })` - method to push an event from the client to the Live server
-- `handleEvent(event: string, cb: ((payload: any) => void))` - method to handle an event pushed from the server.
+```go
+// Called when island is mounted (created)
+func mountHandler(ctx context.Context, props live.Props, children string) (any, error) {
+    // Return initial state
+    return &MyState{}, nil
+}
 
-See the [chat example](https://github.com/jfyne/live/tree/master/examples/chat) for usage.
+// Called to render the island's current state
+func renderHandler(ctx context.Context, rc *live.IslandRenderContext) (io.Reader, error) {
+    state := rc.State.(*MyState)
+    // Render state to HTML
+    return reader, nil
+}
 
-### Integrating with your app
+// Called when island is unmounted (destroyed)
+func unmountHandler(ctx context.Context, state any) error {
+    // Cleanup resources
+    return nil
+}
 
-There are two ways to integrate javascript into your applications. The first is the simplest, using the built
-in javascript handler. This includes client side code to initialise the live handler and automatically looks for
-hooks at `window.Hooks`. All of the examples use this method.
-
-To add a custom hook register it before including the `live.js` file.
-```javascript
-window.Hooks = window.Hooks || {};
-window.Hooks['my-hook'] = {
-	mount: function() {
-		// ...
-	}
-};
+// Called when an event occurs
+func eventHandler(ctx context.Context, state any, params live.Params) (any, error) {
+    // Update and return state
+    return newState, nil
+}
 ```
 
-Use the `live-hook` attribute to wire the hook with live.
+### Registering Islands
+
+Register islands with the global registry so they can be instantiated by the engine:
+
+```go
+func main() {
+    err := live.RegisterIsland("counter", NewCounterIsland)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+The first argument is the island type name (must match the `type` attribute in HTML).
+
+### Setting Up the Engine
+
+Create an `IslandEngine` to manage sessions and island instances:
+
+```go
+ctx := context.Background()
+
+// Create a state store for island state persistence
+stateStore := live.NewMemoryIslandStateStore(ctx, 1*time.Minute)
+
+// Create the engine
+registry := live.DefaultRegistry()
+engine := live.NewIslandEngine(ctx, registry, stateStore)
+defer engine.Close()
+```
+
+The engine:
+- Manages sessions (one per connected client)
+- Routes events to the correct island instance
+- Coordinates rendering and patching
+
+### Transport Endpoints
+
+Set up HTTP endpoints for WebSocket or SSE transports.
+
+**WebSocket endpoint:**
+
+```go
+http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+    wsConfig := live.DefaultTransportConfig()
+    transport, err := live.UpgradeWebSocket(r.Context(), w, r, wsConfig)
+    if err != nil {
+        http.Error(w, "WebSocket upgrade failed", http.StatusBadRequest)
+        return
+    }
+
+    sessionID := live.SessionID("unique-session-id")
+    session := live.NewSession(r.Context(), sessionID, transport)
+    engine.AddSession(session)
+    defer engine.DeleteSession(sessionID)
+
+    // Process events
+    for event := range transport.Events() {
+        if event.T == "subscribe" && event.Island != "" {
+            // Island mount request
+            params, _ := event.Params()
+            islandType := params.String("type")
+            props := extractProps(params)
+
+            engine.MountIsland(
+                sessionID,
+                live.IslandID(event.Island),
+                islandType,
+                props,
+            )
+        } else {
+            // Regular event
+            engine.RouteEvent(sessionID, event)
+        }
+    }
+})
+```
+
+**SSE endpoints:**
+
+```go
+sseConfig := live.DefaultTransportConfig()
+sseFactory := live.NewSSETransportFactory(sseConfig)
+
+// SSE stream endpoint
+http.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
+    transport, err := sseFactory.Upgrade(r.Context(), w, r)
+    if err != nil {
+        http.Error(w, "SSE upgrade failed", http.StatusBadRequest)
+        return
+    }
+
+    sessionID := live.SessionID("unique-session-id")
+    session := live.NewSession(r.Context(), sessionID, transport)
+    engine.AddSession(session)
+    defer engine.DeleteSession(sessionID)
+
+    // Process events (same as WebSocket)
+    for event := range transport.Events() {
+        // ... handle events
+    }
+})
+
+// SSE POST endpoint for client events
+http.HandleFunc("/sse/post", sseFactory.HandlePost)
+```
+
+## Client-Side Usage
+
+### The `<live-island>` Element
+
+Use the `<live-island>` custom element to define interactive islands in your HTML:
+
 ```html
-<div live-hook="my-hook"></div>
+<live-island type="counter" id="counter-1" data-initial-value="0">
+    <!-- Initial server-rendered content -->
+    <div>Count: 0</div>
+</live-island>
 ```
 
-See the [chat example](https://github.com/jfyne/live/tree/master/examples/chat) for usage.
+**Required attributes:**
+- `type`: Island type name (must match registered island)
+- `id`: Unique identifier for this island instance
 
-The second method is suited for more complex apps, there is a companion package published on npm. The version
-should be kept in sync with the current go version.
+**Optional attributes:**
+- `data-*`: Props passed to the island's mount handler
 
-```bash
-> npm i @jfyne/live
-```
+### Passing Props
 
-This can then be used to initialise the live handler on a page
-
-```typescript
-import { Live } from '@jfyne/live';
-
-const hooks = {};
-
-const live = new Live(hooks);
-live.init();
-```
-
-This allows more control over how hooks are passed to live, and when it should be initialised. It is expected
-that you would then build your compiled javsacript and serve it. See the
-[alpine example](https://github.com/jfyne/live/tree/master/examples/alpine).
-
-## Errors and exceptions
-
-There are two types of errors in a live handler, and how these are handled are separate.
-
-### Unexpected errors
-
-Errors that occur during the initial mount, initial render and web socket
-upgrade process are handled by the handler `ErrorHandler` func.
-
-Errors that occur while handling incoming web socket messages will trigger
-a response back with the error.
-
-### Expected errors
-
-In general errors which you expect to happen such as form validations etc.
-should be handled by just updating the data on the socket and
-re-rendering.
-
-If you return an error in the event handler live will send an `"err"` event
-to the socket. You can handle this with a hook. An example of this can be
-seen in the [error example](https://github.com/jfyne/live/tree/master/examples/error).
-
-##  Loading state and errors
-
-By default, the following classes are applied to the handlers body:
-
-- `live-connected` - applied when the view has connected to the server
-- `live-disconnected` - applied when the view is not connected to the server
-- `live-error` - applied when an error occurs on the server. Note, this class will be applied in conjunction with `live-disconnected` if connection to the server is lost.
-
-All `live-` event bindings apply their own css classes when pushed. For example the following markup:
+Props are extracted from `data-*` attributes:
 
 ```html
-<button live-click="clicked" live-window-keydown="key">...</button>
+<live-island
+    type="user-profile"
+    id="profile-1"
+    data-user-id="123"
+    data-editable="true">
+</live-island>
 ```
 
-On click, would receive the `live-click-loading` class, and on keydown would
-receive the `live-keydown-loading` class. The css loading classes are maintained
-until an acknowledgement is received on the client for the pushed event.
+Access in Go:
 
-The following events receive css loading classes:
+```go
+live.WithMount(func(ctx context.Context, props live.Props, children string) (any, error) {
+    userID := props.String("user-id")    // "123"
+    editable := props.Bool("editable")    // true
+    return &ProfileState{UserID: userID, Editable: editable}, nil
+})
+```
 
-- `live-click` - `live-click-loading`
-- `live-change` - `live-change-loading`
-- `live-submit` - `live-submit-loading`
-- `live-focus` - `live-focus-loading`
-- `live-blur` - `live-blur-loading`
-- `live-window-keydown` - `live-keydown-loading`
-- `live-window-keyup` - `live-keyup-loading`
+### Event Attributes
 
-## Broadcasting to different nodes
+Wire up event handlers with `live-*` attributes:
 
-In production it is often required to have multiple instances of the same application running, in order to handle this
-live has a PubSub element. This allows nodes to publish onto topics and receive those messages as if they were all
-running as the same instance. See the [cluster example](https://github.com/jfyne/live/tree/master/examples/cluster) for
-usage.
+**Click events:**
+```html
+<button live-click="save">Save</button>
+<button live-click="delete" live-value-id="123">Delete</button>
+```
 
-## Uploads
+**Form events:**
+```html
+<form live-submit="create">
+    <input name="title" />
+    <button type="submit">Create</button>
+</form>
 
-Live supports interactive file uploads with progress indication. See the [uploads example](https://github.com/jfyne/live/tree/master/examples/uploads)
-for usage.
+<input live-change="validate" />
+```
 
-### Features
+**Key events:**
+```html
+<input live-keydown="check" live-key="Enter" />
+```
 
-Accept specification - Define accepted file types, max number of entries, max file size, etc. When the client
-selects file(s), the file metadata can be validated with a helper function.
+**Focus events:**
+```html
+<input live-focus="focus-handler" live-blur="blur-handler" />
+```
 
-Reactive entries - Uploads are populated in the `.Uploads` template context. Entries automatically respond
-to progress and errors.
+**Rate limiting:**
+```html
+<input live-change="search" live-debounce="300" />
+<button live-click="action" live-throttle="1000">Click</button>
+```
 
-### Entry validation
+**DOM patching control:**
+```html
+<div live-update="append"><!-- Append patches instead of replace --></div>
+<div live-update="ignore"><!-- Never update this element --></div>
+```
 
-File selection triggers the usual form change event and there is a helper function to validate the uploads.
-Use `live.ValidateUploads` to validate the incoming files. Any validation errors will be available in the `.Uploads`
-context in the template.
+## Examples
 
-### Consume the uploads
+Complete examples are in the `examples/` directory:
 
-When a form is submitted files will first be uploaded to a staging area, then the submit event is triggered. Within the event
-handler use the `live.ConsumeUploads` helper function to then move the uploaded files to where you need them.
+- **[Counter](examples/counter/)**: Basic counter demonstrating islands, props, and events
+
+More examples coming soon:
+- Chat application with multiple islands
+- Form validation and submission
+- Real-time collaboration
+- Server-pushed updates
+
+## Migration from v1
+
+v2 is a complete rewrite. Here's how to migrate from v1 to v2:
+
+### Conceptual Changes
+
+| v1 Concept | v2 Equivalent | Notes |
+|------------|---------------|-------|
+| Full-page `Handler` | `Island` components | Islands replace full-page LiveViews |
+| `Handler.MountHandler` | `Island.Mount` | Called per island instance, not per page |
+| `Handler.RenderHandler` | `Island.Render` | Renders island HTML, not full page |
+| `Socket` | `Session` | Transport-agnostic connection |
+| `Engine` (1:1 with Handler) | `IslandEngine` | Manages multiple islands |
+| `page.Component` | `Island` | Islands replace the component abstraction |
+| Document-wide events | Island-scoped events | Events wired within island boundary |
+| WebSocket only | `Transport` interface | WebSocket, SSE, or polling |
+
+### Code Migration
+
+**v1 full-page handler:**
+
+```go
+// v1
+h := live.NewHandler()
+h.MountHandler = func(ctx context.Context, s *live.Socket) (any, error) {
+    return &PageModel{}, nil
+}
+h.RenderHandler = func(ctx context.Context, rc *live.RenderContext) (io.Reader, error) {
+    // Render entire page
+    return renderPage(rc.Assigns), nil
+}
+h.HandleEvent("click", clickHandler)
+http.Handle("/live", live.NewHttpHandler(ctx, h))
+```
+
+**v2 island:**
+
+```go
+// v2
+func NewMyIsland() (*live.Island, error) {
+    island, _ := live.NewIsland(
+        "my-island",
+        live.WithMount(func(ctx context.Context, props live.Props, children string) (any, error) {
+            return &IslandState{}, nil
+        }),
+        live.WithRender(func(ctx context.Context, rc *live.IslandRenderContext) (io.Reader, error) {
+            // Render only this island
+            return renderIsland(rc.State), nil
+        }),
+    )
+    island.HandleEvent("click", clickHandler)
+    return island, nil
+}
+
+live.RegisterIsland("my-island", NewMyIsland)
+```
+
+**v1 HTML:**
+
+```html
+<!-- v1: Full page rendered by Live -->
+<div id="live">
+    <button live-click="click">Click</button>
+</div>
+<script src="/live.js"></script>
+```
+
+**v2 HTML:**
+
+```html
+<!-- v2: Islands within static page -->
+<h1>My Page</h1>
+<live-island type="my-island" id="island-1">
+    <button live-click="click">Click</button>
+</live-island>
+<script src="/custom-island.js"></script>
+```
+
+### Key Differences
+
+1. **No full-page LiveViews**: v2 only supports islands. If you need interactivity across the whole page, create a root island.
+
+2. **Multiple islands per page**: v2 allows multiple independent islands on one page, each with isolated state.
+
+3. **Props instead of assigns**: v1 used `Socket.Assigns()` for state. v2 uses `Props` (read-only from HTML) and island state (mutable).
+
+4. **Session management**: You must manage session IDs and transport endpoints. v1 handled this automatically.
+
+5. **Client initialization**: v1 auto-initialized on page load. v2 uses custom elements that initialize when added to the DOM.
+
+6. **Event routing**: v2 requires explicit event routing via `engine.RouteEvent()`. v1 routed automatically.
+
+### Breaking Changes Summary
+
+- Removed `Handler`, `NewHandler()`, `NewHttpHandler()`
+- Removed `Socket.Assigns()` - use island state instead
+- Removed `page.Component` - use `Island` instead
+- Removed `RenderSocket()` - use `Island.Render()`
+- Removed `WithTemplateRenderer()` - implement render handler directly
+- Removed automatic WebSocket endpoint - you must set up transports
+- Client library rewritten - `<live-island>` custom element replaces `Live.init()`
+
+## Advanced Topics
+
+### Server-Pushed Updates
+
+Islands can receive server-pushed updates via self-handlers:
+
+```go
+island.HandleSelf("refresh", func(ctx context.Context, state any, data any) (any, error) {
+    // Update state based on server push
+    return updatedState, nil
+})
+
+// Trigger from server
+engine.BroadcastToIsland(sessionID, islandID, "refresh", data)
+```
+
+### Broadcasting
+
+Broadcast events to multiple islands:
+
+```go
+// Broadcast to all instances of an island type
+engine.BroadcastToIslandType(islandType, "update", data)
+
+// Broadcast to a specific island instance
+engine.BroadcastToIsland(sessionID, islandID, "update", data)
+```
+
+### Custom State Stores
+
+Implement `IslandStateStore` interface for custom state persistence (Redis, database, etc.):
+
+```go
+type IslandStateStore interface {
+    Get(sessionID SessionID, islandID IslandID) (any, error)
+    Set(sessionID SessionID, islandID IslandID, state any, ttl time.Duration) error
+    Delete(sessionID SessionID, islandID IslandID) error
+}
+```
+
+### Nested Islands
+
+Islands can contain other islands. Each maintains its own state:
+
+```html
+<live-island type="parent" id="parent-1">
+    <h2>Parent Island</h2>
+    <live-island type="child" id="child-1">
+        <p>Child Island</p>
+    </live-island>
+</live-island>
+```
+
+Islands are treated as opaque boundaries - parent renders don't diff into child content.
+
+## API Reference
+
+### Core Types
+
+```go
+type Island struct {
+    Name   string
+    Mount  IslandMountHandler
+    Render IslandRenderHandler
+    Unmount IslandUnmountHandler
+}
+
+type IslandInstance struct {
+    ID   string
+    Type string
+}
+
+type Props map[string]any
+
+type Session struct {
+    ID SessionID
+}
+
+type IslandEngine struct {
+    // Manages sessions and islands
+}
+
+type Transport interface {
+    Send(Event) error
+    Events() <-chan Event
+    Close() error
+}
+```
+
+### Functions
+
+```go
+// Island creation
+func NewIsland(name string, configs ...IslandConfig) (*Island, error)
+func WithMount(handler IslandMountHandler) IslandConfig
+func WithRender(handler IslandRenderHandler) IslandConfig
+func WithUnmount(handler IslandUnmountHandler) IslandConfig
+
+// Registration
+func RegisterIsland(name string, constructor IslandConstructor) error
+func GetIsland(name string) (IslandConstructor, error)
+func ListIslands() []string
+
+// Engine
+func NewIslandEngine(ctx context.Context, registry *IslandRegistry, stateStore IslandStateStore) *IslandEngine
+func (e *IslandEngine) AddSession(session *Session)
+func (e *IslandEngine) DeleteSession(sessionID SessionID)
+func (e *IslandEngine) MountIsland(sessionID SessionID, islandID IslandID, islandType string, props Props) (*IslandInstance, error)
+func (e *IslandEngine) RouteEvent(sessionID SessionID, event Event) error
+
+// Transport
+func UpgradeWebSocket(ctx context.Context, w http.ResponseWriter, r *http.Request, config *TransportConfig) (Transport, error)
+func NewSSETransportFactory(config *TransportConfig) *SSETransportFactory
+```
+
+See [pkg.go.dev](https://pkg.go.dev/github.com/jfyne/live) for complete API documentation.
+
+---
+
+Built with ⚡ by [@jfyne](https://github.com/jfyne)

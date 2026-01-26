@@ -12,7 +12,9 @@ import (
 
 const _debug = false
 
-// LiveRendered an attribute key to show that a DOM has been rendered by live.
+// LiveRendered is an attribute key that indicates a DOM has been rendered by live.
+// The live client JavaScript checks for this attribute to determine if it should
+// attempt to connect to the server.
 const LiveRendered = "live-rendered"
 
 // liveAnchorPrefix prefixes injected anchors.
@@ -20,14 +22,18 @@ const liveAnchorPrefix = "_l"
 const islandAnchorPrefix = "_i"
 const liveAnchorSep = -1
 
-// PatchAction available actions to take by a patch.
+// PatchAction defines the type of modification a patch will perform on the DOM.
 type PatchAction uint32
 
-// Actions available.
+// Patch actions define how the client should apply DOM updates.
 const (
+	// Noop indicates no action should be taken for this patch.
 	Noop PatchAction = iota
+	// Replace indicates the target node should be replaced with new content.
 	Replace
+	// Append indicates new content should be appended to the target node's children.
 	Append
+	// Prepend indicates new content should be prepended to the target node's children.
 	Prepend
 )
 
@@ -106,11 +112,23 @@ func (n islandAnchorGenerator) String() string {
 	return out
 }
 
-// Patch a location in the frontend dom.
+// Patch represents a DOM modification to be applied on the client side.
+// Each patch targets a specific anchor point in the DOM and contains
+// the HTML content and action to perform.
 type Patch struct {
-	Anchor   string
-	Action   PatchAction
-	HTML     string
+	// Anchor is the DOM element identifier where this patch should be applied.
+	// Anchors are generated automatically during rendering and use the format
+	// "_l" for page-level patches or "_i_<islandID>" for island-scoped patches.
+	Anchor string
+
+	// Action specifies how to apply the HTML content (Replace, Append, Prepend, or Noop).
+	Action PatchAction
+
+	// HTML is the HTML content to apply at the anchor point.
+	HTML string
+
+	// IslandID optionally identifies which island this patch belongs to.
+	// This is used for routing patches in multi-island scenarios.
 	IslandID string `json:"island_id,omitempty"`
 }
 
@@ -151,7 +169,13 @@ func NewIslandPatch(islandID IslandID, patches []Patch) IslandPatch {
 	}
 }
 
-// Diff compare two node states and return patches.
+// Diff compares two HTML node trees and generates a minimal set of patches
+// to transform the current tree into the proposed tree.
+//
+// The function automatically anchors both trees before comparing them,
+// ensuring each significant node has a unique identifier for precise targeting.
+//
+// This is the page-level diff function. For island-scoped diffs, use DiffIsland.
 func Diff(current, proposed *html.Node) ([]Patch, error) {
 	patches := diffTrees(current, proposed)
 	output := make([]Patch, len(patches))

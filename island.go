@@ -1,3 +1,51 @@
+// Package live provides a framework for building real-time interactive web applications
+// using server-side rendering with live updates via WebSocket or Server-Sent Events.
+//
+// The v2 architecture uses an islands approach, where individual components (islands)
+// maintain their own state and can be independently mounted, updated, and unmounted.
+// Each island is a self-contained unit with its own lifecycle, event handlers, and
+// rendering logic.
+//
+// Key concepts:
+//
+// Islands: Reusable components defined by Island types and registered globally.
+// Each island definition includes mount, unmount, render handlers, and event handlers.
+//
+// Island Instances: Runtime instances of islands with their own isolated state.
+// Multiple instances of the same island type can exist simultaneously.
+//
+// Sessions: Client connections that can host multiple island instances.
+// Sessions are transport-agnostic and work with WebSocket, SSE, or other transports.
+//
+// Engine: The orchestration layer managing sessions, islands, and state persistence.
+//
+// Transports: Protocol implementations (WebSocket, SSE) for bidirectional communication.
+//
+// Example usage:
+//
+//	// Define an island
+//	island, err := live.NewIsland("counter",
+//		live.WithMount(func(ctx context.Context, props live.Props, children string) (any, error) {
+//			return &CounterState{Count: 0}, nil
+//		}),
+//		live.WithRender(func(ctx context.Context, rc *live.IslandRenderContext) (io.Reader, error) {
+//			state := rc.State.(*CounterState)
+//			return strings.NewReader(fmt.Sprintf("<div>Count: %d</div>", state.Count)), nil
+//		}),
+//	)
+//
+//	// Register the island
+//	live.RegisterIsland("counter", func() (*live.Island, error) {
+//		return island, nil
+//	})
+//
+//	// Create engine and session
+//	engine := live.NewIslandEngine(ctx, live.DefaultRegistry(), stateStore)
+//	session := live.NewSession(ctx, sessionID, transport)
+//	engine.AddSession(session)
+//
+//	// Mount an island instance
+//	instance, err := engine.MountIsland(sessionID, "counter-1", "counter", live.Props{})
 package live
 
 import (

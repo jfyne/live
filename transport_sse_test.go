@@ -452,7 +452,10 @@ func TestSSETransport_ConcurrentSends(t *testing.T) {
 	go func() {
 		req, _ := http.NewRequest("GET", server.URL, nil)
 		client := &http.Client{Timeout: 10 * time.Second}
-		resp, _ := client.Do(req)
+		resp, err := client.Do(req)
+		if err != nil {
+			return
+		}
 		defer resp.Body.Close()
 
 		scanner := bufio.NewScanner(resp.Body)
@@ -559,7 +562,10 @@ func TestSSETransport_Close(t *testing.T) {
 	go func() {
 		req, _ := http.NewRequest("GET", server.URL, nil)
 		client := &http.Client{Timeout: 5 * time.Second}
-		resp, _ := client.Do(req)
+		resp, err := client.Do(req)
+		if err != nil {
+			return
+		}
 		defer resp.Body.Close()
 		io.ReadAll(resp.Body)
 	}()

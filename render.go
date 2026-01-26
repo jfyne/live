@@ -9,8 +9,20 @@ import (
 	"golang.org/x/net/html"
 )
 
-// RenderIsland renders a single island instance and returns the HTML with
-// island-scoped anchors. The island ID is extracted from the instance ID.
+// RenderIsland renders an island instance to HTML with island-scoped anchors.
+//
+// The rendering process:
+// 1. Calls the island's render handler to generate HTML
+// 2. Parses the HTML into a node tree
+// 3. Shapes the tree (removes insignificant whitespace)
+// 4. Anchors all significant nodes with island-scoped identifiers
+// 5. Renders the tree back to HTML string
+//
+// The anchored HTML enables precise diffing and patching on subsequent renders.
+// Island-scoped anchors use the format "_i_<islandID>_<path>" to ensure
+// uniqueness across multiple island instances on the same page.
+//
+// Returns the rendered HTML string or an error if rendering fails.
 func RenderIsland(ctx context.Context, instance *IslandInstance) (string, error) {
 	if instance == nil {
 		return "", fmt.Errorf("instance is nil")

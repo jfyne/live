@@ -17,7 +17,11 @@ func contextWithRequest(ctx context.Context, r *http.Request) context.Context {
 	return context.WithValue(ctx, requestKey, r)
 }
 
-// Request pulls out an initiating request from a context.
+// Request extracts the original HTTP request from a context.
+// This is useful in island handlers to access request headers, cookies, or other
+// HTTP metadata.
+//
+// Returns nil if no request is stored in the context.
 func Request(ctx context.Context) *http.Request {
 	data := ctx.Value(requestKey)
 	r, ok := data.(*http.Request)
@@ -32,7 +36,10 @@ func contextWithWriter(ctx context.Context, w http.ResponseWriter) context.Conte
 	return context.WithValue(ctx, writerKey, w)
 }
 
-// Writer pulls out a response writer from a context.
+// Writer extracts the HTTP response writer from a context.
+// This is useful in island handlers to write headers or perform HTTP-specific operations.
+//
+// Returns nil if no writer is stored in the context.
 func Writer(ctx context.Context) http.ResponseWriter {
 	data := ctx.Value(writerKey)
 	w, ok := data.(http.ResponseWriter)

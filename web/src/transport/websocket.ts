@@ -1,7 +1,7 @@
 import { Transport, ConnectionState } from "./transport";
 import { TransportMessage } from "./message";
 
-const PRIVATE_SOCKET_ID = "_psid";
+const PRIVATE_SOCKET_ID = "live_session";
 
 /**
  * WebSocketTransport implements the Transport interface using WebSocket.
@@ -18,10 +18,13 @@ export class WebSocketTransport implements Transport {
     private baseReconnectDelay = 100; // 100ms
     private subscribedIslands = new Set<string>();
     private shouldReconnect = true; // Flag to prevent reconnection after explicit close
+    private wsEndpoint: string;
 
-    constructor() {
+    constructor(options?: { wsEndpoint?: string }) {
         this.sessionID = this.getSessionID();
-        this.setSessionCookie();
+
+        // Default endpoint - can be customized via options
+        this.wsEndpoint = options?.wsEndpoint || "/ws";
     }
 
     /**
@@ -32,21 +35,41 @@ export class WebSocketTransport implements Transport {
         const parts = value.split(`; ${PRIVATE_SOCKET_ID}=`);
         if (parts && parts.length === 2) {
             const val = parts.pop();
-            if (!val) {
-                return "";
+            if (val) {
+                const sessionId = val.split(";").shift();
+                if (sessionId) {
+                    return sessionId;
+                }
             }
-            return val.split(";").shift() || "";
         }
-        return "";
+        // Generate new session ID
+        const sessionId = this.generateUUID();
+        this.setSessionCookie(sessionId);
+        return sessionId;
+    }
+
+    /**
+     * Generate a UUID v4.
+     */
+    private generateUUID(): string {
+        // Try to use crypto.randomUUID if available
+        if (typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function') {
+            return (crypto as any).randomUUID();
+        }
+        // Fallback to manual UUID generation
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
     }
 
     /**
      * Persist session ID to cookie with 60-second TTL.
      */
-    private setSessionCookie() {
-        const date = new Date();
-        date.setTime(date.getTime() + 60 * 1000);
-        document.cookie = `${PRIVATE_SOCKET_ID}=${this.sessionID}; expires=${date.toUTCString()}; path=/`;
+    private setSessionCookie(sessionId: string): void {
+        const secure = location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `live_session=${sessionId}; Path=/; Max-Age=60; SameSite=Strict${secure}`;
     }
 
     /**
@@ -71,7 +94,7 @@ export class WebSocketTransport implements Transport {
             this.setState(ConnectionState.Connecting);
 
             const protocol = location.protocol === "https:" ? "wss" : "ws";
-            const url = `${protocol}://${location.host}${location.pathname}${location.search}${location.hash}`;
+            const url = `${protocol}://${location.host}${this.wsEndpoint}`;
 
             console.debug("WebSocketTransport.connect", url, "sessionID:", this.sessionID);
 

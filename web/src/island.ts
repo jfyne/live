@@ -50,6 +50,14 @@ export class LiveIsland extends HTMLElement {
     }
 
     /**
+     * Define which attributes trigger attributeChangedCallback.
+     * We observe 'type' and 'id' attributes.
+     */
+    static get observedAttributes() {
+        return ['type', 'id'];
+    }
+
+    /**
      * Called when the element is added to the DOM.
      * Extracts props, registers with ConnectionManager, and sets up message handling.
      */
@@ -170,7 +178,7 @@ export class LiveIsland extends HTMLElement {
 
         console.debug('LiveIsland: registering with ConnectionManager', this.islandId);
 
-        this.connectionManager.registerIsland(this.islandId, (patch: IslandPatch) => {
+        this.connectionManager.registerIsland(this.islandId, this.props!.type, (patch: IslandPatch) => {
             this.handlePatch(patch);
         });
     }
@@ -298,12 +306,6 @@ export class LiveIsland extends HTMLElement {
         });
     }
 }
-
-/**
- * Define which attributes trigger attributeChangedCallback.
- * We observe 'type', 'id', and any data-* attributes.
- */
-(LiveIsland as any).observedAttributes = ['type', 'id'];
 
 /**
  * Register the LiveIsland custom element.

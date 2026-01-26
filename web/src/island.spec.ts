@@ -1,4 +1,4 @@
-import { LiveIsland, IslandProps, registerLiveIsland } from "./island";
+import { LiveIsland, registerLiveIsland } from "./island";
 import { ConnectionManager } from "./connection";
 import { IslandPatch, PatchAction } from "./transport/message";
 import { Forms } from "./forms";
@@ -154,6 +154,7 @@ describe("LiveIsland Custom Element", () => {
 
             expect(mockConnectionManager.registerIsland).toHaveBeenCalledWith(
                 'counter-1',
+                'counter',
                 expect.any(Function)
             );
         });
@@ -282,6 +283,7 @@ describe("LiveIsland Custom Element", () => {
             expect(mockConnectionManager.unregisterIsland).toHaveBeenCalledWith('counter-1');
             expect(mockConnectionManager.registerIsland).toHaveBeenCalledWith(
                 'counter-2',
+                'counter',
                 expect.any(Function)
             );
         });
@@ -309,7 +311,7 @@ describe("LiveIsland Custom Element", () => {
             document.body.appendChild(island);
 
             // Get the handler that was registered
-            const handler = mockConnectionManager.registerIsland.mock.calls[0][1];
+            const handler = mockConnectionManager.registerIsland.mock.calls[0][2];
 
             // Simulate patch
             const patch: IslandPatch = {
@@ -336,7 +338,7 @@ describe("LiveIsland Custom Element", () => {
             island.innerHTML = '<form id="test-form" _i_form-1_0><input name="test"></form>';
             document.body.appendChild(island);
 
-            const handler = mockConnectionManager.registerIsland.mock.calls[0][1];
+            const handler = mockConnectionManager.registerIsland.mock.calls[0][2];
 
             const patch: IslandPatch = {
                 island_id: 'form-1',
@@ -363,7 +365,7 @@ describe("LiveIsland Custom Element", () => {
             island.innerHTML = '<div _i_test-1_0>old</div>';
             document.body.appendChild(island);
 
-            const handler = mockConnectionManager.registerIsland.mock.calls[0][1];
+            const handler = mockConnectionManager.registerIsland.mock.calls[0][2];
 
             const patch: IslandPatch = {
                 island_id: 'test-1',
@@ -390,7 +392,7 @@ describe("LiveIsland Custom Element", () => {
             island.innerHTML = '<div _i_test-1_0><span>existing</span></div>';
             document.body.appendChild(island);
 
-            const handler = mockConnectionManager.registerIsland.mock.calls[0][1];
+            const handler = mockConnectionManager.registerIsland.mock.calls[0][2];
 
             const patch: IslandPatch = {
                 island_id: 'test-1',
@@ -416,7 +418,7 @@ describe("LiveIsland Custom Element", () => {
             island.innerHTML = '<div _i_test-1_0><span>existing</span></div>';
             document.body.appendChild(island);
 
-            const handler = mockConnectionManager.registerIsland.mock.calls[0][1];
+            const handler = mockConnectionManager.registerIsland.mock.calls[0][2];
 
             const patch: IslandPatch = {
                 island_id: 'test-1',
@@ -442,7 +444,7 @@ describe("LiveIsland Custom Element", () => {
             island.innerHTML = '<div _i_test-1_0>unchanged</div>';
             document.body.appendChild(island);
 
-            const handler = mockConnectionManager.registerIsland.mock.calls[0][1];
+            const handler = mockConnectionManager.registerIsland.mock.calls[0][2];
 
             const patch: IslandPatch = {
                 island_id: 'test-1',
@@ -469,7 +471,7 @@ describe("LiveIsland Custom Element", () => {
             island.innerHTML = '<div>no anchor</div>';
             document.body.appendChild(island);
 
-            const handler = mockConnectionManager.registerIsland.mock.calls[0][1];
+            const handler = mockConnectionManager.registerIsland.mock.calls[0][2];
 
             const patch: IslandPatch = {
                 island_id: 'test-1',
@@ -500,7 +502,7 @@ describe("LiveIsland Custom Element", () => {
             island.innerHTML = '<div _i_test-1_0>0</div><div _i_test-1_1>1</div>';
             document.body.appendChild(island);
 
-            const handler = mockConnectionManager.registerIsland.mock.calls[0][1];
+            const handler = mockConnectionManager.registerIsland.mock.calls[0][2];
 
             const patch: IslandPatch = {
                 island_id: 'test-1',
@@ -543,10 +545,12 @@ describe("LiveIsland Custom Element", () => {
             expect(mockConnectionManager.registerIsland).toHaveBeenCalledTimes(2);
             expect(mockConnectionManager.registerIsland).toHaveBeenCalledWith(
                 'counter-1',
+                'counter',
                 expect.any(Function)
             );
             expect(mockConnectionManager.registerIsland).toHaveBeenCalledWith(
                 'counter-2',
+                'counter',
                 expect.any(Function)
             );
         });
@@ -566,8 +570,8 @@ describe("LiveIsland Custom Element", () => {
             document.body.appendChild(island2);
 
             // Get handlers
-            const handler1 = mockConnectionManager.registerIsland.mock.calls[0][1];
-            const handler2 = mockConnectionManager.registerIsland.mock.calls[1][1];
+            const handler1 = mockConnectionManager.registerIsland.mock.calls[0][2];
+            const handler2 = mockConnectionManager.registerIsland.mock.calls[1][2];
 
             // Patch island1
             const patch1: IslandPatch = {
@@ -727,7 +731,7 @@ describe("LiveIsland Custom Element", () => {
                 call => call[0] === 'counter-1'
             );
             expect(registerCall).toBeDefined();
-            const handler = registerCall![1];
+            const handler = registerCall![2];
 
             // Apply a patch
             const patch: IslandPatch = {

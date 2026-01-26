@@ -137,16 +137,23 @@ func TestFullLifecycleIntegration(t *testing.T) {
 	}
 
 	// Verify the initial render contains "Count: 10"
-	var patchData map[string]any
-	if err := json.Unmarshal(mountPatch.Data, &patchData); err != nil {
+	var patches []Patch
+	if err := json.Unmarshal(mountPatch.Data, &patches); err != nil {
 		t.Fatalf("unmarshal patch data failed: %v", err)
 	}
-	html, ok := patchData["html"].(string)
-	if !ok {
-		t.Fatal("patch data missing html field")
+	if len(patches) == 0 {
+		t.Fatal("expected at least one patch")
 	}
-	if !strings.Contains(html, "Count: 10") {
-		t.Errorf("expected initial render to contain 'Count: 10', got: %s", html)
+	// Check if any patch contains "Count: 10"
+	foundCount := false
+	for _, patch := range patches {
+		if strings.Contains(patch.HTML, "Count: 10") {
+			foundCount = true
+			break
+		}
+	}
+	if !foundCount {
+		t.Errorf("expected initial render to contain 'Count: 10' in patches: %+v", patches)
 	}
 
 	// Send increment event
@@ -179,15 +186,18 @@ func TestFullLifecycleIntegration(t *testing.T) {
 	}
 
 	// Verify the updated render contains "Count: 11"
-	if err := json.Unmarshal(incrementPatch.Data, &patchData); err != nil {
+	if err := json.Unmarshal(incrementPatch.Data, &patches); err != nil {
 		t.Fatalf("unmarshal increment patch data failed: %v", err)
 	}
-	html, ok = patchData["html"].(string)
-	if !ok {
-		t.Fatal("patch data missing html field")
+	foundCount = false
+	for _, patch := range patches {
+		if strings.Contains(patch.HTML, "Count: 11") {
+			foundCount = true
+			break
+		}
 	}
-	if !strings.Contains(html, "Count: 11") {
-		t.Errorf("expected updated render to contain 'Count: 11', got: %s", html)
+	if !foundCount {
+		t.Errorf("expected updated render to contain 'Count: 11' in patches: %+v", patches)
 	}
 
 	// Verify state was persisted in state store
@@ -610,16 +620,19 @@ func TestTransportReconnectionWithStatePreservation(t *testing.T) {
 	}
 
 	// Verify the restored render contains "Value: updated"
-	var patchDataMap map[string]any
-	if err := json.Unmarshal(restorationPatch.Data, &patchDataMap); err != nil {
+	var restoredPatches []Patch
+	if err := json.Unmarshal(restorationPatch.Data, &restoredPatches); err != nil {
 		t.Fatalf("unmarshal patch data failed: %v", err)
 	}
-	html, ok := patchDataMap["html"].(string)
-	if !ok {
-		t.Fatal("patch data missing html field")
+	foundValue := false
+	for _, patch := range restoredPatches {
+		if strings.Contains(patch.HTML, "Value: updated") {
+			foundValue = true
+			break
+		}
 	}
-	if !strings.Contains(html, "Value: updated") {
-		t.Errorf("expected restored render to contain 'Value: updated', got: %s", html)
+	if !foundValue {
+		t.Errorf("expected restored render to contain 'Value: updated' in patches: %+v", restoredPatches)
 	}
 
 	// Verify the island can still process events after reconnection
@@ -649,15 +662,19 @@ func TestTransportReconnectionWithStatePreservation(t *testing.T) {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
 
-	if err := json.Unmarshal(postReconnectPatch.Data, &patchDataMap); err != nil {
+	var postReconnectPatches []Patch
+	if err := json.Unmarshal(postReconnectPatch.Data, &postReconnectPatches); err != nil {
 		t.Fatalf("unmarshal patch data failed: %v", err)
 	}
-	html, ok = patchDataMap["html"].(string)
-	if !ok {
-		t.Fatal("patch data missing html field")
+	foundReconnected := false
+	for _, patch := range postReconnectPatches {
+		if strings.Contains(patch.HTML, "Value: reconnected") {
+			foundReconnected = true
+			break
+		}
 	}
-	if !strings.Contains(html, "Value: reconnected") {
-		t.Errorf("expected final render to contain 'Value: reconnected', got: %s", html)
+	if !foundReconnected {
+		t.Errorf("expected final render to contain 'Value: reconnected' in patches: %+v", postReconnectPatches)
 	}
 }
 

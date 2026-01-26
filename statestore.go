@@ -59,6 +59,10 @@ var _ IslandStateStore = (*MemoryIslandStateStore)(nil)
 // The janitor goroutine starts automatically and runs at the specified cleanup interval.
 // The janitor stops when the provided context is canceled.
 func NewMemoryIslandStateStore(ctx context.Context, cleanupInterval time.Duration) *MemoryIslandStateStore {
+	if cleanupInterval <= 0 {
+		cleanupInterval = 1 * time.Minute // reasonable default
+	}
+
 	store := &MemoryIslandStateStore{
 		store:           make(map[SessionID]map[IslandID]stateEntry),
 		ctx:             ctx,

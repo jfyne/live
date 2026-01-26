@@ -1,7 +1,7 @@
 import { Transport, ConnectionState } from "./transport";
 import { TransportMessage } from "./message";
 
-const PRIVATE_SOCKET_ID = "_psid";
+const PRIVATE_SOCKET_ID = "live_session";
 
 /**
  * SSETransport implements the Transport interface using Server-Sent Events (SSE).
@@ -25,7 +25,6 @@ export class SSETransport implements Transport {
 
     constructor(options?: { postEndpoint?: string; sseEndpoint?: string }) {
         this.sessionID = this.getSessionID();
-        this.setSessionCookie();
 
         // Default endpoints - can be customized via options
         this.postEndpoint = options?.postEndpoint || "/live/post";
@@ -40,21 +39,41 @@ export class SSETransport implements Transport {
         const parts = value.split(`; ${PRIVATE_SOCKET_ID}=`);
         if (parts && parts.length === 2) {
             const val = parts.pop();
-            if (!val) {
-                return "";
+            if (val) {
+                const sessionId = val.split(";").shift();
+                if (sessionId) {
+                    return sessionId;
+                }
             }
-            return val.split(";").shift() || "";
         }
-        return "";
+        // Generate new session ID
+        const sessionId = this.generateUUID();
+        this.setSessionCookie(sessionId);
+        return sessionId;
+    }
+
+    /**
+     * Generate a UUID v4.
+     */
+    private generateUUID(): string {
+        // Try to use crypto.randomUUID if available
+        if (typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function') {
+            return (crypto as any).randomUUID();
+        }
+        // Fallback to manual UUID generation
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
     }
 
     /**
      * Persist session ID to cookie with 60-second TTL.
      */
-    private setSessionCookie() {
-        const date = new Date();
-        date.setTime(date.getTime() + 60 * 1000);
-        document.cookie = `${PRIVATE_SOCKET_ID}=${this.sessionID}; expires=${date.toUTCString()}; path=/`;
+    private setSessionCookie(sessionId: string): void {
+        const secure = location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `live_session=${sessionId}; Path=/; Max-Age=60; SameSite=Strict${secure}`;
     }
 
     /**

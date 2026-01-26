@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -16,7 +17,7 @@ import (
 // - State persistence (via IslandStateStore)
 // - Broadcasting (send events to multiple islands)
 //
-// The engine is thread-safe and uses channel-based operations for session management.
+// The engine is thread-safe and uses mutex-protected operations for session management.
 type IslandEngine struct {
 	// registry holds the island type definitions
 	registry *IslandRegistry
@@ -27,7 +28,7 @@ type IslandEngine struct {
 	// sessions maps session IDs to active sessions
 	sessions map[SessionID]*Session
 
-	// mu protects concurrent access to the sessions map
+	// mu protects concurrent access to the sessions map and stateTTL
 	mu sync.RWMutex
 
 	// ctx is the engine context for lifecycle management
@@ -36,83 +37,32 @@ type IslandEngine struct {
 	// cancel cancels the engine context
 	cancel context.CancelFunc
 
-	// sessionOps channels for thread-safe session operations
-	addSessionCh    chan *Session
-	deleteSessionCh chan SessionID
-
-	// done signals when the engine has shut down
-	done chan struct{}
-
 	// stateTTL is the default TTL for island state
 	stateTTL time.Duration
 }
 
 // NewIslandEngine creates a new island engine with the given registry and state store.
-// The engine starts a session management goroutine that processes add/remove operations.
 func NewIslandEngine(ctx context.Context, registry *IslandRegistry, stateStore IslandStateStore) *IslandEngine {
 	engineCtx, cancel := context.WithCancel(ctx)
 
 	e := &IslandEngine{
-		registry:        registry,
-		stateStore:      stateStore,
-		sessions:        make(map[SessionID]*Session),
-		ctx:             engineCtx,
-		cancel:          cancel,
-		addSessionCh:    make(chan *Session, 16),
-		deleteSessionCh: make(chan SessionID, 16),
-		done:            make(chan struct{}),
-		stateTTL:        24 * time.Hour, // Default 24 hour TTL
+		registry:   registry,
+		stateStore: stateStore,
+		sessions:   make(map[SessionID]*Session),
+		ctx:        engineCtx,
+		cancel:     cancel,
+		stateTTL:   24 * time.Hour, // Default 24 hour TTL
 	}
-
-	// Start the session management goroutine
-	go e.sessionManager()
 
 	return e
-}
-
-// sessionManager is the main goroutine that handles session operations.
-// It processes add/delete operations via channels to ensure thread safety.
-func (e *IslandEngine) sessionManager() {
-	defer close(e.done)
-
-	for {
-		select {
-		case <-e.ctx.Done():
-			// Engine shutdown - close all sessions
-			e.mu.Lock()
-			for _, session := range e.sessions {
-				_ = session.Close()
-			}
-			e.sessions = make(map[SessionID]*Session)
-			e.mu.Unlock()
-			return
-
-		case session := <-e.addSessionCh:
-			e.mu.Lock()
-			e.sessions[session.ID] = session
-			e.mu.Unlock()
-
-		case sessionID := <-e.deleteSessionCh:
-			e.mu.Lock()
-			if session, ok := e.sessions[sessionID]; ok {
-				_ = session.Close()
-				delete(e.sessions, sessionID)
-				// Clean up all state for this session
-				e.stateStore.DeleteSession(sessionID)
-			}
-			e.mu.Unlock()
-		}
-	}
 }
 
 // AddSession registers a new session with the engine.
 // The session will be available for island mounting and event routing.
 func (e *IslandEngine) AddSession(session *Session) {
-	select {
-	case e.addSessionCh <- session:
-	case <-e.ctx.Done():
-		// Engine is shutting down
-	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.sessions[session.ID] = session
 }
 
 // GetSession retrieves a session by ID.
@@ -131,10 +81,14 @@ func (e *IslandEngine) GetSession(sessionID SessionID) (*Session, bool) {
 // - Removing all islands from the session
 // - Deleting all state from the state store
 func (e *IslandEngine) DeleteSession(sessionID SessionID) {
-	select {
-	case e.deleteSessionCh <- sessionID:
-	case <-e.ctx.Done():
-		// Engine is shutting down
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if session, ok := e.sessions[sessionID]; ok {
+		_ = session.Close()
+		delete(e.sessions, sessionID)
+		// Clean up all state for this session
+		e.stateStore.DeleteSession(sessionID)
 	}
 }
 
@@ -170,12 +124,17 @@ func (e *IslandEngine) MountIsland(sessionID SessionID, islandID IslandID, islan
 	session.AddIsland(instance)
 
 	// Save the initial state to the state store
-	e.stateStore.Set(sessionID, islandID, instance.State(), e.stateTTL)
+	e.mu.RLock()
+	ttl := e.stateTTL
+	e.mu.RUnlock()
+	e.stateStore.Set(sessionID, islandID, instance.State(), ttl)
 
 	// Render the island and send the initial patch to the client
 	if err := e.renderAndSendIsland(session, instance); err != nil {
 		// Non-fatal - the island is mounted but the client won't see the initial render
-		_ = err
+		slog.Debug("failed to render and send island on mount",
+			"island", instance.ID,
+			"err", err)
 	}
 
 	return instance, nil
@@ -243,7 +202,10 @@ func (e *IslandEngine) RouteEvent(sessionID SessionID, event Event) error {
 	}
 
 	// Save the updated state to the state store
-	e.stateStore.Set(sessionID, islandID, instance.State(), e.stateTTL)
+	e.mu.RLock()
+	ttl := e.stateTTL
+	e.mu.RUnlock()
+	e.stateStore.Set(sessionID, islandID, instance.State(), ttl)
 
 	// Re-render the island and send the patch to the client
 	if err := e.renderAndSendIsland(session, instance); err != nil {
@@ -256,22 +218,25 @@ func (e *IslandEngine) RouteEvent(sessionID SessionID, event Event) error {
 // renderAndSendIsland renders an island instance and sends a patch event to the client.
 // This is used both for initial mount and after state changes.
 func (e *IslandEngine) renderAndSendIsland(session *Session, instance *IslandInstance) error {
-	// Render the island
+	// Get the previous HTML from the instance BEFORE rendering
+	previousHTML := string(instance.lastRenderedHTML)
+
+	// Render the island (this will update instance.lastRenderedHTML with the new value)
 	html, err := RenderIsland(session.Context(), instance)
 	if err != nil {
 		return fmt.Errorf("render error: %w", err)
 	}
 
-	// Create a patch event with the rendered HTML
-	// The client will use the island ID to apply the patch to the correct element
-	patchData := map[string]any{
-		"island": instance.ID,
-		"html":   html,
+	// Compute patches using DiffIsland
+	patches, err := DiffIsland(IslandID(instance.ID), previousHTML, string(html))
+	if err != nil {
+		return fmt.Errorf("failed to compute diff: %w", err)
 	}
 
-	data, err := json.Marshal(patchData)
+	// Marshal the patches array (not a map with island/html)
+	data, err := json.Marshal(patches)
 	if err != nil {
-		return fmt.Errorf("failed to marshal patch data: %w", err)
+		return fmt.Errorf("failed to marshal patches: %w", err)
 	}
 
 	patchEvent := Event{
@@ -298,10 +263,11 @@ func (e *IslandEngine) BroadcastToIslandType(islandType string, event Event) {
 		instances := session.ListIslands()
 		for _, instance := range instances {
 			if instance.Type == islandType {
-				// Set the island field on the event
-				event.Island = instance.ID
+				// Create a copy of the event for this island to avoid shared Data slice mutation
+				eventCopy := event
+				eventCopy.Island = instance.ID
 				// Send the event to the session (non-blocking)
-				_ = session.Send(event)
+				_ = session.Send(eventCopy)
 			}
 		}
 	}
@@ -320,10 +286,11 @@ func (e *IslandEngine) BroadcastToIsland(islandID IslandID, event Event) {
 	// Iterate through all sessions and find matching islands
 	for _, session := range sessions {
 		if instance, ok := session.GetIsland(islandID); ok {
-			// Set the island field on the event
-			event.Island = instance.ID
+			// Create a copy of the event for this island to avoid shared Data slice mutation
+			eventCopy := event
+			eventCopy.Island = instance.ID
 			// Send the event to the session (non-blocking)
-			_ = session.Send(event)
+			_ = session.Send(eventCopy)
 		}
 	}
 }
@@ -331,16 +298,26 @@ func (e *IslandEngine) BroadcastToIsland(islandID IslandID, event Event) {
 // Close shuts down the engine gracefully.
 // It:
 // - Cancels the engine context
-// - Waits for the session manager to finish
 // - Closes all active sessions
+// - Clears the sessions map
 func (e *IslandEngine) Close() error {
 	e.cancel()
-	<-e.done
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, session := range e.sessions {
+		_ = session.Close()
+	}
+	e.sessions = make(map[SessionID]*Session)
+
 	return nil
 }
 
 // SetStateTTL sets the default TTL for island state in the state store.
 func (e *IslandEngine) SetStateTTL(ttl time.Duration) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.stateTTL = ttl
 }
 

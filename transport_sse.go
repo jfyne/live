@@ -31,7 +31,6 @@ type SSETransport struct {
 
 	// Event ID tracking for reconnection
 	lastEventID int
-	eventIDMu   sync.Mutex
 
 	// Context and cancellation
 	ctx    context.Context
@@ -43,6 +42,10 @@ type SSETransport struct {
 
 	// Write mutex protects concurrent writes to the SSE stream
 	writeMu sync.Mutex
+
+	// eventsMu protects the events channel from concurrent send/close operations
+	// receiveEvent takes a read lock, Close takes a write lock
+	eventsMu sync.RWMutex
 
 	// Heartbeat ticker for keepalive
 	heartbeatTicker *time.Ticker
@@ -115,10 +118,8 @@ func (t *SSETransport) Send(event Event) error {
 	defer t.writeMu.Unlock()
 
 	// Increment event ID
-	t.eventIDMu.Lock()
 	t.lastEventID++
 	eventID := t.lastEventID
-	t.eventIDMu.Unlock()
 
 	// Marshal event to JSON
 	data, err := json.Marshal(&event)
@@ -152,13 +153,20 @@ func (t *SSETransport) Events() <-chan Event {
 
 // Close terminates the SSE connection and cleans up resources.
 // It is safe to call Close multiple times.
+//
+// Shutdown ordering is critical for thread-safety:
+// 1. t.closed is closed first to signal all senders (receiveEvent) to stop
+// 2. eventsMu write lock is acquired before closing t.events
+// 3. t.events is closed under the write lock
+// This ensures receiveEvent (which holds a read lock) cannot send while Close closes the channel.
 func (t *SSETransport) Close() error {
 	var err error
 	t.closeOnce.Do(func() {
 		// Cancel the context to signal all goroutines to stop
 		t.cancel()
 
-		// Close the closed channel to signal that we're shutting down
+		// CRITICAL: Close the closed channel BEFORE closing t.events.
+		// This signals receiveEvent (called from POST handlers) to stop.
 		close(t.closed)
 
 		// Stop heartbeat ticker and wait for heartbeat goroutine to finish
@@ -173,12 +181,12 @@ func (t *SSETransport) Close() error {
 			}
 		}
 
-		// Close the events channel after a brief delay to allow pending events to be read
-		// This is done in a goroutine to avoid blocking
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			close(t.events)
-		}()
+		// Acquire write lock to prevent concurrent sends while closing the channel.
+		// receiveEvent holds a read lock while sending, so this ensures no sends
+		// can be in progress when we close t.events.
+		t.eventsMu.Lock()
+		close(t.events)
+		t.eventsMu.Unlock()
 	})
 	return err
 }
@@ -232,7 +240,26 @@ func (t *SSETransport) heartbeatPump() {
 
 // receiveEvent is called by the POST handler to deliver events from the client.
 // This is an internal method used to bridge the POST endpoint to the transport.
+//
+// Thread-safety: This method is safe to call concurrently with Close().
+// It acquires a read lock on eventsMu before sending to t.events, while Close()
+// acquires a write lock before closing t.events. This ensures that no sends can
+// happen while the channel is being closed, preventing "send on closed channel" panics.
 func (t *SSETransport) receiveEvent(event Event) error {
+	// First, check if transport is closed (non-blocking, no lock needed)
+	select {
+	case <-t.closed:
+		return fmt.Errorf("transport closed")
+	case <-t.ctx.Done():
+		return fmt.Errorf("transport context done")
+	default:
+	}
+
+	// Acquire read lock to prevent Close() from closing the channel while we send
+	t.eventsMu.RLock()
+	defer t.eventsMu.RUnlock()
+
+	// Double-check closed state after acquiring lock
 	select {
 	case <-t.closed:
 		return fmt.Errorf("transport closed")
@@ -329,13 +356,20 @@ func (f *SSETransportFactory) HandlePost(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Limit request body size
+	maxSize := f.config.MaxMessageSize
+	if maxSize <= 0 {
+		maxSize = 1 << 20 // 1MB default
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxSize)
+
 	// Read the event from the request body
+	defer r.Body.Close()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
 	// Parse the event
 	var event Event

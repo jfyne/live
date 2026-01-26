@@ -129,7 +129,7 @@ describe("ConnectionManager", () => {
     describe("Island Registration", () => {
         test("should register an island with handler", async () => {
             const handler = jest.fn();
-            manager.registerIsland("island-1", handler);
+            manager.registerIsland("island-1", "test", handler);
 
             // Wait for lazy connection
             await new Promise(resolve => setTimeout(resolve, 50));
@@ -142,8 +142,8 @@ describe("ConnectionManager", () => {
             const handler1 = jest.fn();
             const handler2 = jest.fn();
 
-            manager.registerIsland("island-1", handler1);
-            manager.registerIsland("island-2", handler2);
+            manager.registerIsland("island-1", "test", handler1);
+            manager.registerIsland("island-2", "test", handler2);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -154,7 +154,7 @@ describe("ConnectionManager", () => {
 
         test("should unregister an island", async () => {
             const handler = jest.fn();
-            manager.registerIsland("island-1", handler);
+            manager.registerIsland("island-1", "test", handler);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -169,20 +169,21 @@ describe("ConnectionManager", () => {
             await manager.connect();
 
             const handler = jest.fn();
-            manager.registerIsland("island-1", handler);
+            manager.registerIsland("island-1", "test", handler);
 
             // Check that subscription message was sent
             const subscribeMsg = mockTransport.sentMessages.find(
                 msg => msg.t === "subscribe" && msg.island === "island-1"
             );
             expect(subscribeMsg).toBeDefined();
+            expect(subscribeMsg.d).toEqual({ type: "test" });
         });
 
         test("should send unsubscription message on unregister when connected", async () => {
             await manager.connect();
 
             const handler = jest.fn();
-            manager.registerIsland("island-1", handler);
+            manager.registerIsland("island-1", "test", handler);
 
             mockTransport.sentMessages = []; // Clear previous messages
 
@@ -202,7 +203,7 @@ describe("ConnectionManager", () => {
 
         test("should connect automatically on first island registration", async () => {
             const handler = jest.fn();
-            manager.registerIsland("island-1", handler);
+            manager.registerIsland("island-1", "test", handler);
 
             // Wait for async connection
             await new Promise(resolve => setTimeout(resolve, 50));
@@ -214,12 +215,12 @@ describe("ConnectionManager", () => {
             const handler1 = jest.fn();
             const handler2 = jest.fn();
 
-            manager.registerIsland("island-1", handler1);
+            manager.registerIsland("island-1", "test", handler1);
             await new Promise(resolve => setTimeout(resolve, 50));
 
             mockNegotiate.mockClear();
 
-            manager.registerIsland("island-2", handler2);
+            manager.registerIsland("island-2", "test", handler2);
             await new Promise(resolve => setTimeout(resolve, 50));
 
             // negotiate should not be called again
@@ -232,8 +233,8 @@ describe("ConnectionManager", () => {
             const handler1 = jest.fn();
             const handler2 = jest.fn();
 
-            manager.registerIsland("island-1", handler1);
-            manager.registerIsland("island-2", handler2);
+            manager.registerIsland("island-1", "test", handler1);
+            manager.registerIsland("island-2", "test", handler2);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -262,8 +263,8 @@ describe("ConnectionManager", () => {
             const handler1 = jest.fn();
             const handler2 = jest.fn();
 
-            manager.registerIsland("island-1", handler1);
-            manager.registerIsland("island-2", handler2);
+            manager.registerIsland("island-1", "test", handler1);
+            manager.registerIsland("island-2", "test", handler2);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -292,7 +293,7 @@ describe("ConnectionManager", () => {
 
         test("should ignore messages for unregistered islands", async () => {
             const handler = jest.fn();
-            manager.registerIsland("island-1", handler);
+            manager.registerIsland("island-1", "test", handler);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -315,7 +316,7 @@ describe("ConnectionManager", () => {
 
         test("should ignore non-patch messages", async () => {
             const handler = jest.fn();
-            manager.registerIsland("island-1", handler);
+            manager.registerIsland("island-1", "test", handler);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -330,7 +331,7 @@ describe("ConnectionManager", () => {
 
         test("should warn on patch messages without island field", async () => {
             const handler = jest.fn();
-            manager.registerIsland("island-1", handler);
+            manager.registerIsland("island-1", "test", handler);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -356,8 +357,8 @@ describe("ConnectionManager", () => {
             });
             const okHandler = jest.fn();
 
-            manager.registerIsland("island-error", errorHandler);
-            manager.registerIsland("island-ok", okHandler);
+            manager.registerIsland("island-error", "test", errorHandler);
+            manager.registerIsland("island-ok", "test", okHandler);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -392,8 +393,8 @@ describe("ConnectionManager", () => {
             const handler1 = jest.fn();
             const handler2 = jest.fn();
 
-            manager.registerIsland("island-1", handler1);
-            manager.registerIsland("island-2", handler2);
+            manager.registerIsland("island-1", "test", handler1);
+            manager.registerIsland("island-2", "test", handler2);
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -471,7 +472,7 @@ describe("ConnectionManager", () => {
     describe("Unregister During Disconnected State", () => {
         test("should allow unregister when disconnected", () => {
             const handler = jest.fn();
-            manager.registerIsland("island-1", handler);
+            manager.registerIsland("island-1", "test", handler);
 
             // Don't connect, just unregister immediately
             manager.unregisterIsland("island-1");
@@ -482,7 +483,7 @@ describe("ConnectionManager", () => {
 
         test("should not send unsubscribe message when disconnected", () => {
             const handler = jest.fn();
-            manager.registerIsland("island-1", handler);
+            manager.registerIsland("island-1", "test", handler);
 
             // Unregister before connection is established
             manager.unregisterIsland("island-1");

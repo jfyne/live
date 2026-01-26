@@ -33,6 +33,9 @@ type IslandInstance struct {
 
 	// mounted tracks whether the instance has been mounted.
 	mounted bool
+
+	// lastRenderedHTML stores the last rendered HTML for diffing.
+	lastRenderedHTML template.HTML
 }
 
 // NewIslandInstance creates a new island instance with the given ID, type, and props.
@@ -129,7 +132,14 @@ func (i *IslandInstance) Render(ctx context.Context) (template.HTML, error) {
 		return "", err
 	}
 
-	return template.HTML(content), nil
+	result := template.HTML(content)
+
+	// Store the rendered HTML for diffing
+	i.mu.Lock()
+	i.lastRenderedHTML = result
+	i.mu.Unlock()
+
+	return result, nil
 }
 
 // Unmount cleans up the island instance by calling the island's unmount handler.

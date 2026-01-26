@@ -127,12 +127,7 @@ func (t *WebSocketTransport) Close() error {
 			err = fmt.Errorf("close websocket: %w", closeErr)
 		}
 
-		// Close the events channel after a brief delay to allow pending events to be read
-		// This is done in a goroutine to avoid blocking
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			close(t.events)
-		}()
+		// Note: t.events is closed by readPump via defer to avoid race conditions
 	})
 	return err
 }
@@ -140,6 +135,7 @@ func (t *WebSocketTransport) Close() error {
 // readPump continuously reads messages from the WebSocket connection
 // and forwards them to the events channel.
 func (t *WebSocketTransport) readPump() {
+	defer close(t.events)
 	defer func() {
 		// Ensure we close the transport if the read loop exits
 		t.Close()
@@ -155,13 +151,15 @@ func (t *WebSocketTransport) readPump() {
 		}
 
 		ctx := t.ctx
+		var cancel context.CancelFunc
 		if t.config.ReadTimeout > 0 {
-			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(ctx, t.config.ReadTimeout)
-			defer cancel()
 		}
 
 		msgType, data, err := t.conn.Read(ctx)
+		if cancel != nil {
+			cancel()
+		}
 		if err != nil {
 			// Check if this is a normal closure
 			if errors.Is(err, context.Canceled) {
@@ -225,13 +223,17 @@ func (t *WebSocketTransport) pingPump() {
 		select {
 		case <-ticker.C:
 			ctx := t.ctx
+			var cancel context.CancelFunc
 			if t.config.PongTimeout > 0 {
-				var cancel context.CancelFunc
 				ctx, cancel = context.WithTimeout(ctx, t.config.PongTimeout)
-				defer cancel()
 			}
 
-			if err := t.conn.Ping(ctx); err != nil {
+			err := t.conn.Ping(ctx)
+			if cancel != nil {
+				cancel()
+			}
+
+			if err != nil {
 				slog.Debug("ping failed, closing connection", "err", err)
 				t.Close()
 				return

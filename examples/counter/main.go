@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -250,7 +251,11 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		tmpl.Execute(w, counters)
+		if err := tmpl.Execute(w, counters); err != nil {
+			slog.Error("failed to execute template", "err", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 	})
 
 	// Serve the custom island script

@@ -60,6 +60,9 @@ func newIslandAnchorGenerator(islandID string) islandAnchorGenerator {
 func (n anchorGenerator) inc() anchorGenerator {
 	o := make([]int, len(n.idx))
 	copy(o, n.idx)
+	if len(o) == 0 {
+		o = []int{0}
+	}
 	o[len(o)-1]++
 	return anchorGenerator{idx: o}
 }
@@ -88,6 +91,9 @@ func (n anchorGenerator) String() string {
 func (n islandAnchorGenerator) inc() islandAnchorGenerator {
 	o := make([]int, len(n.idx))
 	copy(o, n.idx)
+	if len(o) == 0 {
+		o = []int{0}
+	}
 	o[len(o)-1]++
 	return islandAnchorGenerator{islandID: n.islandID, idx: o}
 }

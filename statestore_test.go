@@ -461,3 +461,45 @@ func TestMemoryIslandStateStore_UpdateState(t *testing.T) {
 		t.Error("Expected state to be updated")
 	}
 }
+
+// TestMemoryIslandStateStore_InvalidCleanupInterval tests that zero/negative cleanup intervals are handled.
+func TestMemoryIslandStateStore_InvalidCleanupInterval(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	testCases := []struct {
+		name     string
+		interval time.Duration
+	}{
+		{"zero interval", 0},
+		{"negative interval", -1 * time.Second},
+		{"large negative interval", -10 * time.Minute},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// This should not panic.
+			store := NewMemoryIslandStateStore(ctx, tc.interval)
+
+			// Verify the store was created successfully.
+			if store == nil {
+				t.Fatal("Expected store to be created")
+			}
+
+			// Verify the cleanup interval was set to the default (1 minute).
+			if store.cleanupInterval != 1*time.Minute {
+				t.Errorf("Expected cleanupInterval to be 1 minute, got %v", store.cleanupInterval)
+			}
+
+			// Verify basic operations work.
+			sessionID := SessionID("session-1")
+			islandID := IslandID("island-1")
+			store.Set(sessionID, islandID, "test", 1*time.Minute)
+
+			retrieved, ok := store.Get(sessionID, islandID)
+			if !ok || retrieved != "test" {
+				t.Error("Expected basic store operations to work with corrected cleanup interval")
+			}
+		})
+	}
+}

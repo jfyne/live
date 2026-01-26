@@ -12,6 +12,7 @@ export type IslandHandler = (patch: IslandPatch) => void;
  */
 interface IslandRegistration {
     handler: IslandHandler;
+    type: string;
 }
 
 /**
@@ -48,13 +49,14 @@ export class ConnectionManager {
      * Register an island to receive messages.
      * If this is the first island, connection is established lazily.
      * @param islandId - Unique identifier for the island
+     * @param islandType - Type of the island (e.g., 'counter', 'chat')
      * @param handler - Function to call when patches arrive for this island
      */
-    registerIsland(islandId: string, handler: IslandHandler): void {
+    registerIsland(islandId: string, islandType: string, handler: IslandHandler): void {
         console.debug(`ConnectionManager: registering island ${islandId}`);
 
         // Store island registration
-        this.islands.set(islandId, { handler });
+        this.islands.set(islandId, { handler, type: islandType });
 
         // Lazy connection: connect on first island registration
         if (this.islands.size === 1 && !this.transport) {
@@ -63,7 +65,7 @@ export class ConnectionManager {
             });
         } else if (this.transport && this.transport.getState() === ConnectionState.Connected) {
             // If already connected, send subscription for this island
-            this.subscribeIsland(islandId);
+            this.subscribeIsland(islandId, islandType);
         }
     }
 
@@ -196,8 +198,9 @@ export class ConnectionManager {
     /**
      * Send subscription message for a specific island.
      * @param islandId - Island to subscribe
+     * @param islandType - Type of the island (e.g., 'counter', 'chat')
      */
-    private subscribeIsland(islandId: string): void {
+    private subscribeIsland(islandId: string, islandType: string): void {
         if (!this.transport || this.transport.getState() !== ConnectionState.Connected) {
             console.debug(`ConnectionManager: cannot subscribe ${islandId}, not connected`);
             return;
@@ -207,6 +210,7 @@ export class ConnectionManager {
         const subscribeMessage: TransportMessage = {
             t: "subscribe",
             island: islandId,
+            d: { type: islandType },
         };
 
         this.transport.send(subscribeMessage);
@@ -243,8 +247,8 @@ export class ConnectionManager {
 
         console.debug(`ConnectionManager: re-subscribing ${this.islands.size} islands`);
 
-        for (const islandId of this.islands.keys()) {
-            this.subscribeIsland(islandId);
+        for (const [islandId, registration] of this.islands.entries()) {
+            this.subscribeIsland(islandId, registration.type);
         }
     }
 

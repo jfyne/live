@@ -1,4 +1,4 @@
-import { Transport, ConnectionState } from "./transport";
+import { Transport } from "./transport";
 import { WebSocketTransport } from "./websocket";
 import { SSETransport } from "./sse";
 
@@ -26,6 +26,12 @@ export interface NegotiatorConfig {
      * [WebSocket, SSE, Polling]
      */
     fallbackOrder?: TransportType[];
+
+    /**
+     * Custom WebSocket endpoint path.
+     * Default: "/ws"
+     */
+    wsEndpoint?: string;
 
     /**
      * Custom SSE endpoint path.
@@ -79,6 +85,7 @@ export class TransportNegotiator {
                 TransportType.WebSocket,
                 TransportType.SSE,
             ],
+            wsEndpoint: config?.wsEndpoint ?? "/ws",
             sseEndpoint: config?.sseEndpoint ?? "/live/sse",
             postEndpoint: config?.postEndpoint ?? "/live/post",
         };
@@ -171,7 +178,9 @@ export class TransportNegotiator {
     private createTransport(type: TransportType): Transport {
         switch (type) {
             case TransportType.WebSocket:
-                return new WebSocketTransport();
+                return new WebSocketTransport({
+                    wsEndpoint: this.config.wsEndpoint,
+                });
 
             case TransportType.SSE:
                 return new SSETransport({

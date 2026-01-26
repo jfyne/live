@@ -123,6 +123,10 @@
                 if (message.t === 'patch' && message.island) {
                     const island = document.getElementById(message.island);
                     if (island && message.d && message.d.html) {
+                        // SECURITY: HTML comes from trusted server. The server must sanitize
+                        // any user-controlled data before including it in the render output.
+                        // This is inherent to server-rendered frameworks where the server is
+                        // the trusted authority for page content.
                         island.innerHTML = message.d.html;
                         console.log('Updated island:', message.island);
                     }

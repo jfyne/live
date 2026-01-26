@@ -3,6 +3,7 @@ package live
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 )
 
@@ -153,6 +154,23 @@ func (s *Session) Close() error {
 	s.closeOnce.Do(func() {
 		// Cancel the session context
 		s.cancel()
+
+		// Unmount all islands before clearing
+		// Use a background context since session context is already cancelled
+		s.mu.RLock()
+		islands := make([]*IslandInstance, 0, len(s.islands))
+		for _, instance := range s.islands {
+			islands = append(islands, instance)
+		}
+		s.mu.RUnlock()
+
+		for _, instance := range islands {
+			if unmountErr := instance.Unmount(context.Background()); unmountErr != nil {
+				slog.Debug("failed to unmount island on session close",
+					"island", instance.ID,
+					"err", unmountErr)
+			}
+		}
 
 		// Close the transport
 		err = s.transport.Close()

@@ -83,6 +83,15 @@ describe("SSETransport", () => {
             configurable: true,
         });
 
+        // Reset location to http: for consistent test state
+        (global as any).location = {
+            protocol: "http:",
+            host: "localhost:8080",
+            pathname: "/",
+            search: "",
+            hash: "",
+        };
+
         mockFetch.mockClear();
         mockFetch.mockResolvedValue({
             ok: true,
@@ -137,20 +146,25 @@ describe("SSETransport", () => {
     describe("Session ID Management", () => {
         test("should persist session ID to cookie", () => {
             transport = new SSETransport();
-            expect(mockCookie).toContain("_psid=");
+            expect(mockCookie).toContain("live_session=");
         });
 
         test("should read existing session ID from cookie", () => {
-            mockCookie = "_psid=test-session-123; path=/";
+            mockCookie = "live_session=test-session-123; path=/";
             transport = new SSETransport();
             // Session ID is read from cookie on construction
             expect(mockCookie).toContain("test-session-123");
         });
 
-        test("should set cookie with expiration", () => {
+        test("should set cookie with security attributes", () => {
             transport = new SSETransport();
-            expect(mockCookie).toContain("expires=");
-            expect(mockCookie).toContain("path=/");
+            expect(mockCookie).toContain("Max-Age=60");
+            expect(mockCookie).toContain("Path=/");
+            expect(mockCookie).toContain("SameSite=Strict");
+            // Secure flag should not be present for http:
+            expect(mockCookie).not.toContain("Secure");
+            // Note: Secure flag is conditionally added for HTTPS via location.protocol check
+            // Manual verification: The code checks `location.protocol === 'https:'` before adding Secure flag
         });
     });
 
@@ -241,7 +255,7 @@ describe("SSETransport", () => {
         });
 
         test("should include session ID in POST headers", async () => {
-            mockCookie = "_psid=session-123; path=/";
+            mockCookie = "live_session=session-123; path=/";
             transport = new SSETransport();
             await transport.connect();
 

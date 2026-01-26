@@ -1,0 +1,3762 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>live: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/jfyne/live/context.go (0.0%)</option>
+				
+				<option value="file1">github.com/jfyne/live/diff.go (91.6%)</option>
+				
+				<option value="file2">github.com/jfyne/live/engine.go (72.6%)</option>
+				
+				<option value="file3">github.com/jfyne/live/event.go (66.7%)</option>
+				
+				<option value="file4">github.com/jfyne/live/examples/counter/main.go (0.0%)</option>
+				
+				<option value="file5">github.com/jfyne/live/http.go (0.0%)</option>
+				
+				<option value="file6">github.com/jfyne/live/instance.go (92.2%)</option>
+				
+				<option value="file7">github.com/jfyne/live/island.go (100.0%)</option>
+				
+				<option value="file8">github.com/jfyne/live/javascript.go (0.0%)</option>
+				
+				<option value="file9">github.com/jfyne/live/params.go (91.8%)</option>
+				
+				<option value="file10">github.com/jfyne/live/registry.go (100.0%)</option>
+				
+				<option value="file11">github.com/jfyne/live/render.go (85.7%)</option>
+				
+				<option value="file12">github.com/jfyne/live/session.go (92.2%)</option>
+				
+				<option value="file13">github.com/jfyne/live/statestore.go (100.0%)</option>
+				
+				<option value="file14">github.com/jfyne/live/transport.go (100.0%)</option>
+				
+				<option value="file15">github.com/jfyne/live/transport_endpoints.go (4.9%)</option>
+				
+				<option value="file16">github.com/jfyne/live/transport_sse.go (74.2%)</option>
+				
+				<option value="file17">github.com/jfyne/live/transport_websocket.go (85.3%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package live
+
+import (
+        "context"
+        "net/http"
+)
+
+type contextKey string
+
+const (
+        requestKey contextKey = "context_request"
+        writerKey  contextKey = "context_writer"
+)
+
+// contextWithRequest embed the initiating request within the context.
+func contextWithRequest(ctx context.Context, r *http.Request) context.Context <span class="cov0" title="0">{
+        return context.WithValue(ctx, requestKey, r)
+}</span>
+
+// Request extracts the original HTTP request from a context.
+// This is useful in island handlers to access request headers, cookies, or other
+// HTTP metadata.
+//
+// Returns nil if no request is stored in the context.
+func Request(ctx context.Context) *http.Request <span class="cov0" title="0">{
+        data := ctx.Value(requestKey)
+        r, ok := data.(*http.Request)
+        if !ok </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">return r</span>
+}
+
+// contextWithWriter embed the response writer within the context.
+func contextWithWriter(ctx context.Context, w http.ResponseWriter) context.Context <span class="cov0" title="0">{
+        return context.WithValue(ctx, writerKey, w)
+}</span>
+
+// Writer extracts the HTTP response writer from a context.
+// This is useful in island handlers to write headers or perform HTTP-specific operations.
+//
+// Returns nil if no writer is stored in the context.
+func Writer(ctx context.Context) http.ResponseWriter <span class="cov0" title="0">{
+        data := ctx.Value(writerKey)
+        w, ok := data.(http.ResponseWriter)
+        if !ok </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">return w</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package live
+
+import (
+        "bytes"
+        "fmt"
+        "log/slog"
+        "strings"
+
+        "github.com/google/go-cmp/cmp"
+        "golang.org/x/net/html"
+)
+
+const _debug = false
+
+// LiveRendered is an attribute key that indicates a DOM has been rendered by live.
+// The live client JavaScript checks for this attribute to determine if it should
+// attempt to connect to the server.
+const LiveRendered = "live-rendered"
+
+// liveAnchorPrefix prefixes injected anchors.
+const liveAnchorPrefix = "_l"
+const islandAnchorPrefix = "_i"
+const liveAnchorSep = -1
+
+// PatchAction defines the type of modification a patch will perform on the DOM.
+type PatchAction uint32
+
+// Patch actions define how the client should apply DOM updates.
+const (
+        // Noop indicates no action should be taken for this patch.
+        Noop PatchAction = iota
+        // Replace indicates the target node should be replaced with new content.
+        Replace
+        // Append indicates new content should be appended to the target node's children.
+        Append
+        // Prepend indicates new content should be prepended to the target node's children.
+        Prepend
+)
+
+// anchorGenerator generates an ID for a node in the tree.
+type anchorGenerator struct {
+        idx []int
+}
+
+func newAnchorGenerator() anchorGenerator <span class="cov5" title="50">{
+        return anchorGenerator{idx: []int{}}
+}</span>
+
+// islandAnchorGenerator generates island-scoped IDs for nodes in the tree.
+type islandAnchorGenerator struct {
+        islandID string
+        idx      []int
+}
+
+func newIslandAnchorGenerator(islandID string) islandAnchorGenerator <span class="cov6" title="176">{
+        return islandAnchorGenerator{islandID: islandID, idx: []int{}}
+}</span>
+
+// inc increment the current index.
+func (n anchorGenerator) inc() anchorGenerator <span class="cov6" title="118">{
+        o := make([]int, len(n.idx))
+        copy(o, n.idx)
+        o[len(o)-1]++
+        return anchorGenerator{idx: o}
+}</span>
+
+// level increase the depth.
+func (n anchorGenerator) level() anchorGenerator <span class="cov6" title="258">{
+        o := make([]int, len(n.idx))
+        copy(o, n.idx)
+        o = append(o, liveAnchorSep, 0)
+        return anchorGenerator{idx: o}
+}</span>
+
+func (n anchorGenerator) String() string <span class="cov7" title="426">{
+        out := liveAnchorPrefix
+        for _, i := range n.idx </span><span class="cov9" title="2224">{
+                if i == liveAnchorSep </span><span class="cov8" title="1112">{
+                        out += "_"
+                }</span> else<span class="cov8" title="1112"> {
+                        out += fmt.Sprintf("%d", i)
+                }</span>
+        }
+        <span class="cov7" title="426">return out</span>
+}
+
+// inc increment the current index.
+func (n islandAnchorGenerator) inc() islandAnchorGenerator <span class="cov7" title="275">{
+        o := make([]int, len(n.idx))
+        copy(o, n.idx)
+        o[len(o)-1]++
+        return islandAnchorGenerator{islandID: n.islandID, idx: o}
+}</span>
+
+// level increase the depth.
+func (n islandAnchorGenerator) level() islandAnchorGenerator <span class="cov8" title="937">{
+        o := make([]int, len(n.idx))
+        copy(o, n.idx)
+        o = append(o, liveAnchorSep, 0)
+        return islandAnchorGenerator{islandID: n.islandID, idx: o}
+}</span>
+
+func (n islandAnchorGenerator) String() string <span class="cov8" title="1155">{
+        out := islandAnchorPrefix + "_" + n.islandID
+        for _, i := range n.idx </span><span class="cov10" title="4414">{
+                if i == liveAnchorSep </span><span class="cov9" title="2207">{
+                        out += "_"
+                }</span> else<span class="cov9" title="2207"> {
+                        out += fmt.Sprintf("%d", i)
+                }</span>
+        }
+        <span class="cov8" title="1155">return out</span>
+}
+
+// Patch represents a DOM modification to be applied on the client side.
+// Each patch targets a specific anchor point in the DOM and contains
+// the HTML content and action to perform.
+type Patch struct {
+        // Anchor is the DOM element identifier where this patch should be applied.
+        // Anchors are generated automatically during rendering and use the format
+        // "_l" for page-level patches or "_i_&lt;islandID&gt;" for island-scoped patches.
+        Anchor string
+
+        // Action specifies how to apply the HTML content (Replace, Append, Prepend, or Noop).
+        Action PatchAction
+
+        // HTML is the HTML content to apply at the anchor point.
+        HTML string
+
+        // IslandID optionally identifies which island this patch belongs to.
+        // This is used for routing patches in multi-island scenarios.
+        IslandID string `json:"island_id,omitempty"`
+}
+
+func (p Patch) String() string <span class="cov5" title="92">{
+        action := ""
+        switch p.Action </span>{
+        case Noop:<span class="cov1" title="2">
+                action = "NO"</span>
+        case Replace:<span class="cov5" title="64">
+                action = "RE"</span>
+        case Append:<span class="cov4" title="24">
+                action = "AP"</span>
+        case Prepend:<span class="cov1" title="2">
+                action = "PR"</span>
+        }
+
+        <span class="cov5" title="92">return fmt.Sprintf("%s %s %s", p.Anchor, action, p.HTML)</span>
+}
+
+// IslandPatch associates a set of patches with a specific island ID.
+// This wrapper enables routing patches to the correct island instance
+// when multiple islands exist on the same page.
+type IslandPatch struct {
+        IslandID IslandID `json:"island_id"`
+        Patches  []Patch  `json:"patches"`
+}
+
+// NewIslandPatch creates an IslandPatch wrapper with the given island ID.
+// It automatically sets the IslandID field on each patch for consistency.
+func NewIslandPatch(islandID IslandID, patches []Patch) IslandPatch <span class="cov1" title="1">{
+        // Set the IslandID on each patch
+        for i := range patches </span><span class="cov2" title="3">{
+                patches[i].IslandID = string(islandID)
+        }</span>
+        <span class="cov1" title="1">return IslandPatch{
+                IslandID: islandID,
+                Patches:  patches,
+        }</span>
+}
+
+// Diff compares two HTML node trees and generates a minimal set of patches
+// to transform the current tree into the proposed tree.
+//
+// The function automatically anchors both trees before comparing them,
+// ensuring each significant node has a unique identifier for precise targeting.
+//
+// This is the page-level diff function. For island-scoped diffs, use DiffIsland.
+func Diff(current, proposed *html.Node) ([]Patch, error) <span class="cov4" title="25">{
+        patches := diffTrees(current, proposed)
+        output := make([]Patch, len(patches))
+
+        for idx, p := range patches </span><span class="cov5" title="47">{
+                var buf bytes.Buffer
+                if p.Node != nil </span><span class="cov4" title="39">{
+                        if err := html.Render(&amp;buf, p.Node); err != nil </span><span class="cov0" title="0">{
+                                return nil, fmt.Errorf("failed to render patch: %w", err)
+                        }</span>
+                } else<span class="cov3" title="8"> {
+                        if _, err := buf.WriteString(""); err != nil </span><span class="cov0" title="0">{
+                                return nil, fmt.Errorf("failed to render blank patch: %w", err)
+                        }</span>
+                }
+
+                <span class="cov5" title="47">output[idx] = Patch{
+                        Anchor: p.Anchor,
+                        //Path:   p.Path[2:],
+                        Action: p.Action,
+                        HTML:   buf.String(),
+                }</span>
+        }
+
+        <span class="cov4" title="25">return output, nil</span>
+}
+
+// DiffIsland compares two HTML strings within an island scope and returns patches
+// with the island ID set. The proposed HTML is parsed and anchored with island-scoped
+// anchors before diffing.
+func DiffIsland(islandID IslandID, current, proposed string) ([]Patch, error) <span class="cov5" title="88">{
+        // Parse current HTML
+        currentNode, err := html.Parse(strings.NewReader(current))
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to parse current HTML: %w", err)
+        }</span>
+        <span class="cov5" title="88">shapeTree(currentNode)
+
+        // Parse proposed HTML
+        proposedNode, err := html.Parse(strings.NewReader(proposed))
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to parse proposed HTML: %w", err)
+        }</span>
+        <span class="cov5" title="88">shapeTree(proposedNode)
+
+        // Anchor both trees with island-scoped anchors
+        idGen := newIslandAnchorGenerator(string(islandID))
+        anchorIslandTree(currentNode, idGen)
+        anchorIslandTree(proposedNode, idGen)
+
+        // Perform the diff
+        patches := diffIslandTrees(currentNode, proposedNode, string(islandID))
+
+        // Convert internal patches to output patches
+        output := make([]Patch, len(patches))
+        for idx, p := range patches </span><span class="cov5" title="87">{
+                var buf bytes.Buffer
+                if p.Node != nil </span><span class="cov5" title="86">{
+                        if err := html.Render(&amp;buf, p.Node); err != nil </span><span class="cov0" title="0">{
+                                return nil, fmt.Errorf("failed to render patch: %w", err)
+                        }</span>
+                } else<span class="cov1" title="1"> {
+                        if _, err := buf.WriteString(""); err != nil </span><span class="cov0" title="0">{
+                                return nil, fmt.Errorf("failed to render blank patch: %w", err)
+                        }</span>
+                }
+
+                <span class="cov5" title="87">output[idx] = Patch{
+                        Anchor:   p.Anchor,
+                        Action:   p.Action,
+                        HTML:     buf.String(),
+                        IslandID: string(islandID),
+                }</span>
+        }
+
+        <span class="cov5" title="88">return output, nil</span>
+}
+
+// anchorIslandTree anchors a tree with island-scoped anchor attributes.
+func anchorIslandTree(root *html.Node, id islandAnchorGenerator) <span class="cov8" title="1438">{
+        // Check siblings first
+        if root.NextSibling != nil </span><span class="cov6" title="263">{
+                anchorIslandTree(root.NextSibling, id.inc())
+        }</span>
+        // Then children
+        <span class="cov8" title="1438">if root.FirstChild != nil </span><span class="cov8" title="921">{
+                anchorIslandTree(root.FirstChild, id.level())
+        }</span>
+
+        // Add anchor if node is relevant and doesn't have one
+        <span class="cov8" title="1438">if nodeRelevant(root) &amp;&amp; !hasAnchor(root) </span><span class="cov8" title="1144">{
+                root.Attr = append(root.Attr, html.Attribute{Key: id.String()})
+        }</span>
+}
+
+// diffIslandTrees compares two html Nodes within an island scope and outputs patches.
+func diffIslandTrees(current, proposed *html.Node, islandID string) []patch <span class="cov5" title="88">{
+        d := &amp;differ{}
+        // Trees are already anchored by caller
+        return d.compareNodes(current, proposed, "")
+}</span>
+
+// patch describes how to modify a dom.
+type patch struct {
+        Anchor string
+        Action PatchAction
+        Node   *html.Node
+}
+
+// differ handles state for recursive diffing.
+type differ struct {
+        // `live-update` handler.
+        updateNode     *html.Node
+        updateModifier PatchAction
+}
+
+// diffTrees compares two html Nodes and outputs patches.
+func diffTrees(current, proposed *html.Node) []patch <span class="cov4" title="25">{
+        d := &amp;differ{}
+        anchorTree(current, newAnchorGenerator())
+        anchorTree(proposed, newAnchorGenerator())
+        return d.compareNodes(current, proposed, "")
+}</span>
+
+func anchorTree(root *html.Node, id anchorGenerator) <span class="cov7" title="426">{
+        // Check this node.
+        if root.NextSibling != nil </span><span class="cov6" title="118">{
+                anchorTree(root.NextSibling, id.inc())
+        }</span>
+        <span class="cov7" title="426">if root.FirstChild != nil </span><span class="cov6" title="258">{
+                anchorTree(root.FirstChild, id.level())
+        }</span>
+
+        <span class="cov7" title="426">if nodeRelevant(root) &amp;&amp; !hasAnchor(root) </span><span class="cov7" title="426">{
+                root.Attr = append(root.Attr, html.Attribute{Key: id.String()})
+        }</span>
+}
+
+func shapeTree(root *html.Node) <span class="cov9" title="1964">{
+        // Check this node.
+        if root.NextSibling != nil </span><span class="cov7" title="478">{
+                shapeTree(root.NextSibling)
+        }</span>
+        <span class="cov9" title="1964">if root.FirstChild != nil </span><span class="cov8" title="1182">{
+                shapeTree(root.FirstChild)
+        }</span>
+
+        // Live is rendering this DOM tree so indicate that it has done so
+        // so that the client side knows to attempt to connect.
+        <span class="cov9" title="1964">if root.Type == html.ElementNode &amp;&amp; root.Data == "body" </span><span class="cov7" title="304">{
+                if !hasAttr(root, LiveRendered) </span><span class="cov6" title="233">{
+                        root.Attr = append(root.Attr, html.Attribute{Key: LiveRendered})
+                }</span>
+        }
+
+        <span class="cov9" title="1964">debugNodeLog("checking", root)
+        if !nodeRelevant(root) </span><span class="cov5" title="93">{
+                if root.Parent != nil </span><span class="cov5" title="93">{
+                        debugNodeLog("removingNode", root)
+                        root.Parent.RemoveChild(root)
+                }</span>
+        }
+}
+
+func hasAnchor(node *html.Node) bool <span class="cov9" title="1869">{
+        for _, a := range node.Attr </span><span class="cov8" title="689">{
+                // Check for exact prefix matches: _l or _i followed by _ or end of string
+                if strings.HasPrefix(a.Key, liveAnchorPrefix+"_") ||
+                        strings.HasPrefix(a.Key, islandAnchorPrefix+"_") ||
+                        a.Key == liveAnchorPrefix ||
+                        a.Key == islandAnchorPrefix </span><span class="cov7" title="297">{
+                        return true
+                }</span>
+        }
+        <span class="cov8" title="1572">return false</span>
+}
+
+func hasAttr(node *html.Node, key string) bool <span class="cov7" title="304">{
+        for _, a := range node.Attr </span><span class="cov5" title="71">{
+                if a.Key == key </span><span class="cov5" title="71">{
+                        return true
+                }</span>
+        }
+        <span class="cov6" title="233">return false</span>
+}
+
+func (d *differ) compareNodes(oldNode, newNode *html.Node, parentAnchor string) []patch <span class="cov8" title="685">{
+        debugNodeLog("compareNodes oldNode", oldNode)
+        debugNodeLog("compareNodes newNode", newNode)
+        patches := []patch{}
+
+        // Same so no patch.
+        if oldNode == nil &amp;&amp; newNode == nil </span><span class="cov0" title="0">{
+                return patches
+        }</span>
+
+        // If oldNode is nothing we need to append the new node.
+        <span class="cov8" title="685">if oldNode == nil </span><span class="cov5" title="75">{
+                if !nodeRelevant(newNode) </span><span class="cov0" title="0">{
+                        return []patch{}
+                }</span>
+                <span class="cov5" title="75">return append(
+                        patches,
+                        d.generatePatch(newNode, parentAnchor, Append),
+                )</span>
+        }
+
+        // If newNode does not exist, we need to patch a removal.
+        <span class="cov7" title="610">if newNode == nil </span><span class="cov3" title="9">{
+                if !nodeRelevant(oldNode) </span><span class="cov0" title="0">{
+                        return []patch{}
+                }</span>
+                <span class="cov3" title="9">return append(patches, d.generatePatch(newNode, findAnchor(oldNode), Replace))</span>
+        }
+
+        // Check for `live-update` modifiers.
+        <span class="cov7" title="601">d.liveUpdateCheck(newNode)
+
+        // If nodes at this position are not equal patch a replacement.
+        if !nodeEqual(oldNode, newNode) </span><span class="cov5" title="50">{
+                return append(patches, d.generatePatch(newNode, parentAnchor, Replace))
+        }</span>
+
+        <span class="cov7" title="551">newChildren := generateNodeList(newNode.FirstChild)
+        oldChildren := generateNodeList(oldNode.FirstChild)
+
+        for i := 0; i &lt; len(newChildren) || i &lt; len(oldChildren); i++ </span><span class="cov7" title="572">{
+                if i &gt;= len(newChildren) </span><span class="cov3" title="9">{
+                        patches = append(patches, d.compareNodes(oldChildren[i], nil, findAnchor(oldNode))...)
+                }</span> else<span class="cov7" title="563"> if i &gt;= len(oldChildren) </span><span class="cov5" title="75">{
+                        patches = append(patches, d.compareNodes(nil, newChildren[i], findAnchor(oldNode))...)
+                }</span> else<span class="cov7" title="488"> {
+                        patches = append(patches, d.compareNodes(oldChildren[i], newChildren[i], findAnchor(oldNode))...)
+                }</span>
+        }
+
+        <span class="cov7" title="551">return patches</span>
+}
+
+func (d *differ) generatePatch(node *html.Node, target string, action PatchAction) patch <span class="cov6" title="134">{
+        if node == nil </span><span class="cov3" title="9">{
+                return patch{
+                        Anchor: d.patchAnchor(target),
+                        Action: d.patchAction(action),
+                        Node:   nil,
+                }
+        }</span>
+        <span class="cov6" title="125">debugNodeLog("generatePatch", node)
+        switch </span>{
+        case node.Type == html.TextNode:<span class="cov4" title="33">
+                return patch{
+                        Anchor: d.patchAnchor(target),
+                        Action: d.patchAction(action),
+                        Node:   node.Parent,
+                }</span>
+        case action == Append:<span class="cov5" title="75">
+                return patch{
+                        Anchor: d.patchAnchor(target),
+                        Action: d.patchAction(action),
+                        Node:   node,
+                }</span>
+        default:<span class="cov4" title="17">
+                return patch{
+                        Anchor: d.patchAnchor(findAnchor(node)),
+                        Action: d.patchAction(action),
+                        Node:   node,
+                }</span>
+        }
+}
+
+func findAnchor(node *html.Node) string <span class="cov7" title="603">{
+        for _, a := range node.Attr </span><span class="cov8" title="769">{
+                // Check for both live and island anchors
+                if strings.HasPrefix(a.Key, liveAnchorPrefix) || strings.HasPrefix(a.Key, islandAnchorPrefix) </span><span class="cov7" title="603">{
+                        return a.Key
+                }</span>
+        }
+        <span class="cov0" title="0">return ""</span>
+}
+
+// liveUpdateCheck check for an update modifier for this node.
+func (d *differ) liveUpdateCheck(node *html.Node) <span class="cov7" title="601">{
+        for _, attr := range node.Attr </span><span class="cov8" title="738">{
+                if attr.Key != "live-update" </span><span class="cov8" title="733">{
+                        continue</span>
+                }
+                <span class="cov2" title="5">d.updateNode = node
+
+                switch attr.Val </span>{
+                case "replace":<span class="cov1" title="1">
+                        d.updateModifier = Replace</span>
+                case "ignore":<span class="cov1" title="1">
+                        d.updateModifier = Noop</span>
+                case "append":<span class="cov1" title="2">
+                        d.updateModifier = Append</span>
+                case "prepend":<span class="cov1" title="1">
+                        d.updateModifier = Prepend</span>
+                }
+                <span class="cov2" title="5">break</span>
+        }
+}
+
+// patchAction in the current state of the differ get the patch
+// action.
+func (d *differ) patchAction(action PatchAction) PatchAction <span class="cov6" title="134">{
+        if d.updateNode != nil </span><span class="cov2" title="5">{
+                return d.updateModifier
+        }</span>
+        <span class="cov6" title="129">return action</span>
+}
+
+// patchAnchor in the current state of the differ get the patch
+// anchor.
+func (d *differ) patchAnchor(path string) string <span class="cov6" title="134">{
+        if d.updateNode != nil </span><span class="cov2" title="5">{
+                return findAnchor(d.updateNode)
+        }</span>
+        <span class="cov6" title="129">return path</span>
+}
+
+// nodeRelevant check if this node is relevant.
+func nodeRelevant(node *html.Node) bool <span class="cov9" title="3912">{
+        if node.Type == html.TextNode </span><span class="cov7" title="635">{
+                debugNodeLog("textNode", node)
+        }</span>
+        <span class="cov9" title="3912">if node.Type == html.TextNode &amp;&amp; len(strings.TrimSpace(node.Data)) == 0 </span><span class="cov5" title="93">{
+                return false
+        }</span>
+        <span class="cov9" title="3819">return true</span>
+}
+
+// nodeEqual check if one node is equal to another.
+func nodeEqual(oldNode *html.Node, newNode *html.Node) bool <span class="cov7" title="601">{
+        // Type check
+        if oldNode.Type != newNode.Type </span><span class="cov0" title="0">{
+                return false
+        }</span>
+        <span class="cov7" title="601">if len(oldNode.Attr) != len(newNode.Attr) </span><span class="cov3" title="11">{
+                return false
+        }</span>
+        // Deep attr check
+        <span class="cov7" title="590">for _, c := range newNode.Attr </span><span class="cov8" title="724">{
+                found := false
+                for _, l := range oldNode.Attr </span><span class="cov8" title="863">{
+                        if cmp.Equal(c, l) </span><span class="cov8" title="719">{
+                                found = true
+                                break</span>
+                        }
+                }
+                <span class="cov8" title="724">if found </span><span class="cov8" title="719">{
+                        continue</span>
+                }
+                <span class="cov2" title="5">return false</span>
+        }
+        // Data check
+        <span class="cov7" title="585">return strings.TrimSpace(oldNode.Data) == strings.TrimSpace(newNode.Data)</span>
+}
+
+// generateNodeList create a list of sibling nodes.
+func generateNodeList(node *html.Node) []*html.Node <span class="cov8" title="1102">{
+        list := []*html.Node{}
+        if node == nil </span><span class="cov7" title="341">{
+                return list
+        }</span>
+
+        <span class="cov8" title="761">current := getFirstSibling(node)
+        for </span><span class="cov8" title="1060">{
+                list = append(list, current)
+                if current.NextSibling == nil </span><span class="cov8" title="761">{
+                        break</span>
+                } else<span class="cov7" title="299"> {
+                        current = current.NextSibling
+                }</span>
+        }
+        <span class="cov8" title="761">return list</span>
+}
+
+// getFirstSibling takes a node and finds the "first" node in the sibling
+// list.
+func getFirstSibling(node *html.Node) *html.Node <span class="cov8" title="761">{
+        if node.PrevSibling == nil </span><span class="cov8" title="761">{
+                return node
+        }</span>
+        <span class="cov0" title="0">return getFirstSibling(node.PrevSibling)</span>
+}
+
+func debugNodeLog(msg string, node *html.Node) <span class="cov9" title="4187">{
+        if !_debug </span><span class="cov9" title="4187">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">if node == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">var d bytes.Buffer
+        html.Render(&amp;d, node)
+        slog.Debug(msg, "type", node.Type, "data", `s"`+node.Data+`"e`, "render", `s"`+d.String()+`"e`)</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package live
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "log/slog"
+        "sync"
+        "time"
+)
+
+// IslandEngine is the main orchestration layer for the v2 islands architecture.
+// It manages:
+// - Multiple sessions (each session represents a client connection)
+// - Island lifecycle (mount/unmount islands within sessions)
+// - Event routing (route events to the correct island in the correct session)
+// - State persistence (via IslandStateStore)
+// - Broadcasting (send events to multiple islands)
+//
+// The engine is thread-safe and uses mutex-protected operations for session management.
+type IslandEngine struct {
+        // registry holds the island type definitions
+        registry *IslandRegistry
+
+        // stateStore persists island state across reconnections
+        stateStore IslandStateStore
+
+        // sessions maps session IDs to active sessions
+        sessions map[SessionID]*Session
+
+        // mu protects concurrent access to the sessions map and stateTTL
+        mu sync.RWMutex
+
+        // ctx is the engine context for lifecycle management
+        ctx context.Context
+
+        // cancel cancels the engine context
+        cancel context.CancelFunc
+
+        // stateTTL is the default TTL for island state
+        stateTTL time.Duration
+}
+
+// NewIslandEngine creates a new island engine with the given registry and state store.
+func NewIslandEngine(ctx context.Context, registry *IslandRegistry, stateStore IslandStateStore) *IslandEngine <span class="cov5" title="11">{
+        engineCtx, cancel := context.WithCancel(ctx)
+
+        e := &amp;IslandEngine{
+                registry:   registry,
+                stateStore: stateStore,
+                sessions:   make(map[SessionID]*Session),
+                ctx:        engineCtx,
+                cancel:     cancel,
+                stateTTL:   24 * time.Hour, // Default 24 hour TTL
+        }
+
+        return e
+}</span>
+
+// AddSession registers a new session with the engine.
+// The session will be available for island mounting and event routing.
+func (e *IslandEngine) AddSession(session *Session) <span class="cov7" title="31">{
+        e.mu.Lock()
+        defer e.mu.Unlock()
+        e.sessions[session.ID] = session
+}</span>
+
+// GetSession retrieves a session by ID.
+// Returns the session and true if found, nil and false otherwise.
+func (e *IslandEngine) GetSession(sessionID SessionID) (*Session, bool) <span class="cov10" title="83">{
+        e.mu.RLock()
+        defer e.mu.RUnlock()
+
+        session, ok := e.sessions[sessionID]
+        return session, ok
+}</span>
+
+// DeleteSession removes a session from the engine and cleans up all its resources.
+// This includes:
+// - Closing the session
+// - Removing all islands from the session
+// - Deleting all state from the state store
+func (e *IslandEngine) DeleteSession(sessionID SessionID) <span class="cov7" title="21">{
+        e.mu.Lock()
+        defer e.mu.Unlock()
+
+        if session, ok := e.sessions[sessionID]; ok </span><span class="cov7" title="21">{
+                _ = session.Close()
+                delete(e.sessions, sessionID)
+                // Clean up all state for this session
+                e.stateStore.DeleteSession(sessionID)
+        }</span>
+}
+
+// MountIsland creates and mounts a new island instance within a session.
+// The flow is:
+// 1. Get the session
+// 2. Create the island instance from the registry
+// 3. Call the island's Mount() handler
+// 4. Add the instance to the session
+// 5. Save the initial state to the state store
+// 6. Render the island and send the initial patch to the client
+//
+// Returns the mounted instance or an error.
+func (e *IslandEngine) MountIsland(sessionID SessionID, islandID IslandID, islandType string, props Props) (*IslandInstance, error) <span class="cov9" title="62">{
+        // Get the session
+        session, ok := e.GetSession(sessionID)
+        if !ok </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("session not found: %s", sessionID)
+        }</span>
+
+        // Create the island instance from the registry
+        <span class="cov9" title="62">instance, err := NewIslandInstanceFromRegistry(string(islandID), islandType, props, e.registry)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to create island instance: %w", err)
+        }</span>
+
+        // Mount the island (calls the island's mount handler)
+        <span class="cov9" title="62">if err := instance.Mount(session.Context()); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to mount island: %w", err)
+        }</span>
+
+        // Add the instance to the session
+        <span class="cov9" title="62">session.AddIsland(instance)
+
+        // Save the initial state to the state store
+        e.mu.RLock()
+        ttl := e.stateTTL
+        e.mu.RUnlock()
+        e.stateStore.Set(sessionID, islandID, instance.State(), ttl)
+
+        // Render the island and send the initial patch to the client
+        if err := e.renderAndSendIsland(session, instance); err != nil </span><span class="cov0" title="0">{
+                // Non-fatal - the island is mounted but the client won't see the initial render
+                slog.Debug("failed to render and send island on mount",
+                        "island", instance.ID,
+                        "err", err)
+        }</span>
+
+        <span class="cov9" title="62">return instance, nil</span>
+}
+
+// UnmountIsland unmounts an island instance from a session.
+// The flow is:
+// 1. Get the session
+// 2. Get the island instance from the session
+// 3. Call the island's Unmount() handler
+// 4. Remove the instance from the session
+// 5. Delete the state from the state store
+func (e *IslandEngine) UnmountIsland(sessionID SessionID, islandID IslandID) error <span class="cov1" title="1">{
+        // Get the session
+        session, ok := e.GetSession(sessionID)
+        if !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("session not found: %s", sessionID)
+        }</span>
+
+        // Get the island instance
+        <span class="cov1" title="1">instance, ok := session.GetIsland(islandID)
+        if !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("island not found: %s", islandID)
+        }</span>
+
+        // Call the island's unmount handler
+        <span class="cov1" title="1">if err := instance.Unmount(session.Context()); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to unmount island: %w", err)
+        }</span>
+
+        // Remove the instance from the session
+        <span class="cov1" title="1">session.RemoveIsland(islandID)
+
+        // Delete the state from the state store
+        e.stateStore.Delete(sessionID, islandID)
+
+        return nil</span>
+}
+
+// RouteEvent routes an event to the correct island in a session.
+// The session handles the actual event dispatch to the island.
+// After the event is processed, the island is re-rendered and a patch is sent to the client.
+func (e *IslandEngine) RouteEvent(sessionID SessionID, event Event) error <span class="cov4" title="6">{
+        // Get the session
+        session, ok := e.GetSession(sessionID)
+        if !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("session not found: %s", sessionID)
+        }</span>
+
+        // Extract the island ID from the event
+        <span class="cov4" title="6">if event.Island == "" </span><span class="cov0" title="0">{
+                return fmt.Errorf("event has no island field")
+        }</span>
+        <span class="cov4" title="6">islandID := IslandID(event.Island)
+
+        // Get the island instance before processing the event
+        instance, ok := session.GetIsland(islandID)
+        if !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("island not found: %s", islandID)
+        }</span>
+
+        // Let the session handle the event (this updates the island state)
+        <span class="cov4" title="6">if err := session.handleEvent(event); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to handle event: %w", err)
+        }</span>
+
+        // Save the updated state to the state store
+        <span class="cov4" title="6">e.mu.RLock()
+        ttl := e.stateTTL
+        e.mu.RUnlock()
+        e.stateStore.Set(sessionID, islandID, instance.State(), ttl)
+
+        // Re-render the island and send the patch to the client
+        if err := e.renderAndSendIsland(session, instance); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to render island: %w", err)
+        }</span>
+
+        <span class="cov4" title="6">return nil</span>
+}
+
+// renderAndSendIsland renders an island instance and sends a patch event to the client.
+// This is used both for initial mount and after state changes.
+func (e *IslandEngine) renderAndSendIsland(session *Session, instance *IslandInstance) error <span class="cov9" title="69">{
+        // Get the previous HTML from the instance BEFORE rendering
+        previousHTML := string(instance.lastRenderedHTML)
+
+        // Render the island (this will update instance.lastRenderedHTML with the new value)
+        html, err := RenderIsland(session.Context(), instance)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("render error: %w", err)
+        }</span>
+
+        // Compute patches using DiffIsland
+        <span class="cov9" title="69">patches, err := DiffIsland(IslandID(instance.ID), previousHTML, string(html))
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to compute diff: %w", err)
+        }</span>
+
+        // Marshal the patches array (not a map with island/html)
+        <span class="cov9" title="69">data, err := json.Marshal(patches)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to marshal patches: %w", err)
+        }</span>
+
+        <span class="cov9" title="69">patchEvent := Event{
+                T:      EventPatch,
+                Island: instance.ID,
+                Data:   data,
+        }
+
+        return session.Send(patchEvent)</span>
+}
+
+// BroadcastToIslandType sends an event to all islands of a specific type across all sessions.
+// This is useful for broadcasting server-side events to all instances of an island type.
+func (e *IslandEngine) BroadcastToIslandType(islandType string, event Event) <span class="cov1" title="1">{
+        e.mu.RLock()
+        sessions := make([]*Session, 0, len(e.sessions))
+        for _, session := range e.sessions </span><span class="cov2" title="2">{
+                sessions = append(sessions, session)
+        }</span>
+        <span class="cov1" title="1">e.mu.RUnlock()
+
+        // Iterate through all sessions and find matching islands
+        for _, session := range sessions </span><span class="cov2" title="2">{
+                instances := session.ListIslands()
+                for _, instance := range instances </span><span class="cov2" title="2">{
+                        if instance.Type == islandType </span><span class="cov2" title="2">{
+                                // Create a copy of the event for this island to avoid shared Data slice mutation
+                                eventCopy := event
+                                eventCopy.Island = instance.ID
+                                // Send the event to the session (non-blocking)
+                                _ = session.Send(eventCopy)
+                        }</span>
+                }
+        }
+}
+
+// BroadcastToIsland sends an event to a specific island ID across all sessions.
+// This is useful for broadcasting to all instances with the same ID (e.g., "chat-room-123").
+func (e *IslandEngine) BroadcastToIsland(islandID IslandID, event Event) <span class="cov0" title="0">{
+        e.mu.RLock()
+        sessions := make([]*Session, 0, len(e.sessions))
+        for _, session := range e.sessions </span><span class="cov0" title="0">{
+                sessions = append(sessions, session)
+        }</span>
+        <span class="cov0" title="0">e.mu.RUnlock()
+
+        // Iterate through all sessions and find matching islands
+        for _, session := range sessions </span><span class="cov0" title="0">{
+                if instance, ok := session.GetIsland(islandID); ok </span><span class="cov0" title="0">{
+                        // Create a copy of the event for this island to avoid shared Data slice mutation
+                        eventCopy := event
+                        eventCopy.Island = instance.ID
+                        // Send the event to the session (non-blocking)
+                        _ = session.Send(eventCopy)
+                }</span>
+        }
+}
+
+// Close shuts down the engine gracefully.
+// It:
+// - Cancels the engine context
+// - Closes all active sessions
+// - Clears the sessions map
+func (e *IslandEngine) Close() error <span class="cov5" title="11">{
+        e.cancel()
+
+        e.mu.Lock()
+        defer e.mu.Unlock()
+
+        for _, session := range e.sessions </span><span class="cov5" title="9">{
+                _ = session.Close()
+        }</span>
+        <span class="cov5" title="11">e.sessions = make(map[SessionID]*Session)
+
+        return nil</span>
+}
+
+// SetStateTTL sets the default TTL for island state in the state store.
+func (e *IslandEngine) SetStateTTL(ttl time.Duration) <span class="cov0" title="0">{
+        e.mu.Lock()
+        defer e.mu.Unlock()
+        e.stateTTL = ttl
+}</span>
+
+// Context returns the engine's context.
+func (e *IslandEngine) Context() context.Context <span class="cov0" title="0">{
+        return e.ctx
+}</span>
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package live
+
+import (
+        "encoding/json"
+)
+
+// EventConfig is a function that configures an Event.
+// It is used with functional options pattern for event construction.
+type EventConfig func(e *Event) error
+
+// Event type constants define the standard event types used in the live protocol.
+const (
+        // EventError indicates an error has occurred during event processing.
+        // The Data field contains error details.
+        EventError = "err"
+
+        // EventPatch contains DOM patches to apply on the client.
+        // The Data field contains a JSON-encoded array of Patch objects.
+        EventPatch = "patch"
+
+        // EventAck acknowledges that a client event was received and processed.
+        // This is sent from server to client after successfully handling an event.
+        EventAck = "ack"
+
+        // EventConnect is sent from server to client immediately after
+        // the transport connection is established.
+        EventConnect = "connect"
+
+        // EventParams communicates URL parameter updates.
+        // Can be sent in both directions to synchronize browser state.
+        EventParams = "params"
+
+        // EventRedirect instructs the client browser to navigate to a new URL.
+        // The Data field contains the redirect destination.
+        EventRedirect = "redirect"
+)
+
+// Event represents a message exchanged between client and server over a transport.
+// Events are the fundamental unit of communication in the live protocol.
+//
+// Events can represent:
+// - Client actions (button clicks, form submissions, etc.)
+// - Server responses (patches, errors, redirects)
+// - System events (connection, acknowledgment)
+type Event struct {
+        // T is the event type (e.g., EventPatch, EventError, EventConnect, or custom event names).
+        T string `json:"t"`
+
+        // ID is an optional event identifier used for request/response correlation.
+        ID int `json:"i,omitempty"`
+
+        // Island identifies which island instance this event targets.
+        // Format: the island instance ID (e.g., "counter-1").
+        // Empty for session-level events.
+        Island string `json:"island,omitempty"`
+
+        // Data contains the event payload as raw JSON.
+        // The structure depends on the event type.
+        // Use the Params() method to decode client event data.
+        Data json.RawMessage `json:"d,omitempty"`
+
+        // SelfData is used for server-originated events targeting island self-handlers.
+        // This bypasses JSON encoding and passes data directly to the handler.
+        SelfData any `json:"s,omitempty"`
+}
+
+// Params extracts and decodes parameters from the event's Data field.
+// This is typically used for client-originated events that contain form data
+// or other structured parameters.
+//
+// Returns an empty Params map if Data is nil.
+// Returns ErrMessageMalformed if the Data cannot be decoded as Params.
+func (e Event) Params() (Params, error) <span class="cov10" title="10">{
+        if e.Data == nil </span><span class="cov3" title="2">{
+                return Params{}, nil
+        }</span>
+        <span class="cov9" title="8">var p Params
+        if err := json.Unmarshal(e.Data, &amp;p); err != nil </span><span class="cov1" title="1">{
+                return nil, ErrMessageMalformed
+        }</span>
+        <span class="cov8" title="7">return p, nil</span>
+}
+
+// WithID sets an ID on an event.
+func WithID(ID int) EventConfig <span class="cov0" title="0">{
+        return func(e *Event) error </span><span class="cov0" title="0">{
+                e.ID = ID
+                return nil
+        }</span>
+}
+
+// ErrorEvent represents an error response sent from server to client.
+// It includes the original event that caused the error and the error message.
+type ErrorEvent struct {
+        // Source is the original event that triggered the error.
+        Source Event `json:"source"`
+
+        // Err is the error message describing what went wrong.
+        Err string `json:"err"`
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package main
+
+import (
+        "bytes"
+        "context"
+        "embed"
+        "fmt"
+        "html/template"
+        "io"
+        "log"
+        "net/http"
+        "time"
+
+        "github.com/jfyne/live"
+)
+
+//go:embed *.html
+var content embed.FS
+
+// CounterState holds the state for a counter island instance.
+type CounterState struct {
+        Count int
+}
+
+// counterConfig defines a counter island's server-side configuration.
+type counterConfig struct {
+        ID      string
+        Label   string
+        Initial int
+}
+
+// Server-side configuration: the server owns the initial state.
+var counters = []counterConfig{
+        {ID: "counter-1", Label: "Counter 1 (default, starts at 0)", Initial: 0},
+        {ID: "counter-2", Label: "Counter 2 (starts at 5)", Initial: 5},
+        {ID: "counter-3", Label: "Counter 3 (starts at 10)", Initial: 10},
+}
+
+// counterInitialValues maps island IDs to their server-defined initial values.
+var counterInitialValues = func() map[string]int <span class="cov0" title="0">{
+        m := make(map[string]int)
+        for _, c := range counters </span><span class="cov0" title="0">{
+                m[c.ID] = c.Initial
+        }</span>
+        <span class="cov0" title="0">return m</span>
+}()
+
+// NewCounterIsland creates a new counter island definition.
+func NewCounterIsland() (*live.Island, error) <span class="cov0" title="0">{
+        island, err := live.NewIsland(
+                "counter",
+                live.WithMount(func(ctx context.Context, props live.Props, children string) (any, error) </span><span class="cov0" title="0">{
+                        // Initial value comes from server-side configuration.
+                        // The island ID is passed as a prop by the subscribe handler.
+                        initialValue := props.Int("initial")
+                        return &amp;CounterState{Count: initialValue}, nil
+                }</span>),
+                live.WithRender(func(ctx context.Context, rc *live.IslandRenderContext) (io.Reader, error) <span class="cov0" title="0">{
+                        state := rc.State.(*CounterState)
+
+                        // Parse and execute the counter template
+                        tmpl, err := template.ParseFS(content, "counter.html")
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil, err
+                        }</span>
+
+                        <span class="cov0" title="0">var buf bytes.Buffer
+                        if err := tmpl.Execute(&amp;buf, state); err != nil </span><span class="cov0" title="0">{
+                                return nil, err
+                        }</span>
+
+                        <span class="cov0" title="0">return &amp;buf, nil</span>
+                }),
+        )
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        // Register increment event handler
+        <span class="cov0" title="0">err = island.HandleEvent("inc", func(ctx context.Context, state any, params live.Params) (any, error) </span><span class="cov0" title="0">{
+                s := state.(*CounterState)
+                s.Count++
+                return s, nil
+        }</span>)
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        // Register decrement event handler
+        <span class="cov0" title="0">err = island.HandleEvent("dec", func(ctx context.Context, state any, params live.Params) (any, error) </span><span class="cov0" title="0">{
+                s := state.(*CounterState)
+                s.Count--
+                return s, nil
+        }</span>)
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return island, nil</span>
+}
+
+func main() <span class="cov0" title="0">{
+        // Register the counter island with the global registry
+        err := live.RegisterIsland("counter", NewCounterIsland)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatal("Failed to register counter island:", err)
+        }</span>
+
+        // Create context for engine lifecycle
+        <span class="cov0" title="0">ctx := context.Background()
+
+        // Create state store with 1-minute cleanup interval
+        stateStore := live.NewMemoryIslandStateStore(ctx, 1*time.Minute)
+
+        // Create island engine
+        registry := live.DefaultRegistry()
+        engine := live.NewIslandEngine(ctx, registry, stateStore)
+        defer engine.Close()
+
+        // Set up WebSocket transport endpoint
+        wsConfig := live.DefaultTransportConfig()
+        http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                // Upgrade to WebSocket
+                transport, err := live.UpgradeWebSocket(r.Context(), w, r, wsConfig)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "WebSocket upgrade failed", http.StatusBadRequest)
+                        return
+                }</span>
+
+                // Create a session ID (in production, you'd get this from cookies or generate it)
+                <span class="cov0" title="0">sessionID := live.SessionID(fmt.Sprintf("session-%d", time.Now().UnixNano()))
+
+                // Create a session with the transport
+                session := live.NewSession(r.Context(), sessionID, transport)
+
+                // Add session to engine
+                engine.AddSession(session)
+
+                // Clean up when connection closes
+                defer func() </span><span class="cov0" title="0">{
+                        engine.DeleteSession(sessionID)
+                }</span>()
+
+                // Process events from the transport
+                // Read events and route them through the engine
+                <span class="cov0" title="0">go func() </span><span class="cov0" title="0">{
+                        for event := range transport.Events() </span><span class="cov0" title="0">{
+                                log.Printf("Received event: type=%s, island=%s", event.T, event.Island)
+
+                                // Check if this is a subscribe event (island mount request)
+                                if event.T == "subscribe" &amp;&amp; event.Island != "" </span><span class="cov0" title="0">{
+                                        islandID := live.IslandID(event.Island)
+
+                                        params, _ := event.Params()
+                                        islandType := params.String("type")
+
+                                        if islandType == "" </span><span class="cov0" title="0">{
+                                                log.Printf("Warning: subscribe event for %s missing type, cannot mount", islandID)
+                                                continue</span>
+                                        }
+
+                                        // Build props from server-side configuration.
+                                        // The server is the source of truth for initial state.
+                                        <span class="cov0" title="0">props := live.Props{
+                                                "initial": counterInitialValues[string(islandID)],
+                                        }
+
+                                        _, err := engine.MountIsland(sessionID, islandID, islandType, props)
+                                        if err != nil </span><span class="cov0" title="0">{
+                                                log.Printf("Failed to mount island %s: %v", islandID, err)
+                                        }</span>
+                                        <span class="cov0" title="0">continue</span>
+                                }
+
+                                <span class="cov0" title="0">if err := engine.RouteEvent(sessionID, event); err != nil </span><span class="cov0" title="0">{
+                                        log.Printf("Event routing error: %v", err)
+                                }</span>
+                        }
+                }()
+
+                <span class="cov0" title="0">&lt;-r.Context().Done()</span>
+        })
+
+        // Set up SSE transport endpoints
+        <span class="cov0" title="0">sseConfig := live.DefaultTransportConfig()
+        sseFactory := live.NewSSETransportFactory(sseConfig)
+
+        http.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                transport, err := sseFactory.Upgrade(r.Context(), w, r)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "SSE upgrade failed", http.StatusBadRequest)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">sessionID := live.SessionID(fmt.Sprintf("session-%d", time.Now().UnixNano()))
+                session := live.NewSession(r.Context(), sessionID, transport)
+                engine.AddSession(session)
+
+                defer func() </span><span class="cov0" title="0">{
+                        engine.DeleteSession(sessionID)
+                }</span>()
+
+                <span class="cov0" title="0">go func() </span><span class="cov0" title="0">{
+                        for event := range transport.Events() </span><span class="cov0" title="0">{
+                                log.Printf("SSE received event: type=%s, island=%s", event.T, event.Island)
+
+                                if event.T == "subscribe" &amp;&amp; event.Island != "" </span><span class="cov0" title="0">{
+                                        islandID := live.IslandID(event.Island)
+                                        params, _ := event.Params()
+                                        islandType := params.String("type")
+
+                                        if islandType == "" </span><span class="cov0" title="0">{
+                                                log.Printf("Warning: subscribe event for %s missing type, cannot mount", islandID)
+                                                continue</span>
+                                        }
+
+                                        <span class="cov0" title="0">props := live.Props{
+                                                "initial": counterInitialValues[string(islandID)],
+                                        }
+
+                                        _, err := engine.MountIsland(sessionID, islandID, islandType, props)
+                                        if err != nil </span><span class="cov0" title="0">{
+                                                log.Printf("Failed to mount island %s: %v", islandID, err)
+                                        }</span>
+                                        <span class="cov0" title="0">continue</span>
+                                }
+
+                                <span class="cov0" title="0">if err := engine.RouteEvent(sessionID, event); err != nil </span><span class="cov0" title="0">{
+                                        log.Printf("Event routing error: %v", err)
+                                }</span>
+                        }
+                }()
+
+                <span class="cov0" title="0">&lt;-r.Context().Done()</span>
+        })
+
+        // SSE POST handler for client-to-server events
+        <span class="cov0" title="0">http.HandleFunc("/sse/post", func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                sseFactory.HandlePost(w, r)
+        }</span>)
+
+        // Serve the main HTML page, rendered with server-side counter configuration
+        <span class="cov0" title="0">http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                if r.URL.Path != "/" </span><span class="cov0" title="0">{
+                        http.NotFound(w, r)
+                        return
+                }</span>
+                <span class="cov0" title="0">tmpl, err := template.ParseFS(content, "index.html")
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusInternalServerError)
+                        return
+                }</span>
+                <span class="cov0" title="0">tmpl.Execute(w, counters)</span>
+        })
+
+        // Serve the custom island script
+        <span class="cov0" title="0">http.HandleFunc("/custom-island.js", func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                w.Header().Set("Content-Type", "application/javascript")
+                http.ServeFile(w, r, "custom-island.js")
+        }</span>)
+
+        // Start server
+        <span class="cov0" title="0">addr := ":8080"
+        log.Printf("Counter example server starting on http://localhost%s", addr)
+        log.Printf("Visit http://localhost%s to see the example", addr)
+        if err := http.ListenAndServe(addr, nil); err != nil </span><span class="cov0" title="0">{
+                log.Fatal(err)
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package live
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "net/http"
+        "time"
+
+        "github.com/coder/websocket"
+)
+
+func httpContext(w http.ResponseWriter, r *http.Request) context.Context <span class="cov0" title="0">{
+        ctx := r.Context()
+        ctx = contextWithRequest(ctx, r)
+        ctx = contextWithWriter(ctx, w)
+        return ctx
+}</span>
+
+func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn, msg Event) error <span class="cov0" title="0">{
+        ctx, cancel := context.WithTimeout(ctx, timeout)
+        defer cancel()
+
+        data, err := json.Marshal(&amp;msg)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed writeTimeout: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return c.Write(ctx, websocket.MessageText, data)</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package live
+
+import (
+        "context"
+        "html/template"
+        "io"
+        "sync"
+)
+
+// IslandInstance represents a running instance of an island.
+// Each instance has its own isolated state and lifecycle.
+type IslandInstance struct {
+        // ID is the unique identifier for this instance.
+        ID string
+
+        // Type is the island type name (used to look up the island definition).
+        Type string
+
+        // island is the reference to the Island definition.
+        island *Island
+
+        // state is the current instance state.
+        state any
+
+        // props are the Props passed at creation.
+        props Props
+
+        // children is any content nested within the island element.
+        children string
+
+        // mu protects concurrent access to state.
+        mu sync.RWMutex
+
+        // mounted tracks whether the instance has been mounted.
+        mounted bool
+
+        // lastRenderedHTML stores the last rendered HTML for diffing.
+        lastRenderedHTML template.HTML
+}
+
+// NewIslandInstance creates a new island instance with the given ID, type, and props.
+// It looks up the island constructor from the registry and creates the Island definition.
+// Returns ErrIslandNotFound if the island type is not registered.
+func NewIslandInstance(id, islandType string, props Props) (*IslandInstance, error) <span class="cov6" title="19">{
+        return NewIslandInstanceFromRegistry(id, islandType, props, defaultRegistry)
+}</span>
+
+// NewIslandInstanceFromRegistry creates a new island instance using a specific registry.
+// This is useful for testing or when using multiple registries.
+func NewIslandInstanceFromRegistry(id, islandType string, props Props, registry *IslandRegistry) (*IslandInstance, error) <span class="cov9" title="122">{
+        constructor, err := registry.Get(islandType)
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov9" title="121">island, err := constructor()
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov9" title="121">if props == nil </span><span class="cov1" title="1">{
+                props = Props{}
+        }</span>
+
+        <span class="cov9" title="121">return &amp;IslandInstance{
+                ID:       id,
+                Type:     islandType,
+                island:   island,
+                props:    props,
+                children: "",
+                mounted:  false,
+        }, nil</span>
+}
+
+// NewIslandInstanceWithChildren creates a new island instance with nested children content.
+func NewIslandInstanceWithChildren(id, islandType string, props Props, children string) (*IslandInstance, error) <span class="cov0" title="0">{
+        instance, err := NewIslandInstance(id, islandType, props)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">instance.children = children
+        return instance, nil</span>
+}
+
+// Mount initializes the island instance by calling the island's mount handler.
+// The mount handler receives the props and children and returns the initial state.
+// Mount should only be called once per instance.
+func (i *IslandInstance) Mount(ctx context.Context) error <span class="cov8" title="99">{
+        i.mu.Lock()
+        defer i.mu.Unlock()
+
+        if i.mounted </span><span class="cov1" title="1">{
+                return ErrAlreadyMounted
+        }</span>
+
+        <span class="cov8" title="98">state, err := i.island.Mount(ctx, i.props, i.children)
+        if err != nil </span><span class="cov1" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="97">i.state = state
+        i.mounted = true
+        return nil</span>
+}
+
+// Render generates the HTML for the island's current state.
+// Returns the rendered HTML as template.HTML for safe embedding.
+func (i *IslandInstance) Render(ctx context.Context) (template.HTML, error) <span class="cov9" title="132">{
+        i.mu.RLock()
+        state := i.state
+        props := i.props
+        children := i.children
+        i.mu.RUnlock()
+
+        rc := &amp;IslandRenderContext{
+                State:    state,
+                Props:    props,
+                Children: children,
+        }
+
+        reader, err := i.island.Render(ctx, rc)
+        if err != nil </span><span class="cov2" title="2">{
+                return "", err
+        }</span>
+
+        <span class="cov9" title="130">if reader == nil </span><span class="cov1" title="1">{
+                return "", nil
+        }</span>
+
+        <span class="cov9" title="129">content, err := io.ReadAll(reader)
+        if err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+
+        <span class="cov9" title="129">result := template.HTML(content)
+
+        // Store the rendered HTML for diffing
+        i.mu.Lock()
+        i.lastRenderedHTML = result
+        i.mu.Unlock()
+
+        return result, nil</span>
+}
+
+// Unmount cleans up the island instance by calling the island's unmount handler.
+// After unmounting, the instance should not be used.
+func (i *IslandInstance) Unmount(ctx context.Context) error <span class="cov8" title="75">{
+        i.mu.Lock()
+        defer i.mu.Unlock()
+
+        if !i.mounted </span><span class="cov4" title="7">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="68">err := i.island.Unmount(ctx, i.state)
+        if err != nil </span><span class="cov1" title="1">{
+                return err
+        }</span>
+
+        <span class="cov8" title="67">i.mounted = false
+        i.state = nil
+        return nil</span>
+}
+
+// CallEvent handles an event from the client.
+// It looks up the event handler, calls it with the current state and params,
+// and updates the state with the returned value.
+// Returns ErrNoEventHandler if no handler is registered for the event.
+func (i *IslandInstance) CallEvent(ctx context.Context, event string, params Params) error <span class="cov9" title="136">{
+        handler, err := i.island.GetEventHandler(event)
+        if err != nil </span><span class="cov1" title="1">{
+                return err
+        }</span>
+
+        <span class="cov9" title="135">i.mu.Lock()
+        defer i.mu.Unlock()
+
+        newState, err := handler(ctx, i.state, params)
+        if err != nil </span><span class="cov1" title="1">{
+                return err
+        }</span>
+
+        <span class="cov9" title="134">i.state = newState
+        return nil</span>
+}
+
+// CallSelf handles a self-directed event from the server.
+// It looks up the self handler, calls it with the current state and data,
+// and updates the state with the returned value.
+// Returns ErrNoSelfHandler if no handler is registered for the event.
+func (i *IslandInstance) CallSelf(ctx context.Context, event string, data any) error <span class="cov3" title="5">{
+        handler, err := i.island.GetSelfHandler(event)
+        if err != nil </span><span class="cov1" title="1">{
+                return err
+        }</span>
+
+        <span class="cov3" title="4">i.mu.Lock()
+        defer i.mu.Unlock()
+
+        newState, err := handler(ctx, i.state, data)
+        if err != nil </span><span class="cov1" title="1">{
+                return err
+        }</span>
+
+        <span class="cov2" title="3">i.state = newState
+        return nil</span>
+}
+
+// State returns the current state of the island instance.
+// This method is thread-safe.
+func (i *IslandInstance) State() any <span class="cov10" title="191">{
+        i.mu.RLock()
+        defer i.mu.RUnlock()
+        return i.state
+}</span>
+
+// SetState updates the state of the island instance.
+// This method is thread-safe.
+func (i *IslandInstance) SetState(state any) <span class="cov8" title="102">{
+        i.mu.Lock()
+        defer i.mu.Unlock()
+        i.state = state
+}</span>
+
+// Props returns the props passed to the island instance.
+func (i *IslandInstance) Props() Props <span class="cov2" title="2">{
+        i.mu.RLock()
+        defer i.mu.RUnlock()
+        return i.props
+}</span>
+
+// Children returns the nested children content.
+func (i *IslandInstance) Children() string <span class="cov1" title="1">{
+        i.mu.RLock()
+        defer i.mu.RUnlock()
+        return i.children
+}</span>
+
+// IsMounted returns whether the instance has been mounted.
+func (i *IslandInstance) IsMounted() bool <span class="cov2" title="3">{
+        i.mu.RLock()
+        defer i.mu.RUnlock()
+        return i.mounted
+}</span>
+
+// Island returns the underlying island definition.
+func (i *IslandInstance) Island() *Island <span class="cov1" title="1">{
+        return i.island
+}</span>
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">// Package live provides a framework for building real-time interactive web applications
+// using server-side rendering with live updates via WebSocket or Server-Sent Events.
+//
+// The v2 architecture uses an islands approach, where individual components (islands)
+// maintain their own state and can be independently mounted, updated, and unmounted.
+// Each island is a self-contained unit with its own lifecycle, event handlers, and
+// rendering logic.
+//
+// Key concepts:
+//
+// Islands: Reusable components defined by Island types and registered globally.
+// Each island definition includes mount, unmount, render handlers, and event handlers.
+//
+// Island Instances: Runtime instances of islands with their own isolated state.
+// Multiple instances of the same island type can exist simultaneously.
+//
+// Sessions: Client connections that can host multiple island instances.
+// Sessions are transport-agnostic and work with WebSocket, SSE, or other transports.
+//
+// Engine: The orchestration layer managing sessions, islands, and state persistence.
+//
+// Transports: Protocol implementations (WebSocket, SSE) for bidirectional communication.
+//
+// Example usage:
+//
+//        // Define an island
+//        island, err := live.NewIsland("counter",
+//                live.WithMount(func(ctx context.Context, props live.Props, children string) (any, error) {
+//                        return &amp;CounterState{Count: 0}, nil
+//                }),
+//                live.WithRender(func(ctx context.Context, rc *live.IslandRenderContext) (io.Reader, error) {
+//                        state := rc.State.(*CounterState)
+//                        return strings.NewReader(fmt.Sprintf("&lt;div&gt;Count: %d&lt;/div&gt;", state.Count)), nil
+//                }),
+//        )
+//
+//        // Register the island
+//        live.RegisterIsland("counter", func() (*live.Island, error) {
+//                return island, nil
+//        })
+//
+//        // Create engine and session
+//        engine := live.NewIslandEngine(ctx, live.DefaultRegistry(), stateStore)
+//        session := live.NewSession(ctx, sessionID, transport)
+//        engine.AddSession(session)
+//
+//        // Mount an island instance
+//        instance, err := engine.MountIsland(sessionID, "counter-1", "counter", live.Props{})
+package live
+
+import (
+        "context"
+        "io"
+        "sync"
+)
+
+// Props are the properties passed to an island instance.
+// Props are extracted from the island element's attributes.
+type Props map[string]any
+
+// String returns the string value for a key, or empty string if not found
+// or not a string.
+func (p Props) String(key string) string <span class="cov6" title="56">{
+        v, ok := p[key]
+        if !ok </span><span class="cov1" title="2">{
+                return ""
+        }</span>
+        <span class="cov6" title="54">out, ok := v.(string)
+        if !ok </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+        <span class="cov6" title="53">return out</span>
+}
+
+// Int returns the int value for a key, or 0 if not found or cannot be
+// converted to int.
+func (p Props) Int(key string) int <span class="cov5" title="33">{
+        return mapInt(p, key)
+}</span>
+
+// Bool returns the boolean value for a key. Returns true if the value
+// is the string "true" or boolean true.
+func (p Props) Bool(key string) bool <span class="cov3" title="7">{
+        v, ok := p[key]
+        if !ok </span><span class="cov1" title="2">{
+                return false
+        }</span>
+        <span class="cov3" title="5">switch val := v.(type) </span>{
+        case bool:<span class="cov1" title="2">
+                return val</span>
+        case string:<span class="cov1" title="2">
+                return val == "true"</span>
+        }
+        <span class="cov1" title="1">return false</span>
+}
+
+// Float32 returns the float32 value for a key, or 0.0 if not found or
+// cannot be converted.
+func (p Props) Float32(key string) float32 <span class="cov3" title="6">{
+        return mapFloat32(p, key)
+}</span>
+
+// IslandConfig applies configuration to an Island.
+type IslandConfig func(i *Island) error
+
+// IslandMountHandler is called when an island instance is mounted.
+// It receives the context, props, and any initial children content.
+// Returns the initial state for the island instance.
+type IslandMountHandler func(ctx context.Context, props Props, children string) (any, error)
+
+// IslandUnmountHandler is called when an island instance is unmounted.
+type IslandUnmountHandler func(ctx context.Context, state any) error
+
+// IslandRenderHandler renders the island's current state.
+// It receives the render context containing the state and returns the
+// rendered HTML.
+type IslandRenderHandler func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error)
+
+// IslandEventHandler handles events from the client.
+// Returns the new state after handling the event.
+type IslandEventHandler func(ctx context.Context, state any, params Params) (any, error)
+
+// IslandSelfHandler handles self-directed events from the server.
+// Returns the new state after handling the event.
+type IslandSelfHandler func(ctx context.Context, state any, data any) (any, error)
+
+// IslandRenderContext provides context for rendering an island.
+type IslandRenderContext struct {
+        // State is the current state of the island instance.
+        State any
+        // Props are the properties passed to the island.
+        Props Props
+        // Children is any content nested within the island element.
+        Children string
+}
+
+// Island defines the behavior and handlers for an island type.
+// Islands are registered once and can be instantiated multiple times.
+type Island struct {
+        // Name is the unique identifier for this island type.
+        Name string
+
+        // Mount is called when an island instance is created.
+        Mount IslandMountHandler
+
+        // Unmount is called when an island instance is destroyed.
+        Unmount IslandUnmountHandler
+
+        // Render generates the HTML for the island's current state.
+        Render IslandRenderHandler
+
+        // eventHandlers maps event names to their handlers.
+        eventHandlers map[string]IslandEventHandler
+
+        // selfHandlers maps self event names to their handlers.
+        selfHandlers map[string]IslandSelfHandler
+
+        // mu protects concurrent access to handler maps.
+        mu sync.RWMutex
+}
+
+// NewIsland creates a new Island with the given name and optional configuration.
+func NewIsland(name string, configs ...IslandConfig) (*Island, error) <span class="cov7" title="150">{
+        i := &amp;Island{
+                Name:          name,
+                eventHandlers: make(map[string]IslandEventHandler),
+                selfHandlers:  make(map[string]IslandSelfHandler),
+                Mount: func(ctx context.Context, props Props, children string) (any, error) </span><span class="cov3" title="7">{
+                        return nil, nil
+                }</span>,
+                Unmount: func(ctx context.Context, state any) error <span class="cov6" title="64">{
+                        return nil
+                }</span>,
+                Render: func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) <span class="cov1" title="1">{
+                        return nil, ErrNoRenderer
+                }</span>,
+        }
+
+        <span class="cov7" title="150">for _, config := range configs </span><span class="cov8" title="260">{
+                if err := config(i); err != nil </span><span class="cov1" title="1">{
+                        return nil, err
+                }</span>
+        }
+
+        <span class="cov7" title="149">return i, nil</span>
+}
+
+// HandleEvent registers an event handler for the given event name.
+// Returns an error if a handler is already registered for that event.
+func (i *Island) HandleEvent(event string, handler IslandEventHandler) error <span class="cov7" title="206">{
+        i.mu.Lock()
+        defer i.mu.Unlock()
+
+        if _, exists := i.eventHandlers[event]; exists </span><span class="cov1" title="1">{
+                return ErrDuplicateEventHandler
+        }</span>
+
+        <span class="cov7" title="205">i.eventHandlers[event] = handler
+        return nil</span>
+}
+
+// HandleSelf registers a self handler for the given event name.
+// Returns an error if a handler is already registered for that event.
+func (i *Island) HandleSelf(event string, handler IslandSelfHandler) error <span class="cov5" title="38">{
+        i.mu.Lock()
+        defer i.mu.Unlock()
+
+        if _, exists := i.selfHandlers[event]; exists </span><span class="cov1" title="1">{
+                return ErrDuplicateSelfHandler
+        }</span>
+
+        <span class="cov5" title="37">i.selfHandlers[event] = handler
+        return nil</span>
+}
+
+// GetEventHandler returns the event handler for the given event name.
+// Returns ErrNoEventHandler if no handler is registered.
+func (i *Island) GetEventHandler(event string) (IslandEventHandler, error) <span class="cov8" title="241">{
+        i.mu.RLock()
+        defer i.mu.RUnlock()
+
+        handler, ok := i.eventHandlers[event]
+        if !ok </span><span class="cov1" title="2">{
+                return nil, ErrNoEventHandler
+        }</span>
+        <span class="cov8" title="239">return handler, nil</span>
+}
+
+// GetSelfHandler returns the self handler for the given event name.
+// Returns ErrNoSelfHandler if no handler is registered.
+func (i *Island) GetSelfHandler(event string) (IslandSelfHandler, error) <span class="cov3" title="8">{
+        i.mu.RLock()
+        defer i.mu.RUnlock()
+
+        handler, ok := i.selfHandlers[event]
+        if !ok </span><span class="cov1" title="2">{
+                return nil, ErrNoSelfHandler
+        }</span>
+        <span class="cov3" title="6">return handler, nil</span>
+}
+
+// EventHandlers returns a copy of the event handler names.
+func (i *Island) EventHandlers() []string <span class="cov4" title="11">{
+        i.mu.RLock()
+        defer i.mu.RUnlock()
+
+        names := make([]string, 0, len(i.eventHandlers))
+        for name := range i.eventHandlers </span><span class="cov10" title="1002">{
+                names = append(names, name)
+        }</span>
+        <span class="cov4" title="11">return names</span>
+}
+
+// SelfHandlers returns a copy of the self handler names.
+func (i *Island) SelfHandlers() []string <span class="cov4" title="11">{
+        i.mu.RLock()
+        defer i.mu.RUnlock()
+
+        names := make([]string, 0, len(i.selfHandlers))
+        for name := range i.selfHandlers </span><span class="cov1" title="2">{
+                names = append(names, name)
+        }</span>
+        <span class="cov4" title="11">return names</span>
+}
+
+// WithMount sets the mount handler for the island.
+func WithMount(handler IslandMountHandler) IslandConfig <span class="cov7" title="120">{
+        return func(i *Island) error </span><span class="cov7" title="120">{
+                i.Mount = handler
+                return nil
+        }</span>
+}
+
+// WithUnmount sets the unmount handler for the island.
+func WithUnmount(handler IslandUnmountHandler) IslandConfig <span class="cov5" title="34">{
+        return func(i *Island) error </span><span class="cov5" title="34">{
+                i.Unmount = handler
+                return nil
+        }</span>
+}
+
+// WithRender sets the render handler for the island.
+func WithRender(handler IslandRenderHandler) IslandConfig <span class="cov7" title="105">{
+        return func(i *Island) error </span><span class="cov7" title="105">{
+                i.Render = handler
+                return nil
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package live
+
+import (
+        _ "embed"
+        "net/http"
+)
+
+var (
+        // JS is the contents of auto.js
+        //go:embed web/browser/auto.js
+        JS []byte
+
+        // JSMap is the contents of auto.js.map
+        //go:embed web/browser/auto.js.map
+        JSMap []byte
+)
+
+// Javascript handles serving the client side
+// portion of live.
+type Javascript struct {
+}
+
+// ServeHTTP.
+func (j Javascript) ServeHTTP(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        w.Header().Add("Content-Type", "text/javascript")
+        w.Write(JS)
+}</span>
+
+// JavascriptMap handles serving source map.
+type JavascriptMap struct {
+}
+
+// ServeHTTP.
+func (j JavascriptMap) ServeHTTP(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        w.Header().Add("Content-Type", "application/json")
+        w.Write(JSMap)
+}</span>
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package live
+
+import (
+        "net/http"
+        "strconv"
+)
+
+// Params represents event parameters as a flexible key-value map.
+// Params are typically extracted from client events and contain form data,
+// event metadata, or other structured information.
+//
+// The type provides helper methods for safe type conversion of common types.
+type Params map[string]any
+
+// String retrieves a string value from the params.
+// Returns an empty string if the key is not found or the value is not a string.
+func (p Params) String(key string) string <span class="cov4" title="4">{
+        return mapString(p, key)
+}</span>
+
+// Checkbox retrieves a boolean value from params for checkbox inputs.
+// Returns true if the value is the string "on" (the default for checked checkboxes).
+// Returns false if the key is not found or the value is not "on".
+func (p Params) Checkbox(key string) bool <span class="cov3" title="3">{
+        v, ok := p[key]
+        if !ok </span><span class="cov1" title="1">{
+                return false
+        }</span>
+        <span class="cov2" title="2">out, ok := v.(string)
+        if !ok </span><span class="cov0" title="0">{
+                return false
+        }</span>
+        <span class="cov2" title="2">if out == "on" </span><span class="cov1" title="1">{
+                return true
+        }</span>
+        <span class="cov1" title="1">return false</span>
+}
+
+func mapString(p map[string]any, key string) string <span class="cov4" title="4">{
+        v, ok := p[key]
+        if !ok </span><span class="cov1" title="1">{
+                return ""
+        }</span>
+        <span class="cov3" title="3">out, ok := v.(string)
+        if !ok </span><span class="cov0" title="0">{
+                return ""
+        }</span>
+        <span class="cov3" title="3">return out</span>
+}
+
+// Int retrieves an integer value from the params.
+// Handles conversion from int, string, float32, and float64 types.
+// Returns 0 if the key is not found or the value cannot be converted to int.
+func (p Params) Int(key string) int <span class="cov6" title="8">{
+        return mapInt(p, key)
+}</span>
+
+func mapInt(p map[string]any, key string) int <span class="cov10" title="41">{
+        v, ok := p[key]
+        if !ok </span><span class="cov5" title="7">{
+                return 0
+        }</span>
+        <span class="cov9" title="34">switch out := v.(type) </span>{
+        case int:<span class="cov8" title="26">
+                return out</span>
+        case string:<span class="cov5" title="6">
+                i, err := strconv.Atoi(out)
+                if err != nil </span><span class="cov2" title="2">{
+                        return 0
+                }</span>
+                <span class="cov4" title="4">return i</span>
+        case float32:<span class="cov1" title="1">
+                return int(out)</span>
+        case float64:<span class="cov1" title="1">
+                return int(out)</span>
+        }
+        <span class="cov0" title="0">return 0</span>
+}
+
+// Float32 retrieves a float32 value from the params.
+// Handles conversion from float32, float64, and string types.
+// Returns 0.0 if the key is not found or the value cannot be converted to float32.
+func (p Params) Float32(key string) float32 <span class="cov4" title="4">{
+        return mapFloat32(p, key)
+}</span>
+
+func mapFloat32(p map[string]any, key string) float32 <span class="cov6" title="10">{
+        v, ok := p[key]
+        if !ok </span><span class="cov3" title="3">{
+                return 0.0
+        }</span>
+        <span class="cov5" title="7">switch out := v.(type) </span>{
+        case float32:<span class="cov1" title="1">
+                return out</span>
+        case float64:<span class="cov2" title="2">
+                return float32(out)</span>
+        case string:<span class="cov4" title="4">
+                f, err := strconv.ParseFloat(out, 32)
+                if err != nil </span><span class="cov2" title="2">{
+                        return 0.0
+                }</span>
+                <span class="cov2" title="2">return float32(f)</span>
+        }
+        <span class="cov0" title="0">return 0.0</span>
+}
+
+// NewParamsFromRequest creates a Params map from URL query parameters.
+// If a parameter appears multiple times, the value will be a []string slice.
+// If a parameter appears once, the value will be a string.
+func NewParamsFromRequest(r *http.Request) Params <span class="cov1" title="1">{
+        out := Params{}
+        values := r.URL.Query()
+        for k, v := range values </span><span class="cov3" title="3">{
+                if len(v) == 1 </span><span class="cov2" title="2">{
+                        out[k] = v[0]
+                }</span> else<span class="cov1" title="1"> {
+                        out[k] = v
+                }</span>
+        }
+        <span class="cov1" title="1">return out</span>
+}
+</pre>
+		
+		<pre class="file" id="file10" style="display: none">package live
+
+import (
+        "sort"
+        "sync"
+)
+
+// IslandConstructor is a function that creates a new Island.
+// Constructors are registered with the IslandRegistry and called
+// when an island instance needs to be created.
+type IslandConstructor func() (*Island, error)
+
+// IslandRegistry manages the registration and retrieval of island constructors.
+// It is thread-safe for concurrent access.
+type IslandRegistry struct {
+        mu           sync.RWMutex
+        constructors map[string]IslandConstructor
+}
+
+// NewIslandRegistry creates a new empty IslandRegistry.
+func NewIslandRegistry() *IslandRegistry <span class="cov5" title="45">{
+        return &amp;IslandRegistry{
+                constructors: make(map[string]IslandConstructor),
+        }
+}</span>
+
+// Register adds an island constructor to the registry.
+// Returns ErrIslandAlreadyRegistered if an island with the same name
+// is already registered.
+func (r *IslandRegistry) Register(name string, constructor IslandConstructor) error <span class="cov7" title="158">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+
+        if _, exists := r.constructors[name]; exists </span><span class="cov1" title="2">{
+                return ErrIslandAlreadyRegistered
+        }</span>
+
+        <span class="cov7" title="156">r.constructors[name] = constructor
+        return nil</span>
+}
+
+// Get retrieves an island constructor from the registry.
+// Returns ErrIslandNotFound if no island with the given name is registered.
+func (r *IslandRegistry) Get(name string) (IslandConstructor, error) <span class="cov8" title="229">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+
+        constructor, exists := r.constructors[name]
+        if !exists </span><span class="cov2" title="4">{
+                return nil, ErrIslandNotFound
+        }</span>
+
+        <span class="cov8" title="225">return constructor, nil</span>
+}
+
+// List returns a sorted list of all registered island names.
+func (r *IslandRegistry) List() []string <span class="cov4" title="14">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+
+        names := make([]string, 0, len(r.constructors))
+        for name := range r.constructors </span><span class="cov10" title="1007">{
+                names = append(names, name)
+        }</span>
+        <span class="cov4" title="14">sort.Strings(names)
+        return names</span>
+}
+
+// defaultRegistry is the global singleton registry instance.
+var defaultRegistry = NewIslandRegistry()
+
+// RegisterIsland registers an island constructor with the global registry.
+// Returns ErrIslandAlreadyRegistered if an island with the same name
+// is already registered.
+func RegisterIsland(name string, constructor IslandConstructor) error <span class="cov4" title="12">{
+        return defaultRegistry.Register(name, constructor)
+}</span>
+
+// GetIsland retrieves an island constructor from the global registry.
+// Returns ErrIslandNotFound if no island with the given name is registered.
+func GetIsland(name string) (IslandConstructor, error) <span class="cov1" title="2">{
+        return defaultRegistry.Get(name)
+}</span>
+
+// ListIslands returns a sorted list of all registered island names
+// from the global registry.
+func ListIslands() []string <span class="cov1" title="1">{
+        return defaultRegistry.List()
+}</span>
+
+// DefaultRegistry returns the global singleton registry instance.
+// This can be used for testing or advanced use cases where direct
+// registry access is needed.
+func DefaultRegistry() *IslandRegistry <span class="cov1" title="2">{
+        return defaultRegistry
+}</span>
+</pre>
+		
+		<pre class="file" id="file11" style="display: none">package live
+
+import (
+        "bytes"
+        "context"
+        "fmt"
+        "strings"
+
+        "golang.org/x/net/html"
+)
+
+// RenderIsland renders an island instance to HTML with island-scoped anchors.
+//
+// The rendering process:
+// 1. Calls the island's render handler to generate HTML
+// 2. Parses the HTML into a node tree
+// 3. Shapes the tree (removes insignificant whitespace)
+// 4. Anchors all significant nodes with island-scoped identifiers
+// 5. Renders the tree back to HTML string
+//
+// The anchored HTML enables precise diffing and patching on subsequent renders.
+// Island-scoped anchors use the format "_i_&lt;islandID&gt;_&lt;path&gt;" to ensure
+// uniqueness across multiple island instances on the same page.
+//
+// Returns the rendered HTML string or an error if rendering fails.
+func RenderIsland(ctx context.Context, instance *IslandInstance) (string, error) <span class="cov10" title="77">{
+        if instance == nil </span><span class="cov1" title="1">{
+                return "", fmt.Errorf("instance is nil")
+        }</span>
+
+        // Render the island using its render handler
+        <span class="cov9" title="76">htmlContent, err := instance.Render(ctx)
+        if err != nil </span><span class="cov1" title="1">{
+                return "", fmt.Errorf("render error: %w", err)
+        }</span>
+
+        // Parse the HTML
+        <span class="cov9" title="75">render, err := html.Parse(strings.NewReader(string(htmlContent)))
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("html parse error: %w", err)
+        }</span>
+
+        // Shape the tree (remove insignificant whitespace, etc.)
+        <span class="cov9" title="75">shapeTree(render)
+
+        // Anchor the tree with island-scoped anchors
+        anchorIslandTree(render, newIslandAnchorGenerator(instance.ID))
+
+        // Render back to HTML
+        var buf bytes.Buffer
+        if err := html.Render(&amp;buf, render); err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("html render error: %w", err)
+        }</span>
+
+        <span class="cov9" title="75">return buf.String(), nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file12" style="display: none">package live
+
+import (
+        "context"
+        "fmt"
+        "log/slog"
+        "sync"
+)
+
+// Session represents a transport-agnostic connection that can multiplex
+// multiple island instances over a single transport connection.
+//
+// A Session:
+// - Has a unique SessionID
+// - Manages multiple IslandInstance objects
+// - Routes events from the transport to the correct island
+// - Provides thread-safe access to islands
+type Session struct {
+        // ID is the unique session identifier
+        ID SessionID
+
+        // transport is the underlying transport connection
+        transport Transport
+
+        // islands maps island IDs to their instances
+        islands map[IslandID]*IslandInstance
+
+        // mu protects concurrent access to the islands map
+        mu sync.RWMutex
+
+        // ctx is the session context
+        ctx context.Context
+
+        // cancel cancels the session context
+        cancel context.CancelFunc
+
+        // closeOnce ensures Close() is idempotent
+        closeOnce sync.Once
+}
+
+// NewSession creates a new session with the given ID and transport.
+// Events must be read from the transport and routed via IslandEngine.RouteEvent().
+func NewSession(ctx context.Context, sessionID SessionID, transport Transport) *Session <span class="cov7" title="43">{
+        sessionCtx, cancel := context.WithCancel(ctx)
+
+        s := &amp;Session{
+                ID:        sessionID,
+                transport: transport,
+                islands:   make(map[IslandID]*IslandInstance),
+                ctx:       sessionCtx,
+                cancel:    cancel,
+        }
+
+        return s
+}</span>
+
+// handleEvent routes an event to the correct island or handles session-level events.
+// This method is called by IslandEngine.RouteEvent() after receiving events from the transport.
+func (s *Session) handleEvent(event Event) error <span class="cov4" title="8">{
+        // If the event has an island field, route it to that island
+        if event.Island != "" </span><span class="cov4" title="8">{
+                return s.routeToIsland(event)
+        }</span>
+
+        // Session-level events (no island field) can be handled here
+        // For now, these are not used in the v2 architecture
+        <span class="cov0" title="0">return nil</span>
+}
+
+// routeToIsland routes an event to a specific island instance.
+func (s *Session) routeToIsland(event Event) error <span class="cov4" title="8">{
+        islandID := IslandID(event.Island)
+
+        // Get the island instance
+        instance, ok := s.GetIsland(islandID)
+        if !ok </span><span class="cov0" title="0">{
+                return fmt.Errorf("island not found: %s", islandID)
+        }</span>
+
+        // Parse event params
+        <span class="cov4" title="8">params, err := event.Params()
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        // Handle the event based on whether it has self data (server event)
+        // or is a client event
+        <span class="cov4" title="8">if event.SelfData != nil </span><span class="cov1" title="1">{
+                // Self-targeted event from server
+                return instance.CallSelf(s.ctx, event.T, event.SelfData)
+        }</span>
+
+        // Client event
+        <span class="cov4" title="7">return instance.CallEvent(s.ctx, event.T, params)</span>
+}
+
+// AddIsland registers an island instance with this session.
+// This makes the island available for event routing.
+func (s *Session) AddIsland(instance *IslandInstance) <span class="cov9" title="82">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+
+        islandID := IslandID(instance.ID)
+        s.islands[islandID] = instance
+}</span>
+
+// GetIsland retrieves an island instance by ID.
+// Returns the instance and true if found, nil and false otherwise.
+func (s *Session) GetIsland(islandID IslandID) (*IslandInstance, bool) <span class="cov7" title="32">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+
+        instance, ok := s.islands[islandID]
+        return instance, ok
+}</span>
+
+// RemoveIsland unregisters an island instance from this session.
+func (s *Session) RemoveIsland(islandID IslandID) <span class="cov5" title="12">{
+        s.mu.Lock()
+        defer s.mu.Unlock()
+
+        delete(s.islands, islandID)
+}</span>
+
+// ListIslands returns a slice of all island instances in this session.
+// The returned slice is a snapshot at the time of the call.
+func (s *Session) ListIslands() []*IslandInstance <span class="cov6" title="16">{
+        s.mu.RLock()
+        defer s.mu.RUnlock()
+
+        instances := make([]*IslandInstance, 0, len(s.islands))
+        for _, instance := range s.islands </span><span class="cov9" title="107">{
+                instances = append(instances, instance)
+        }</span>
+        <span class="cov6" title="16">return instances</span>
+}
+
+// Send transmits an event to the client via the transport.
+// This method is thread-safe and wraps the transport's Send method.
+func (s *Session) Send(event Event) error <span class="cov8" title="72">{
+        return s.transport.Send(event)
+}</span>
+
+// Close performs a clean shutdown of the session.
+// It:
+// - Cancels the session context
+// - Closes the underlying transport
+// - Cleans up all resources
+//
+// Close is safe to call multiple times.
+func (s *Session) Close() error <span class="cov7" title="44">{
+        var err error
+
+        s.closeOnce.Do(func() </span><span class="cov7" title="43">{
+                // Cancel the session context
+                s.cancel()
+
+                // Unmount all islands before clearing
+                // Use a background context since session context is already cancelled
+                s.mu.RLock()
+                islands := make([]*IslandInstance, 0, len(s.islands))
+                for _, instance := range s.islands </span><span class="cov8" title="69">{
+                        islands = append(islands, instance)
+                }</span>
+                <span class="cov7" title="43">s.mu.RUnlock()
+
+                for _, instance := range islands </span><span class="cov8" title="69">{
+                        if unmountErr := instance.Unmount(context.Background()); unmountErr != nil </span><span class="cov0" title="0">{
+                                slog.Debug("failed to unmount island on session close",
+                                        "island", instance.ID,
+                                        "err", unmountErr)
+                        }</span>
+                }
+
+                // Close the transport
+                <span class="cov7" title="43">err = s.transport.Close()
+
+                // Clear the islands map
+                s.mu.Lock()
+                s.islands = make(map[IslandID]*IslandInstance)
+                s.mu.Unlock()</span>
+        })
+
+        <span class="cov7" title="44">return err</span>
+}
+
+// Context returns the session's context.
+// The context is cancelled when the session is closed.
+func (s *Session) Context() context.Context <span class="cov10" title="133">{
+        return s.ctx
+}</span>
+</pre>
+		
+		<pre class="file" id="file13" style="display: none">package live
+
+import (
+        "context"
+        "sync"
+        "time"
+)
+
+// State represents island state as a flexible key-value map.
+// It can store any type of data needed by an island instance.
+type State = any
+
+// IslandStateStore defines the interface for storing and retrieving island state.
+// State is stored using a composite key of (SessionID, IslandID) to isolate
+// state per island instance within a session.
+type IslandStateStore interface {
+        // Get retrieves the state for a specific island instance within a session.
+        // Returns the state and true if found, or nil and false if not found.
+        Get(sessionID SessionID, islandID IslandID) (State, bool)
+
+        // Set stores the state for a specific island instance with a TTL.
+        // The state will be automatically removed after the TTL expires.
+        Set(sessionID SessionID, islandID IslandID, state State, ttl time.Duration)
+
+        // Delete removes the state for a specific island instance.
+        Delete(sessionID SessionID, islandID IslandID)
+
+        // DeleteSession removes all island states for a given session.
+        // This is typically called when a session ends.
+        DeleteSession(sessionID SessionID)
+}
+
+// stateEntry represents a single state entry in the store with expiration tracking.
+type stateEntry struct {
+        state     State
+        expiresAt time.Time
+}
+
+// MemoryIslandStateStore is an in-memory implementation of IslandStateStore.
+// It uses a nested map structure: map[SessionID]map[IslandID]stateEntry
+// and includes a janitor goroutine for automatic TTL-based cleanup.
+type MemoryIslandStateStore struct {
+        // mu protects concurrent access to the store.
+        mu sync.RWMutex
+
+        // store maps SessionID -&gt; IslandID -&gt; stateEntry.
+        store map[SessionID]map[IslandID]stateEntry
+
+        // ctx is the context for lifecycle management.
+        ctx context.Context
+
+        // cleanupInterval determines how often the janitor runs.
+        cleanupInterval time.Duration
+}
+
+var _ IslandStateStore = (*MemoryIslandStateStore)(nil)
+
+// NewMemoryIslandStateStore creates a new in-memory island state store.
+// The janitor goroutine starts automatically and runs at the specified cleanup interval.
+// The janitor stops when the provided context is canceled.
+func NewMemoryIslandStateStore(ctx context.Context, cleanupInterval time.Duration) *MemoryIslandStateStore <span class="cov4" title="23">{
+        store := &amp;MemoryIslandStateStore{
+                store:           make(map[SessionID]map[IslandID]stateEntry),
+                ctx:             ctx,
+                cleanupInterval: cleanupInterval,
+        }
+
+        // Start the janitor goroutine for TTL-based cleanup.
+        go store.janitor()
+
+        return store
+}</span>
+
+// Get retrieves the state for a specific island instance within a session.
+// Returns the state and true if found and not expired, or nil and false otherwise.
+func (m *MemoryIslandStateStore) Get(sessionID SessionID, islandID IslandID) (State, bool) <span class="cov10" title="2532">{
+        m.mu.RLock()
+        defer m.mu.RUnlock()
+
+        sessionStates, ok := m.store[sessionID]
+        if !ok </span><span class="cov8" title="1007">{
+                return nil, false
+        }</span>
+
+        <span class="cov9" title="1525">entry, ok := sessionStates[islandID]
+        if !ok </span><span class="cov1" title="2">{
+                return nil, false
+        }</span>
+
+        // Check if the entry has expired.
+        <span class="cov9" title="1523">if time.Now().After(entry.expiresAt) </span><span class="cov1" title="1">{
+                return nil, false
+        }</span>
+
+        <span class="cov9" title="1522">return entry.state, true</span>
+}
+
+// Set stores the state for a specific island instance with a TTL.
+// The state will be automatically removed by the janitor after the TTL expires.
+func (m *MemoryIslandStateStore) Set(sessionID SessionID, islandID IslandID, state State, ttl time.Duration) <span class="cov9" title="1583">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        // Ensure the session map exists.
+        if m.store[sessionID] == nil </span><span class="cov6" title="95">{
+                m.store[sessionID] = make(map[IslandID]stateEntry)
+        }</span>
+
+        // Store the state with expiration time.
+        <span class="cov9" title="1583">m.store[sessionID][islandID] = stateEntry{
+                state:     state,
+                expiresAt: time.Now().Add(ttl),
+        }</span>
+}
+
+// Delete removes the state for a specific island instance.
+func (m *MemoryIslandStateStore) Delete(sessionID SessionID, islandID IslandID) <span class="cov9" title="1254">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        sessionStates, ok := m.store[sessionID]
+        if !ok </span><span class="cov8" title="965">{
+                return
+        }</span>
+
+        <span class="cov7" title="289">delete(sessionStates, islandID)
+
+        // Clean up the session map if it's empty.
+        if len(sessionStates) == 0 </span><span class="cov5" title="35">{
+                delete(m.store, sessionID)
+        }</span>
+}
+
+// DeleteSession removes all island states for a given session.
+func (m *MemoryIslandStateStore) DeleteSession(sessionID SessionID) <span class="cov5" title="39">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        delete(m.store, sessionID)
+}</span>
+
+// janitor runs periodically to clean up expired state entries.
+// It scans all entries and removes those that have passed their expiration time.
+// The janitor stops when the store's context is canceled.
+func (m *MemoryIslandStateStore) janitor() <span class="cov4" title="23">{
+        ticker := time.NewTicker(m.cleanupInterval)
+        defer ticker.Stop()
+
+        for </span><span class="cov4" title="32">{
+                select </span>{
+                case &lt;-ticker.C:<span class="cov3" title="9">
+                        m.cleanup()</span>
+                case &lt;-m.ctx.Done():<span class="cov4" title="23">
+                        return</span>
+                }
+        }
+}
+
+// cleanup removes all expired state entries from the store.
+func (m *MemoryIslandStateStore) cleanup() <span class="cov3" title="9">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        now := time.Now()
+
+        // Iterate through all sessions.
+        for sessionID, sessionStates := range m.store </span><span class="cov3" title="6">{
+                // Iterate through all islands in the session.
+                for islandID, entry := range sessionStates </span><span class="cov3" title="8">{
+                        // Remove expired entries.
+                        if now.After(entry.expiresAt) </span><span class="cov1" title="2">{
+                                delete(sessionStates, islandID)
+                        }</span>
+                }
+
+                // Clean up empty session maps.
+                <span class="cov3" title="6">if len(sessionStates) == 0 </span><span class="cov1" title="1">{
+                        delete(m.store, sessionID)
+                }</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file14" style="display: none">package live
+
+import (
+        "context"
+        "net/http"
+        "time"
+)
+
+// Transport defines the interface for bidirectional communication between
+// the server and a client. Implementations include WebSocket, SSE, and polling.
+//
+// A Transport is responsible for:
+// - Sending events to the client via Send()
+// - Receiving events from the client via the Events() channel
+// - Lifecycle management via Close()
+//
+// Transport implementations must be safe for concurrent use.
+type Transport interface {
+        // Send transmits an event to the client.
+        // Returns an error if the transport is closed or the send fails.
+        Send(Event) error
+
+        // Events returns a receive-only channel of events from the client.
+        // The channel is closed when the transport is closed.
+        // Consumers should read from this channel until it's closed.
+        Events() &lt;-chan Event
+
+        // Close terminates the transport connection and releases resources.
+        // After Close is called:
+        // - The Events() channel will be closed
+        // - Send() will return an error
+        // - All goroutines should be cleaned up
+        //
+        // Close must be safe to call multiple times.
+        Close() error
+}
+
+// TransportFactory creates Transport instances from HTTP requests.
+// Different factories handle different protocols (WebSocket, SSE, polling).
+type TransportFactory interface {
+        // Upgrade converts an HTTP request/response pair into a Transport.
+        // This typically involves protocol negotiation and connection upgrade.
+        //
+        // The context can be used to cancel the upgrade process or manage
+        // the transport's lifecycle.
+        //
+        // Returns an error if the upgrade fails (e.g., unsupported protocol,
+        // handshake failure).
+        Upgrade(ctx context.Context, w http.ResponseWriter, r *http.Request) (Transport, error)
+}
+
+// TransportConfig holds configuration options for transport connections.
+type TransportConfig struct {
+        // WriteTimeout is the maximum duration for writing a message.
+        // Zero means no timeout.
+        WriteTimeout time.Duration
+
+        // ReadTimeout is the maximum duration for reading a message.
+        // Zero means no timeout.
+        ReadTimeout time.Duration
+
+        // PingInterval is how often to send ping messages to keep the
+        // connection alive. Zero disables pings.
+        PingInterval time.Duration
+
+        // PongTimeout is how long to wait for a pong response before
+        // considering the connection dead.
+        PongTimeout time.Duration
+
+        // MaxMessageSize is the maximum size in bytes for incoming messages.
+        // Zero means no limit.
+        MaxMessageSize int64
+
+        // EventBufferSize is the size of the Events() channel buffer.
+        // A larger buffer reduces backpressure but increases memory usage.
+        // Zero uses a default buffer size.
+        EventBufferSize int
+}
+
+// DefaultTransportConfig returns sensible default transport configuration.
+func DefaultTransportConfig() TransportConfig <span class="cov10" title="21">{
+        return TransportConfig{
+                WriteTimeout:    10 * time.Second,
+                ReadTimeout:     60 * time.Second,
+                PingInterval:    30 * time.Second,
+                PongTimeout:     10 * time.Second,
+                MaxMessageSize:  1024 * 1024, // 1MB
+                EventBufferSize: 256,
+        }
+}</span>
+
+// ConnectionMetadata contains information about a transport connection.
+type ConnectionMetadata struct {
+        // SessionID uniquely identifies the session for this connection.
+        SessionID SessionID
+
+        // RemoteAddr is the client's remote address.
+        RemoteAddr string
+
+        // UserAgent is the client's user agent string.
+        UserAgent string
+
+        // Protocol is the transport protocol being used (e.g., "websocket", "sse").
+        Protocol string
+
+        // ConnectedAt is when the connection was established.
+        ConnectedAt time.Time
+
+        // Headers contains relevant HTTP headers from the upgrade request.
+        Headers http.Header
+}
+</pre>
+		
+		<pre class="file" id="file15" style="display: none">package live
+
+import (
+        "context"
+        "net/http"
+)
+
+// WebSocketHandler returns an HTTP handler that upgrades connections to WebSocket transports.
+// It uses the provided configuration for transport settings.
+//
+// Example usage:
+//
+//        config := live.DefaultTransportConfig()
+//        http.Handle("/ws", live.WebSocketHandler(config))
+func WebSocketHandler(config TransportConfig) http.HandlerFunc <span class="cov0" title="0">{
+        factory := NewWebSocketTransportFactory(config)
+
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                ctx := r.Context()
+
+                transport, err := factory.Upgrade(ctx, w, r)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "WebSocket upgrade failed", http.StatusBadRequest)
+                        return
+                }</span>
+
+                // Note: The actual handling of the transport (reading events, sending responses)
+                // should be done by the caller or by a session manager. This handler just
+                // performs the upgrade and returns the transport.
+                //
+                // In practice, you would typically pass the transport to a session manager
+                // or connection handler. For now, this is a basic example that just upgrades
+                // and closes.
+                <span class="cov0" title="0">defer transport.Close()
+
+                // Keep the connection alive until the context is done
+                &lt;-ctx.Done()</span>
+        }
+}
+
+// WebSocketHandlerWithFactory returns an HTTP handler that upgrades connections using a custom factory.
+// This allows for more control over the upgrade process and configuration.
+//
+// Example usage:
+//
+//        factory := live.NewWebSocketTransportFactory(config)
+//        http.Handle("/ws", live.WebSocketHandlerWithFactory(factory))
+func WebSocketHandlerWithFactory(factory *WebSocketTransportFactory) http.HandlerFunc <span class="cov0" title="0">{
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                ctx := r.Context()
+
+                transport, err := factory.Upgrade(ctx, w, r)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "WebSocket upgrade failed", http.StatusBadRequest)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">defer transport.Close()
+
+                // Keep the connection alive until the context is done
+                &lt;-ctx.Done()</span>
+        }
+}
+
+// UpgradeWebSocket performs a WebSocket upgrade on the given HTTP request/response pair.
+// This is a lower-level function that gives you direct access to the Transport.
+//
+// Unlike the handler functions above, this function does not manage the connection lifecycle.
+// The caller is responsible for using the returned Transport and closing it when done.
+//
+// Example usage:
+//
+//        func myHandler(w http.ResponseWriter, r *http.Request) {
+//                config := live.DefaultTransportConfig()
+//                transport, err := live.UpgradeWebSocket(r.Context(), w, r, config)
+//                if err != nil {
+//                        http.Error(w, "upgrade failed", http.StatusBadRequest)
+//                        return
+//                }
+//                defer transport.Close()
+//
+//                // Use the transport...
+//                for event := range transport.Events() {
+//                        // Handle event...
+//                }
+//        }
+func UpgradeWebSocket(ctx context.Context, w http.ResponseWriter, r *http.Request, config TransportConfig) (Transport, error) <span class="cov8" title="1">{
+        factory := NewWebSocketTransportFactory(config)
+        return factory.Upgrade(ctx, w, r)
+}</span>
+
+// SSEHandler returns an HTTP handler that upgrades connections to SSE transports.
+// It uses the provided configuration for transport settings.
+//
+// Note: SSE requires two endpoints - one for the SSE stream (this handler) and one
+// for client-to-server POST requests. Use SSEHandlerWithFactory for more control.
+//
+// Example usage:
+//
+//        config := live.DefaultTransportConfig()
+//        http.Handle("/sse", live.SSEHandler(config))
+func SSEHandler(config TransportConfig) http.HandlerFunc <span class="cov0" title="0">{
+        factory := NewSSETransportFactory(config)
+
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                ctx := r.Context()
+
+                transport, err := factory.Upgrade(ctx, w, r)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "SSE upgrade failed", http.StatusBadRequest)
+                        return
+                }</span>
+
+                // Note: The actual handling of the transport (reading events, sending responses)
+                // should be done by the caller or by a session manager. This handler just
+                // performs the upgrade and returns the transport.
+                //
+                // In practice, you would typically pass the transport to a session manager
+                // or connection handler. For now, this is a basic example that just upgrades
+                // and closes.
+                <span class="cov0" title="0">defer transport.Close()
+
+                // Keep the connection alive until the context is done
+                &lt;-ctx.Done()</span>
+        }
+}
+
+// SSEHandlerWithFactory returns SSE stream and POST handlers using a shared factory.
+// This ensures both endpoints can coordinate on session management.
+//
+// Returns two handlers: (sseHandler, postHandler)
+//
+// Example usage:
+//
+//        factory := live.NewSSETransportFactory(config)
+//        sseHandler, postHandler := live.SSEHandlerWithFactory(factory)
+//        http.Handle("/sse", sseHandler)
+//        http.Handle("/sse/post", postHandler)
+func SSEHandlerWithFactory(factory *SSETransportFactory) (http.HandlerFunc, http.HandlerFunc) <span class="cov0" title="0">{
+        sseHandler := func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                ctx := r.Context()
+
+                transport, err := factory.Upgrade(ctx, w, r)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "SSE upgrade failed", http.StatusBadRequest)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">defer transport.Close()
+
+                // Keep the connection alive until the context is done
+                &lt;-ctx.Done()</span>
+        }
+
+        <span class="cov0" title="0">postHandler := func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                factory.HandlePost(w, r)
+        }</span>
+
+        <span class="cov0" title="0">return sseHandler, postHandler</span>
+}
+
+// UpgradeSSE performs an SSE upgrade on the given HTTP request/response pair.
+// This is a lower-level function that gives you direct access to the Transport.
+//
+// Unlike the handler functions above, this function does not manage the connection lifecycle.
+// The caller is responsible for using the returned Transport and closing it when done.
+//
+// Note: For SSE to work properly, you also need to handle POST requests for client-to-server
+// events. See SSETransportFactory.HandlePost for the POST handler.
+//
+// Example usage:
+//
+//        func myHandler(w http.ResponseWriter, r *http.Request) {
+//                config := live.DefaultTransportConfig()
+//                transport, err := live.UpgradeSSE(r.Context(), w, r, config)
+//                if err != nil {
+//                        http.Error(w, "upgrade failed", http.StatusBadRequest)
+//                        return
+//                }
+//                defer transport.Close()
+//
+//                // Use the transport...
+//                for event := range transport.Events() {
+//                        // Handle event...
+//                }
+//        }
+func UpgradeSSE(ctx context.Context, w http.ResponseWriter, r *http.Request, config TransportConfig) (Transport, error) <span class="cov0" title="0">{
+        factory := NewSSETransportFactory(config)
+        return factory.Upgrade(ctx, w, r)
+}</span>
+</pre>
+		
+		<pre class="file" id="file16" style="display: none">package live
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "io"
+        "log/slog"
+        "net/http"
+        "strconv"
+        "sync"
+        "time"
+)
+
+// SSETransport implements Transport interface using Server-Sent Events (SSE).
+// It provides bidirectional communication using:
+// - SSE (EventSource) for server-to-client streaming
+// - HTTP POST for client-to-server messages
+//
+// Thread-safety: All public methods are safe for concurrent use.
+type SSETransport struct {
+        config TransportConfig
+        meta   ConnectionMetadata
+
+        // SSE response writer and flusher
+        w       http.ResponseWriter
+        flusher http.Flusher
+
+        // Channel for incoming events from the client (via POST)
+        events chan Event
+
+        // Event ID tracking for reconnection
+        lastEventID int
+
+        // Context and cancellation
+        ctx    context.Context
+        cancel context.CancelFunc
+
+        // Synchronization
+        closeOnce sync.Once
+        closed    chan struct{}
+
+        // Write mutex protects concurrent writes to the SSE stream
+        writeMu sync.Mutex
+
+        // eventsMu protects the events channel from concurrent send/close operations
+        // receiveEvent takes a read lock, Close takes a write lock
+        eventsMu sync.RWMutex
+
+        // Heartbeat ticker for keepalive
+        heartbeatTicker *time.Ticker
+        heartbeatDone   chan struct{}
+}
+
+// NewSSETransport creates a new SSE transport from an HTTP response writer.
+// The response writer must support the http.Flusher interface for SSE streaming.
+func NewSSETransport(ctx context.Context, w http.ResponseWriter, r *http.Request, config TransportConfig, meta ConnectionMetadata) (*SSETransport, error) <span class="cov5" title="10">{
+        // Check if the response writer supports flushing (required for SSE)
+        flusher, ok := w.(http.Flusher)
+        if !ok </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("response writer does not support flushing")
+        }</span>
+
+        <span class="cov5" title="10">transportCtx, cancel := context.WithCancel(ctx)
+
+        bufferSize := config.EventBufferSize
+        if bufferSize == 0 </span><span class="cov0" title="0">{
+                bufferSize = DefaultTransportConfig().EventBufferSize
+        }</span>
+
+        // Check for Last-Event-ID header for reconnection support
+        <span class="cov5" title="10">lastEventID := 0
+        if lastEventIDStr := r.Header.Get("Last-Event-ID"); lastEventIDStr != "" </span><span class="cov1" title="1">{
+                if id, err := strconv.Atoi(lastEventIDStr); err == nil </span><span class="cov1" title="1">{
+                        lastEventID = id
+                        slog.Debug("sse reconnection detected", "last_event_id", lastEventID)
+                }</span>
+        }
+
+        <span class="cov5" title="10">t := &amp;SSETransport{
+                config:      config,
+                meta:        meta,
+                w:           w,
+                flusher:     flusher,
+                events:      make(chan Event, bufferSize),
+                lastEventID: lastEventID,
+                ctx:         transportCtx,
+                cancel:      cancel,
+                closed:      make(chan struct{}),
+        }
+
+        // Set SSE headers
+        w.Header().Set("Content-Type", "text/event-stream")
+        w.Header().Set("Cache-Control", "no-cache")
+        w.Header().Set("Connection", "keep-alive")
+        w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
+
+        // Start heartbeat to keep connection alive
+        if config.PingInterval &gt; 0 </span><span class="cov5" title="10">{
+                t.heartbeatTicker = time.NewTicker(config.PingInterval)
+                t.heartbeatDone = make(chan struct{})
+                go t.heartbeatPump()
+        }</span>
+
+        <span class="cov5" title="10">return t, nil</span>
+}
+
+// Send transmits an event to the client over the SSE stream.
+// This method is thread-safe and can be called concurrently.
+func (t *SSETransport) Send(event Event) error <span class="cov10" title="121">{
+        select </span>{
+        case &lt;-t.closed:<span class="cov1" title="1">
+                return fmt.Errorf("transport closed")</span>
+        default:<span class="cov9" title="120"></span>
+        }
+
+        <span class="cov9" title="120">t.writeMu.Lock()
+        defer t.writeMu.Unlock()
+
+        // Increment event ID
+        t.lastEventID++
+        eventID := t.lastEventID
+
+        // Marshal event to JSON
+        data, err := json.Marshal(&amp;event)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("marshal event: %w", err)
+        }</span>
+
+        // Write SSE format:
+        // id: &lt;eventID&gt;
+        // data: &lt;json&gt;
+        // (blank line)
+        <span class="cov9" title="120">if _, err := fmt.Fprintf(t.w, "id: %d\n", eventID); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("write event id: %w", err)
+        }</span>
+
+        <span class="cov9" title="120">if _, err := fmt.Fprintf(t.w, "data: %s\n\n", data); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("write event data: %w", err)
+        }</span>
+
+        // Flush to ensure the event is sent immediately
+        <span class="cov9" title="120">t.flusher.Flush()
+
+        return nil</span>
+}
+
+// Events returns a receive-only channel of events from the client.
+// The channel is closed when the transport is closed.
+func (t *SSETransport) Events() &lt;-chan Event <span class="cov2" title="2">{
+        return t.events
+}</span>
+
+// Close terminates the SSE connection and cleans up resources.
+// It is safe to call Close multiple times.
+//
+// Shutdown ordering is critical for thread-safety:
+// 1. t.closed is closed first to signal all senders (receiveEvent) to stop
+// 2. eventsMu write lock is acquired before closing t.events
+// 3. t.events is closed under the write lock
+// This ensures receiveEvent (which holds a read lock) cannot send while Close closes the channel.
+func (t *SSETransport) Close() error <span class="cov5" title="11">{
+        var err error
+        t.closeOnce.Do(func() </span><span class="cov5" title="10">{
+                // Cancel the context to signal all goroutines to stop
+                t.cancel()
+
+                // CRITICAL: Close the closed channel BEFORE closing t.events.
+                // This signals receiveEvent (called from POST handlers) to stop.
+                close(t.closed)
+
+                // Stop heartbeat ticker and wait for heartbeat goroutine to finish
+                if t.heartbeatTicker != nil </span><span class="cov5" title="10">{
+                        t.heartbeatTicker.Stop()
+                        // Wait for heartbeat goroutine to finish
+                        select </span>{
+                        case &lt;-t.heartbeatDone:<span class="cov5" title="10"></span>
+                                // Heartbeat finished
+                        case &lt;-time.After(100 * time.Millisecond):<span class="cov0" title="0"></span>
+                                // Timeout waiting for heartbeat
+                        }
+                }
+
+                // Acquire write lock to prevent concurrent sends while closing the channel.
+                // receiveEvent holds a read lock while sending, so this ensures no sends
+                // can be in progress when we close t.events.
+                <span class="cov5" title="10">t.eventsMu.Lock()
+                close(t.events)
+                t.eventsMu.Unlock()</span>
+        })
+        <span class="cov5" title="11">return err</span>
+}
+
+// heartbeatPump sends periodic comments to keep the SSE connection alive
+// and detect dead connections.
+func (t *SSETransport) heartbeatPump() <span class="cov5" title="10">{
+        defer close(t.heartbeatDone)
+
+        for </span><span class="cov5" title="11">{
+                select </span>{
+                case &lt;-t.heartbeatTicker.C:<span class="cov1" title="1">
+                        // Check if closed before attempting to write
+                        select </span>{
+                        case &lt;-t.closed:<span class="cov0" title="0">
+                                return</span>
+                        case &lt;-t.ctx.Done():<span class="cov0" title="0">
+                                return</span>
+                        default:<span class="cov1" title="1"></span>
+                        }
+
+                        <span class="cov1" title="1">t.writeMu.Lock()
+                        // Double-check after acquiring lock
+                        select </span>{
+                        case &lt;-t.closed:<span class="cov0" title="0">
+                                t.writeMu.Unlock()
+                                return</span>
+                        case &lt;-t.ctx.Done():<span class="cov0" title="0">
+                                t.writeMu.Unlock()
+                                return</span>
+                        default:<span class="cov1" title="1"></span>
+                        }
+
+                        // Send a comment (lines starting with : are comments in SSE)
+                        <span class="cov1" title="1">if _, err := fmt.Fprintf(t.w, ": heartbeat\n\n"); err != nil </span><span class="cov0" title="0">{
+                                t.writeMu.Unlock()
+                                slog.Debug("heartbeat failed, closing connection", "err", err)
+                                t.Close()
+                                return
+                        }</span>
+                        <span class="cov1" title="1">t.flusher.Flush()
+                        t.writeMu.Unlock()</span>
+
+                case &lt;-t.ctx.Done():<span class="cov5" title="10">
+                        return</span>
+                case &lt;-t.closed:<span class="cov0" title="0">
+                        return</span>
+                }
+        }
+}
+
+// receiveEvent is called by the POST handler to deliver events from the client.
+// This is an internal method used to bridge the POST endpoint to the transport.
+//
+// Thread-safety: This method is safe to call concurrently with Close().
+// It acquires a read lock on eventsMu before sending to t.events, while Close()
+// acquires a write lock before closing t.events. This ensures that no sends can
+// happen while the channel is being closed, preventing "send on closed channel" panics.
+func (t *SSETransport) receiveEvent(event Event) error <span class="cov6" title="21">{
+        // First, check if transport is closed (non-blocking, no lock needed)
+        select </span>{
+        case &lt;-t.closed:<span class="cov0" title="0">
+                return fmt.Errorf("transport closed")</span>
+        case &lt;-t.ctx.Done():<span class="cov0" title="0">
+                return fmt.Errorf("transport context done")</span>
+        default:<span class="cov6" title="21"></span>
+        }
+
+        // Acquire read lock to prevent Close() from closing the channel while we send
+        <span class="cov6" title="21">t.eventsMu.RLock()
+        defer t.eventsMu.RUnlock()
+
+        // Double-check closed state after acquiring lock
+        select </span>{
+        case &lt;-t.closed:<span class="cov0" title="0">
+                return fmt.Errorf("transport closed")</span>
+        case &lt;-t.ctx.Done():<span class="cov0" title="0">
+                return fmt.Errorf("transport context done")</span>
+        case t.events &lt;- event:<span class="cov6" title="21">
+                return nil</span>
+        }
+}
+
+// SSETransportFactory creates SSE transports by upgrading HTTP connections.
+type SSETransportFactory struct {
+        config TransportConfig
+        // Map to track active SSE transports by session ID
+        // This is needed to route POST requests to the correct transport
+        transports   map[string]*SSETransport
+        transportsMu sync.RWMutex
+}
+
+// NewSSETransportFactory creates a new SSE transport factory with the given configuration.
+func NewSSETransportFactory(config TransportConfig) *SSETransportFactory <span class="cov5" title="9">{
+        return &amp;SSETransportFactory{
+                config:     config,
+                transports: make(map[string]*SSETransport),
+        }
+}</span>
+
+// Upgrade converts an HTTP request into an SSE transport.
+// It sets up the SSE stream for server-to-client events.
+// Client-to-server events should be sent via POST to HandlePost.
+func (f *SSETransportFactory) Upgrade(ctx context.Context, w http.ResponseWriter, r *http.Request) (Transport, error) <span class="cov5" title="10">{
+        // Build connection metadata
+        meta := ConnectionMetadata{
+                RemoteAddr:  r.RemoteAddr,
+                UserAgent:   r.UserAgent(),
+                Protocol:    "sse",
+                ConnectedAt: time.Now(),
+                Headers:     r.Header,
+        }
+
+        // Create the transport
+        transport, err := NewSSETransport(ctx, w, r, f.config, meta)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("create sse transport: %w", err)
+        }</span>
+
+        // Get or generate session ID from cookies
+        // In a real implementation, this would be coordinated with the session manager
+        <span class="cov5" title="10">sessionID := getSessionIDFromRequest(r)
+        if sessionID != "" </span><span class="cov2" title="2">{
+                f.transportsMu.Lock()
+                f.transports[sessionID] = transport
+                f.transportsMu.Unlock()
+
+                // Clean up when transport closes
+                go func() </span><span class="cov2" title="2">{
+                        &lt;-transport.ctx.Done()
+                        f.transportsMu.Lock()
+                        delete(f.transports, sessionID)
+                        f.transportsMu.Unlock()
+                }</span>()
+        }
+
+        // Send the initial connect event to the client
+        <span class="cov5" title="10">if err := transport.Send(Event{T: EventConnect}); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("send connect event: %w", err)
+        }</span>
+
+        <span class="cov5" title="10">return transport, nil</span>
+}
+
+// HandlePost handles POST requests from the client and routes events to the appropriate transport.
+// This should be mounted at a separate endpoint from the SSE stream.
+func (f *SSETransportFactory) HandlePost(w http.ResponseWriter, r *http.Request) <span class="cov9" title="101">{
+        if r.Method != http.MethodPost </span><span class="cov0" title="0">{
+                http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+                return
+        }</span>
+
+        // Get session ID from request
+        <span class="cov9" title="101">sessionID := getSessionIDFromRequest(r)
+        if sessionID == "" </span><span class="cov0" title="0">{
+                http.Error(w, "session not found", http.StatusBadRequest)
+                return
+        }</span>
+
+        // Find the transport for this session
+        <span class="cov9" title="101">f.transportsMu.RLock()
+        transport, ok := f.transports[sessionID]
+        f.transportsMu.RUnlock()
+
+        if !ok </span><span class="cov9" title="80">{
+                http.Error(w, "transport not found", http.StatusNotFound)
+                return
+        }</span>
+
+        // Limit request body size
+        <span class="cov6" title="21">maxSize := f.config.MaxMessageSize
+        if maxSize &lt;= 0 </span><span class="cov0" title="0">{
+                maxSize = 1 &lt;&lt; 20 // 1MB default
+        }</span>
+        <span class="cov6" title="21">r.Body = http.MaxBytesReader(w, r.Body, maxSize)
+
+        // Read the event from the request body
+        defer r.Body.Close()
+        body, err := io.ReadAll(r.Body)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "failed to read body", http.StatusBadRequest)
+                return
+        }</span>
+
+        // Parse the event
+        <span class="cov6" title="21">var event Event
+        if err := json.Unmarshal(body, &amp;event); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "invalid event json", http.StatusBadRequest)
+                return
+        }</span>
+
+        // Deliver the event to the transport
+        <span class="cov6" title="21">if err := transport.receiveEvent(event); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "failed to deliver event", http.StatusInternalServerError)
+                return
+        }</span>
+
+        // Return success
+        <span class="cov6" title="21">w.WriteHeader(http.StatusOK)</span>
+}
+
+// getSessionIDFromRequest extracts the session ID from the request.
+// This looks for a session cookie or header.
+func getSessionIDFromRequest(r *http.Request) string <span class="cov9" title="111">{
+        // Try to get session ID from cookie
+        if cookie, err := r.Cookie("live_session"); err == nil </span><span class="cov9" title="103">{
+                return cookie.Value
+        }</span>
+
+        // Try to get session ID from header
+        <span class="cov4" title="8">if sessionID := r.Header.Get("X-Live-Session"); sessionID != "" </span><span class="cov0" title="0">{
+                return sessionID
+        }</span>
+
+        <span class="cov4" title="8">return ""</span>
+}
+</pre>
+		
+		<pre class="file" id="file17" style="display: none">package live
+
+import (
+        "context"
+        "encoding/json"
+        "errors"
+        "fmt"
+        "log/slog"
+        "net/http"
+        "strings"
+        "sync"
+        "time"
+
+        "github.com/coder/websocket"
+)
+
+// WebSocketTransport implements Transport interface using WebSocket protocol.
+// It provides bidirectional communication with automatic ping/pong keepalive.
+//
+// Thread-safety: All public methods are safe for concurrent use.
+type WebSocketTransport struct {
+        conn   *websocket.Conn
+        config TransportConfig
+        meta   ConnectionMetadata
+
+        // Channel for incoming events from the client
+        events chan Event
+
+        // Context and cancellation
+        ctx    context.Context
+        cancel context.CancelFunc
+
+        // Synchronization
+        closeOnce sync.Once
+        closed    chan struct{}
+
+        // Write mutex protects concurrent writes to the WebSocket
+        writeMu sync.Mutex
+}
+
+// NewWebSocketTransport creates a new WebSocket transport from an established connection.
+func NewWebSocketTransport(ctx context.Context, conn *websocket.Conn, config TransportConfig, meta ConnectionMetadata) *WebSocketTransport <span class="cov5" title="14">{
+        transportCtx, cancel := context.WithCancel(ctx)
+
+        bufferSize := config.EventBufferSize
+        if bufferSize == 0 </span><span class="cov0" title="0">{
+                bufferSize = DefaultTransportConfig().EventBufferSize
+        }</span>
+
+        <span class="cov5" title="14">t := &amp;WebSocketTransport{
+                conn:   conn,
+                config: config,
+                meta:   meta,
+                events: make(chan Event, bufferSize),
+                ctx:    transportCtx,
+                cancel: cancel,
+                closed: make(chan struct{}),
+        }
+
+        // Set read limit if configured
+        if config.MaxMessageSize &gt; 0 </span><span class="cov5" title="14">{
+                conn.SetReadLimit(config.MaxMessageSize)
+        }</span>
+
+        // Start the read pump to receive messages from client
+        <span class="cov5" title="14">go t.readPump()
+
+        // Start the ping/pong keepalive if configured
+        if config.PingInterval &gt; 0 </span><span class="cov5" title="14">{
+                go t.pingPump()
+        }</span>
+
+        <span class="cov5" title="14">return t</span>
+}
+
+// Send transmits an event to the client over the WebSocket connection.
+// This method is thread-safe and can be called concurrently.
+func (t *WebSocketTransport) Send(event Event) error <span class="cov10" title="128">{
+        select </span>{
+        case &lt;-t.closed:<span class="cov1" title="1">
+                return fmt.Errorf("transport closed")</span>
+        default:<span class="cov9" title="127"></span>
+        }
+
+        <span class="cov9" title="127">t.writeMu.Lock()
+        defer t.writeMu.Unlock()
+
+        ctx := t.ctx
+        if t.config.WriteTimeout &gt; 0 </span><span class="cov9" title="127">{
+                var cancel context.CancelFunc
+                ctx, cancel = context.WithTimeout(ctx, t.config.WriteTimeout)
+                defer cancel()
+        }</span>
+
+        <span class="cov9" title="127">data, err := json.Marshal(&amp;event)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("marshal event: %w", err)
+        }</span>
+
+        <span class="cov9" title="127">if err := t.conn.Write(ctx, websocket.MessageText, data); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("write message: %w", err)
+        }</span>
+
+        <span class="cov9" title="127">return nil</span>
+}
+
+// Events returns a receive-only channel of events from the client.
+// The channel is closed when the transport is closed.
+func (t *WebSocketTransport) Events() &lt;-chan Event <span class="cov5" title="12">{
+        return t.events
+}</span>
+
+// Close terminates the WebSocket connection and cleans up resources.
+// It is safe to call Close multiple times.
+func (t *WebSocketTransport) Close() error <span class="cov7" title="29">{
+        var err error
+        t.closeOnce.Do(func() </span><span class="cov5" title="14">{
+                // Cancel the context to signal all goroutines to stop
+                t.cancel()
+
+                // Close the closed channel to signal that we're shutting down
+                close(t.closed)
+
+                // Close the WebSocket connection with normal closure status
+                closeErr := t.conn.Close(websocket.StatusNormalClosure, "")
+                if closeErr != nil </span><span class="cov5" title="10">{
+                        err = fmt.Errorf("close websocket: %w", closeErr)
+                }</span>
+
+                // Note: t.events is closed by readPump via defer to avoid race conditions
+        })
+        <span class="cov7" title="29">return err</span>
+}
+
+// readPump continuously reads messages from the WebSocket connection
+// and forwards them to the events channel.
+func (t *WebSocketTransport) readPump() <span class="cov5" title="14">{
+        defer close(t.events)
+        defer func() </span><span class="cov5" title="14">{
+                // Ensure we close the transport if the read loop exits
+                t.Close()
+        }</span>()
+
+        <span class="cov5" title="14">for </span><span class="cov6" title="22">{
+                select </span>{
+                case &lt;-t.ctx.Done():<span class="cov0" title="0">
+                        return</span>
+                case &lt;-t.closed:<span class="cov0" title="0">
+                        return</span>
+                default:<span class="cov6" title="22"></span>
+                }
+
+                <span class="cov6" title="22">ctx := t.ctx
+                var cancel context.CancelFunc
+                if t.config.ReadTimeout &gt; 0 </span><span class="cov6" title="22">{
+                        ctx, cancel = context.WithTimeout(ctx, t.config.ReadTimeout)
+                }</span>
+
+                <span class="cov6" title="22">msgType, data, err := t.conn.Read(ctx)
+                if cancel != nil </span><span class="cov6" title="22">{
+                        cancel()
+                }</span>
+                <span class="cov6" title="22">if err != nil </span><span class="cov5" title="14">{
+                        // Check if this is a normal closure
+                        if errors.Is(err, context.Canceled) </span><span class="cov3" title="4">{
+                                return
+                        }</span>
+
+                        <span class="cov5" title="10">closeStatus := websocket.CloseStatus(err)
+                        switch closeStatus </span>{
+                        case websocket.StatusNormalClosure, websocket.StatusGoingAway:<span class="cov5" title="9">
+                                // Normal closure, exit cleanly
+                                return</span>
+                        case -1:<span class="cov1" title="1">
+                                // No close status, likely a network error
+                                slog.Debug("websocket read error", "err", err)
+                                return</span>
+                        default:<span class="cov0" title="0">
+                                // Abnormal closure
+                                slog.Error("websocket closed abnormally",
+                                        "status", closeStatus,
+                                        "err", err)
+                                return</span>
+                        }
+                }
+
+                <span class="cov4" title="8">switch msgType </span>{
+                case websocket.MessageText:<span class="cov4" title="8">
+                        var event Event
+                        if err := json.Unmarshal(data, &amp;event); err != nil </span><span class="cov1" title="1">{
+                                slog.Error("failed to unmarshal event",
+                                        "err", err,
+                                        "data", string(data))
+                                continue</span>
+                        }
+
+                        // Send the event to the events channel
+                        <span class="cov4" title="7">select </span>{
+                        case t.events &lt;- event:<span class="cov4" title="7"></span>
+                                // Event sent successfully
+                        case &lt;-t.ctx.Done():<span class="cov0" title="0">
+                                return</span>
+                        case &lt;-t.closed:<span class="cov0" title="0">
+                                return</span>
+                        }
+
+                case websocket.MessageBinary:<span class="cov0" title="0">
+                        slog.Warn("binary messages not supported, ignoring")</span>
+
+                default:<span class="cov0" title="0">
+                        slog.Warn("unknown message type", "type", msgType)</span>
+                }
+        }
+}
+
+// pingPump sends periodic ping messages to keep the connection alive
+// and detect dead connections.
+func (t *WebSocketTransport) pingPump() <span class="cov5" title="14">{
+        ticker := time.NewTicker(t.config.PingInterval)
+        defer ticker.Stop()
+
+        for </span><span class="cov6" title="15">{
+                select </span>{
+                case &lt;-ticker.C:<span class="cov2" title="2">
+                        ctx := t.ctx
+                        var cancel context.CancelFunc
+                        if t.config.PongTimeout &gt; 0 </span><span class="cov2" title="2">{
+                                ctx, cancel = context.WithTimeout(ctx, t.config.PongTimeout)
+                        }</span>
+
+                        <span class="cov2" title="2">err := t.conn.Ping(ctx)
+                        if cancel != nil </span><span class="cov2" title="2">{
+                                cancel()
+                        }</span>
+
+                        <span class="cov2" title="2">if err != nil </span><span class="cov1" title="1">{
+                                slog.Debug("ping failed, closing connection", "err", err)
+                                t.Close()
+                                return
+                        }</span>
+
+                case &lt;-t.ctx.Done():<span class="cov5" title="13">
+                        return</span>
+                case &lt;-t.closed:<span class="cov0" title="0">
+                        return</span>
+                }
+        }
+}
+
+// WebSocketTransportFactory creates WebSocket transports by upgrading HTTP connections.
+type WebSocketTransportFactory struct {
+        config        TransportConfig
+        acceptOptions *websocket.AcceptOptions
+}
+
+// NewWebSocketTransportFactory creates a new WebSocket transport factory with the given configuration.
+func NewWebSocketTransportFactory(config TransportConfig) *WebSocketTransportFactory <span class="cov5" title="11">{
+        return &amp;WebSocketTransportFactory{
+                config:        config,
+                acceptOptions: &amp;websocket.AcceptOptions{},
+        }
+}</span>
+
+// Upgrade converts an HTTP request into a WebSocket transport.
+// It handles the WebSocket upgrade handshake and Safari compression workaround.
+func (f *WebSocketTransportFactory) Upgrade(ctx context.Context, w http.ResponseWriter, r *http.Request) (Transport, error) <span class="cov5" title="14">{
+        // Safari has issues with WebSocket compression, so we disable it
+        // for Safari user agents to ensure compatibility.
+        // Note: Chrome's user agent also contains "Safari" for compatibility,
+        // so we need to check that it's NOT Chrome.
+        acceptOpts := f.acceptOptions
+        ua := r.UserAgent()
+        if strings.Contains(ua, "Safari") &amp;&amp; !strings.Contains(ua, "Chrome") </span><span class="cov1" title="1">{
+                opts := *f.acceptOptions // Copy to avoid mutation
+                opts.CompressionMode = websocket.CompressionDisabled
+                acceptOpts = &amp;opts
+        }</span>
+
+        // Perform the WebSocket upgrade handshake
+        <span class="cov5" title="14">conn, err := websocket.Accept(w, r, acceptOpts)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("websocket upgrade failed: %w", err)
+        }</span>
+
+        // Build connection metadata
+        <span class="cov5" title="14">meta := ConnectionMetadata{
+                RemoteAddr:  r.RemoteAddr,
+                UserAgent:   r.UserAgent(),
+                Protocol:    "websocket",
+                ConnectedAt: time.Now(),
+                Headers:     r.Header,
+        }
+
+        // Create the transport
+        transport := NewWebSocketTransport(ctx, conn, f.config, meta)
+
+        // Send the initial connect event to the client
+        if err := transport.Send(Event{T: EventConnect}); err != nil </span><span class="cov0" title="0">{
+                conn.Close(websocket.StatusInternalError, "failed to send connect event")
+                return nil, fmt.Errorf("send connect event: %w", err)
+        }</span>
+
+        <span class="cov5" title="14">return transport, nil</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

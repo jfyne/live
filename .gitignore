@@ -1,2 +1,5 @@
 *.out
 .claude/settings.local.json
+*.test
+examples/counter/counter
+web/-o

@@ -665,6 +665,129 @@ func TestSSETransport_Heartbeat(t *testing.T) {
 	}
 }
 
+// TestSSETransport_ConcurrentCloseAndReceive tests race condition between Close() and receiveEvent().
+// This test verifies that calling Close() while POST handlers are sending events doesn't cause
+// a "send on closed channel" panic. The fix ensures t.closed is closed before t.events,
+// and receiveEvent checks t.closed before sending.
+func TestSSETransport_ConcurrentCloseAndReceive(t *testing.T) {
+	config := DefaultTransportConfig()
+	factory := NewSSETransportFactory(config)
+
+	// Create a test server with both SSE and POST endpoints
+	mux := http.NewServeMux()
+	transportCh := make(chan Transport, 1)
+
+	// SSE endpoint
+	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{
+			Name:  "live_session",
+			Value: "test-race-session",
+			Path:  "/",
+		})
+
+		transport, err := factory.Upgrade(r.Context(), w, r)
+		if err != nil {
+			t.Errorf("upgrade failed: %v", err)
+			return
+		}
+
+		transportCh <- transport
+
+		// Keep connection alive
+		<-r.Context().Done()
+	})
+
+	// POST endpoint
+	mux.HandleFunc("/post", func(w http.ResponseWriter, r *http.Request) {
+		factory.HandlePost(w, r)
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	// Establish SSE connection
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		req, _ := http.NewRequest("GET", server.URL+"/sse", nil)
+		req.AddCookie(&http.Cookie{
+			Name:  "live_session",
+			Value: "test-race-session",
+		})
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			return
+		}
+		defer resp.Body.Close()
+		io.ReadAll(resp.Body)
+	}()
+
+	// Wait for the transport
+	var serverTransport Transport
+	select {
+	case serverTransport = <-transportCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for transport")
+	}
+
+	// Give some time for session registration
+	time.Sleep(100 * time.Millisecond)
+
+	// Simulate concurrent POST events and Close()
+	// This should not panic even if they happen simultaneously
+	var wg sync.WaitGroup
+	const numPosters = 20
+
+	// Launch multiple goroutines that will POST events
+	for i := 0; i < numPosters; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+
+			// Send a few POST requests
+			for j := 0; j < 5; j++ {
+				clientEvent := Event{
+					T:    fmt.Sprintf("race-event-%d-%d", id, j),
+					ID:   id*100 + j,
+					Data: json.RawMessage(`{"test":"race"}`),
+				}
+
+				eventData, _ := json.Marshal(clientEvent)
+				postReq, _ := http.NewRequest("POST", server.URL+"/post", bytes.NewReader(eventData))
+				postReq.AddCookie(&http.Cookie{
+					Name:  "live_session",
+					Value: "test-race-session",
+				})
+
+				client := &http.Client{Timeout: 1 * time.Second}
+				resp, err := client.Do(postReq)
+				if err == nil {
+					resp.Body.Close()
+				}
+				// We expect some of these to fail after Close(), that's OK
+
+				// Small delay between requests
+				time.Sleep(time.Millisecond)
+			}
+		}(i)
+	}
+
+	// Close the transport concurrently with the POST requests
+	// This should not cause a panic
+	time.Sleep(10 * time.Millisecond) // Let some POSTs start
+	closeErr := serverTransport.Close()
+	if closeErr != nil {
+		t.Errorf("close failed: %v", closeErr)
+	}
+
+	// Wait for all POST goroutines to finish
+	wg.Wait()
+
+	// If we get here without panicking, the race condition is handled correctly
+	t.Log("Concurrent Close and receiveEvent completed without panic")
+}
+
 // TestSSETransport_EventIDIncrement tests that event IDs increment correctly.
 func TestSSETransport_EventIDIncrement(t *testing.T) {
 	config := DefaultTransportConfig()

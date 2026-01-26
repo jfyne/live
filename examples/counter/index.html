@@ -87,11 +87,12 @@
         <p>Each counter maintains its own isolated state and can be incremented or decremented independently.</p>
     </div>
 
+    {{ range . }}
     <div class="counter-container">
-        <h2>Counter 1 (default, starts at 0)</h2>
-        <live-island type="counter" id="counter-1" data-initial-value="0">
+        <h2>{{ .Label }}</h2>
+        <live-island type="counter" id="{{ .ID }}">
             <div>
-                <div class="count">0</div>
+                <div class="count">{{ .Initial }}</div>
                 <div style="text-align: center;">
                     <button live-click="dec">- Decrement</button>
                     <button live-click="inc">+ Increment</button>
@@ -99,38 +100,13 @@
             </div>
         </live-island>
     </div>
-
-    <div class="counter-container">
-        <h2>Counter 2 (starts at 5)</h2>
-        <live-island type="counter" id="counter-2" data-initial-value="5">
-            <div>
-                <div class="count">5</div>
-                <div style="text-align: center;">
-                    <button live-click="dec">- Decrement</button>
-                    <button live-click="inc">+ Increment</button>
-                </div>
-            </div>
-        </live-island>
-    </div>
-
-    <div class="counter-container">
-        <h2>Counter 3 (starts at 10)</h2>
-        <live-island type="counter" id="counter-3" data-initial-value="10">
-            <div>
-                <div class="count">10</div>
-                <div style="text-align: center;">
-                    <button live-click="dec">- Decrement</button>
-                    <button live-click="inc">+ Increment</button>
-                </div>
-            </div>
-        </live-island>
-    </div>
+    {{ end }}
 
     <div class="info">
         <h3>Features Demonstrated:</h3>
         <ul>
             <li><strong>Islands Architecture:</strong> Each <code>&lt;live-island&gt;</code> is an independent component</li>
-            <li><strong>Props Passing:</strong> <code>data-initial-value</code> attribute sets the starting count</li>
+            <li><strong>Server-Side State:</strong> Initial values are defined on the server and rendered into the HTML</li>
             <li><strong>State Isolation:</strong> Each counter maintains its own state independently</li>
             <li><strong>Shared Transport:</strong> All islands share a single WebSocket or SSE connection</li>
             <li><strong>Event Handling:</strong> Click events are routed to the correct island instance</li>

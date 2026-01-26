@@ -33,15 +33,12 @@ type Session struct {
 	// cancel cancels the session context
 	cancel context.CancelFunc
 
-	// done signals when the event loop has stopped
-	done chan struct{}
-
 	// closeOnce ensures Close() is idempotent
 	closeOnce sync.Once
 }
 
 // NewSession creates a new session with the given ID and transport.
-// The session starts processing events from the transport immediately.
+// Events must be read from the transport and routed via IslandEngine.RouteEvent().
 func NewSession(ctx context.Context, sessionID SessionID, transport Transport) *Session {
 	sessionCtx, cancel := context.WithCancel(ctx)
 
@@ -51,43 +48,13 @@ func NewSession(ctx context.Context, sessionID SessionID, transport Transport) *
 		islands:   make(map[IslandID]*IslandInstance),
 		ctx:       sessionCtx,
 		cancel:    cancel,
-		done:      make(chan struct{}),
 	}
-
-	// Start the event loop
-	go s.eventLoop()
 
 	return s
 }
 
-// eventLoop reads events from the transport and routes them to islands.
-// It runs until the session is closed or the transport closes.
-func (s *Session) eventLoop() {
-	defer close(s.done)
-
-	for {
-		select {
-		case <-s.ctx.Done():
-			// Session closed
-			return
-
-		case event, ok := <-s.transport.Events():
-			if !ok {
-				// Transport closed
-				return
-			}
-
-			// Route event to the appropriate handler
-			if err := s.handleEvent(event); err != nil {
-				// Log error or send error event back to client
-				// For now, we'll continue processing other events
-				_ = err
-			}
-		}
-	}
-}
-
 // handleEvent routes an event to the correct island or handles session-level events.
+// This method is called by IslandEngine.RouteEvent() after receiving events from the transport.
 func (s *Session) handleEvent(event Event) error {
 	// If the event has an island field, route it to that island
 	if event.Island != "" {
@@ -175,7 +142,7 @@ func (s *Session) Send(event Event) error {
 
 // Close performs a clean shutdown of the session.
 // It:
-// - Stops the event loop
+// - Cancels the session context
 // - Closes the underlying transport
 // - Cleans up all resources
 //
@@ -184,11 +151,8 @@ func (s *Session) Close() error {
 	var err error
 
 	s.closeOnce.Do(func() {
-		// Cancel the session context to stop the event loop
+		// Cancel the session context
 		s.cancel()
-
-		// Wait for the event loop to finish
-		<-s.done
 
 		// Close the transport
 		err = s.transport.Close()

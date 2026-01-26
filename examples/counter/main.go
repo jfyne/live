@@ -22,13 +22,37 @@ type CounterState struct {
 	Count int
 }
 
+// counterConfig defines a counter island's server-side configuration.
+type counterConfig struct {
+	ID      string
+	Label   string
+	Initial int
+}
+
+// Server-side configuration: the server owns the initial state.
+var counters = []counterConfig{
+	{ID: "counter-1", Label: "Counter 1 (default, starts at 0)", Initial: 0},
+	{ID: "counter-2", Label: "Counter 2 (starts at 5)", Initial: 5},
+	{ID: "counter-3", Label: "Counter 3 (starts at 10)", Initial: 10},
+}
+
+// counterInitialValues maps island IDs to their server-defined initial values.
+var counterInitialValues = func() map[string]int {
+	m := make(map[string]int)
+	for _, c := range counters {
+		m[c.ID] = c.Initial
+	}
+	return m
+}()
+
 // NewCounterIsland creates a new counter island definition.
 func NewCounterIsland() (*live.Island, error) {
 	island, err := live.NewIsland(
 		"counter",
 		live.WithMount(func(ctx context.Context, props live.Props, children string) (any, error) {
-			// Extract initial value from props, default to 0
-			initialValue := props.Int("initial-value")
+			// Initial value comes from server-side configuration.
+			// The island ID is passed as a prop by the subscribe handler.
+			initialValue := props.Int("initial")
 			return &CounterState{Count: initialValue}, nil
 		}),
 		live.WithRender(func(ctx context.Context, rc *live.IslandRenderContext) (io.Reader, error) {
@@ -117,7 +141,8 @@ func main() {
 			engine.DeleteSession(sessionID)
 		}()
 
-		// Process events from the session
+		// Process events from the transport
+		// Read events and route them through the engine
 		go func() {
 			for event := range transport.Events() {
 				log.Printf("Received event: type=%s, island=%s", event.T, event.Island)
@@ -126,27 +151,20 @@ func main() {
 				if event.T == "subscribe" && event.Island != "" {
 					islandID := live.IslandID(event.Island)
 
-					// Try to get props from event data
-					// In the current v2 implementation, the client needs to send type and props
 					params, _ := event.Params()
 					islandType := params.String("type")
 
 					if islandType == "" {
-						// If type not in params, try to infer from island element attributes
-						// For this example, we'll use a default or log an error
 						log.Printf("Warning: subscribe event for %s missing type, cannot mount", islandID)
 						continue
 					}
 
-					// Extract props from params (client should send all data-* attributes)
-					props := make(live.Props)
-					for key, value := range params {
-						if key != "type" && key != "id" {
-							props[key] = value
-						}
+					// Build props from server-side configuration.
+					// The server is the source of truth for initial state.
+					props := live.Props{
+						"initial": counterInitialValues[string(islandID)],
 					}
 
-					// Mount the island
 					_, err := engine.MountIsland(sessionID, islandID, islandType, props)
 					if err != nil {
 						log.Printf("Failed to mount island %s: %v", islandID, err)
@@ -154,14 +172,12 @@ func main() {
 					continue
 				}
 
-				// Route the event to the appropriate island
 				if err := engine.RouteEvent(sessionID, event); err != nil {
 					log.Printf("Event routing error: %v", err)
 				}
 			}
 		}()
 
-		// Keep connection alive until context is done
 		<-r.Context().Done()
 	})
 
@@ -170,7 +186,6 @@ func main() {
 	sseFactory := live.NewSSETransportFactory(sseConfig)
 
 	http.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
-		// Similar to WebSocket handler, but for SSE
 		transport, err := sseFactory.Upgrade(r.Context(), w, r)
 		if err != nil {
 			http.Error(w, "SSE upgrade failed", http.StatusBadRequest)
@@ -199,11 +214,8 @@ func main() {
 						continue
 					}
 
-					props := make(live.Props)
-					for key, value := range params {
-						if key != "type" && key != "id" {
-							props[key] = value
-						}
+					props := live.Props{
+						"initial": counterInitialValues[string(islandID)],
 					}
 
 					_, err := engine.MountIsland(sessionID, islandID, islandType, props)
@@ -227,7 +239,7 @@ func main() {
 		sseFactory.HandlePost(w, r)
 	})
 
-	// Serve the main HTML page
+	// Serve the main HTML page, rendered with server-side counter configuration
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
@@ -238,7 +250,7 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		tmpl.Execute(w, nil)
+		tmpl.Execute(w, counters)
 	})
 
 	// Serve the custom island script

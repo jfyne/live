@@ -1,8 +1,8 @@
-// Custom island mounting for the counter example
-// This sends the island props to the server when subscribing
+// Client-side island mounting for the counter example.
+// The client only tells the server which islands exist on the page.
+// All state (including initial values) is owned by the server.
 
 (function() {
-    // Wait for the Live library to load
     if (typeof customElements === 'undefined') {
         console.error('Custom Elements not supported');
         return;
@@ -12,13 +12,12 @@
     window.liveWS = null;
     const pendingIslands = [];
 
-    // Override the LiveIsland class to send props with subscribe
     class CounterLiveIsland extends HTMLElement {
         constructor() {
             super();
             this.mounted = false;
             this.islandId = null;
-            this.props = null;
+            this.islandType = null;
         }
 
         connectedCallback() {
@@ -31,28 +30,15 @@
             }
 
             this.islandId = id;
+            this.islandType = type;
 
-            // Extract all data-* attributes as props
-            const props = { type, id };
-            Array.from(this.attributes).forEach(attr => {
-                if (attr.name.startsWith('data-')) {
-                    const key = attr.name.substring(5).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-                    props[key] = attr.value;
-                }
-            });
-
-            this.props = props;
-
-            // Add to pending islands queue
             pendingIslands.push(this);
-            console.log('Island connected:', id, 'Pending:', pendingIslands.length);
 
-            // Try to mount if WebSocket is ready
             if (window.liveWS && window.liveWS.readyState === WebSocket.OPEN) {
                 this.mountOnServer();
             }
 
-            // Set up event listeners for buttons
+            // Delegate click events within the island
             this.addEventListener('click', (e) => {
                 const target = e.target;
                 if (target.hasAttribute('live-click')) {
@@ -66,17 +52,16 @@
 
         mountOnServer() {
             if (!window.liveWS || window.liveWS.readyState !== WebSocket.OPEN) {
-                console.warn('Cannot mount island, WebSocket not ready:', this.islandId);
                 return false;
             }
 
+            // Only send type and id. The server owns the initial state.
             const message = {
                 t: 'subscribe',
                 island: this.islandId,
-                d: this.props
+                d: { type: this.islandType }
             };
             window.liveWS.send(JSON.stringify(message));
-            console.log('Sent subscribe message:', this.islandId, this.props);
             return true;
         }
 

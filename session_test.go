@@ -54,10 +54,6 @@ func TestNewSession(t *testing.T) {
 	if session.islands == nil {
 		t.Error("expected islands map to be initialized")
 	}
-
-	if session.done == nil {
-		t.Error("expected done channel to be initialized")
-	}
 }
 
 func TestSession_AddAndGetIsland(t *testing.T) {
@@ -233,17 +229,18 @@ func TestSession_EventRouting(t *testing.T) {
 	// Add to session
 	session.AddIsland(instance)
 
-	// Send an event through the transport
+	// Create an event
 	event := Event{
 		T:      "increment",
 		Island: "counter-1",
 		Data:   []byte(`{}`),
 	}
 
-	transport.events <- event
-
-	// Give the event loop time to process
-	time.Sleep(50 * time.Millisecond)
+	// Route the event manually (simulating what the engine does)
+	err = session.handleEvent(event)
+	if err != nil {
+		t.Fatalf("failed to handle event: %v", err)
+	}
 
 	// Verify the event handler was called
 	eventHandlerMu.Lock()
@@ -473,17 +470,18 @@ func TestSession_SelfEvent(t *testing.T) {
 
 	session.AddIsland(instance)
 
-	// Send self event
+	// Create a self event
 	event := Event{
 		T:        "update",
 		Island:   "island-1",
 		SelfData: "updated",
 	}
 
-	transport.events <- event
-
-	// Give the event loop time to process
-	time.Sleep(50 * time.Millisecond)
+	// Route the event manually (simulating what the engine does)
+	err = session.handleEvent(event)
+	if err != nil {
+		t.Fatalf("failed to handle event: %v", err)
+	}
 
 	// Verify handler was called
 	selfHandlerMu.Lock()

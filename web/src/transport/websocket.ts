@@ -124,7 +124,7 @@ export class WebSocketTransport implements Transport {
 
                     this.setState(ConnectionState.Reconnecting);
                     setTimeout(() => {
-                        this.connect();
+                        this.connect().catch(() => {});
                     }, delay);
                 } else if (!wasConnected) {
                     reject(new Error("WebSocket connection failed"));

@@ -80,7 +80,7 @@ All tasks in this stage are independent and can run in parallel.
 
 ### Wire Format Contract
 
-- [ ] Add explicit JSON tags to Patch struct (`diff.go`) [Stage 1]
+- [x] Add explicit JSON tags to Patch struct (`diff.go`) [Stage 1]
   - Files: `diff.go` (modifies)
   - Change `Anchor string` to `Anchor string \`json:"Anchor"\``
   - Change `Action PatchAction` to `Action PatchAction \`json:"Action"\``
@@ -88,7 +88,7 @@ All tasks in this stage are independent and can run in parallel.
   - Keep existing `IslandID string \`json:"island_id,omitempty"\`` unchanged
   - Tags MUST use capitalized names to match TypeScript client (`web/src/transport/message.ts:27-29`)
 
-- [ ] Add JSON serialization contract test (`diff_test.go`) [Stage 1]
+- [x] Add JSON serialization contract test (`diff_test.go`) [Stage 1]
   - Files: `diff_test.go` (modifies)
   - Marshal a `Patch` to JSON, unmarshal into `map[string]interface{}`
   - Assert exact key names: `"Anchor"`, `"Action"`, `"HTML"`, `"island_id"`
@@ -97,14 +97,14 @@ All tasks in this stage are independent and can run in parallel.
 
 ### Session ID Handling
 
-- [ ] Export `GetSessionIDFromRequest` to `http.go` (`http.go`, `transport_sse.go`) [Stage 1]
+- [x] Export `GetSessionIDFromRequest` to `http.go` (`http.go`, `transport_sse.go`) [Stage 1]
   - Files: `http.go` (modifies), `transport_sse.go` (modifies)
   - Move `getSessionIDFromRequest` from `transport_sse.go:391-405` to `http.go`
   - Rename to `GetSessionIDFromRequest` (exported)
   - Update call sites in `transport_sse.go` (lines 311, 343)
   - Remove old private function from `transport_sse.go`
 
-- [ ] Add tests for `GetSessionIDFromRequest` (`http_test.go`) [Stage 1]
+- [x] Add tests for `GetSessionIDFromRequest` (`http_test.go`) [Stage 1]
   - Files: `http_test.go` (creates)
   - Test cookie extraction (`live_session` cookie)
   - Test header extraction (`X-Live-Session`)
@@ -113,17 +113,17 @@ All tasks in this stage are independent and can run in parallel.
 
 ### Transport Negotiation Fix
 
-- [ ] Add `.catch()` to reconnection `connect()` in WebSocketTransport (`web/src/transport/websocket.ts`) [Stage 1]
+- [x] Add `.catch()` to reconnection `connect()` in WebSocketTransport (`web/src/transport/websocket.ts`) [Stage 1]
   - Files: `web/src/transport/websocket.ts` (modifies)
   - At line 127, change `this.connect();` to `this.connect().catch(() => {});`
   - Prevents unhandled promise rejections when `close()` is called during pending reconnection
 
-- [ ] Add `.catch()` to reconnection `connect()` in SSETransport (`web/src/transport/sse.ts`) [Stage 1]
+- [x] Add `.catch()` to reconnection `connect()` in SSETransport (`web/src/transport/sse.ts`) [Stage 1]
   - Files: `web/src/transport/sse.ts` (modifies)
   - At line 136, change `this.connect();` to `this.connect().catch(() => {});`
   - Same pattern as WebSocket fix
 
-- [ ] Fix negotiator test mocks for timeout scenarios (`web/src/transport/negotiator.spec.ts`) [Stage 1]
+- [x] Fix negotiator test mocks for timeout scenarios (`web/src/transport/negotiator.spec.ts`) [Stage 1]
   - Files: `web/src/transport/negotiator.spec.ts` (modifies)
   - "should timeout and fallback" test (lines 248-274): Replace broken `MockWebSocket.prototype.constructor` override with a full global `WebSocket` replacement class that never fires `open`
   - "should use custom timeout value" test (lines 276-308): Same fix for both WebSocket and EventSource mocks
@@ -131,7 +131,7 @@ All tasks in this stage are independent and can run in parallel.
 
 ### LiveIsland Event Wiring
 
-- [ ] Wire `live-click` and other events in LiveIsland (`web/src/island.ts`) [Stage 1]
+- [x] Wire `live-click` and other events in LiveIsland (`web/src/island.ts`) [Stage 1]
   - Files: `web/src/island.ts` (modifies)
   - Import `wireIslandEvents` from `./events`
   - Add `private eventCleanup: (() => void) | null = null;`
@@ -142,7 +142,7 @@ All tasks in this stage are independent and can run in parallel.
 
 ### Client Bundle
 
-- [ ] Rebuild auto.js bundle [Stage 2] *(build step, not code edit)*
+- [x] Rebuild auto.js bundle [Stage 2] *(build step, not code edit)*
   - Files: `web/browser/auto.js` (modifies), `web/browser/auto.js.map` (modifies)
   - Shell command: `cd web && npm run build`
   - Must happen AFTER island.ts changes (Stage 1) but BEFORE Go compilation (Stage 3)
@@ -150,7 +150,7 @@ All tasks in this stage are independent and can run in parallel.
 
 ### Counter Example Integration
 
-- [ ] Update counter example to use auto.js and cookie-based sessions (`examples/counter/main.go`, `examples/counter/index.html`) [Stage 3]
+- [x] Update counter example to use auto.js and cookie-based sessions (`examples/counter/main.go`, `examples/counter/index.html`) [Stage 3]
   - Files: `examples/counter/main.go` (modifies), `examples/counter/index.html` (modifies)
   - **main.go changes:**
     - Replace `/custom-island.js` handler with `http.Handle("/live.js", live.Javascript{})`
@@ -167,7 +167,7 @@ All tasks in this stage are independent and can run in parallel.
   - **index.html changes:**
     - Change `<script src="/custom-island.js"></script>` to `<script src="/live.js"></script>`
 
-- [ ] Delete custom-island.js (`examples/counter/custom-island.js`) [Stage 3]
+- [x] Delete custom-island.js (`examples/counter/custom-island.js`) [Stage 3]
   - Files: `examples/counter/custom-island.js` (deletes)
   - Replaced by auto.js (the v2 client library)
 

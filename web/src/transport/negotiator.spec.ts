@@ -246,20 +246,58 @@ describe("TransportNegotiator", () => {
 
     describe("Timeout Handling", () => {
         test("should timeout and fallback if WebSocket takes too long", async () => {
-            // Make WebSocket never connect (don't call simulateOpen)
-            const originalConstructor = MockWebSocket.prototype.constructor;
-            MockWebSocket.prototype.constructor = function (this: any, url: string) {
-                this.url = url;
-                this.readyState = MockWebSocket.CONNECTING;
-                this.listeners = {};
-                // Don't call simulateOpen - just hang
-            } as any;
+            // Save the original mock WebSocket
+            const OriginalWebSocket = (global as any).WebSocket;
 
-            // Suppress expected console output
-            const errorSpy = jest.spyOn(console, "error").mockImplementation();
-            const warnSpy = jest.spyOn(console, "warn").mockImplementation();
+            // Create a WebSocket that never fires 'open' - it just hangs forever.
+            // Overriding prototype.constructor does NOT change 'new' behavior in JS,
+            // so we must replace the global WebSocket class entirely.
+            class HangingWebSocket {
+                static CONNECTING = 0;
+                static OPEN = 1;
+                static CLOSING = 2;
+                static CLOSED = 3;
 
-            const negotiator = new TransportNegotiator({ timeout: 100 });
+                readyState = HangingWebSocket.CONNECTING;
+                url: string;
+                private listeners: { [event: string]: Function[] } = {};
+
+                constructor(url: string) {
+                    this.url = url;
+                    // Never fire 'open' - simulate a hanging connection
+                }
+
+                addEventListener(event: string, handler: Function) {
+                    if (!this.listeners[event]) {
+                        this.listeners[event] = [];
+                    }
+                    this.listeners[event].push(handler);
+                }
+
+                removeEventListener(event: string, handler: Function) {
+                    if (this.listeners[event]) {
+                        this.listeners[event] = this.listeners[event].filter((h: Function) => h !== handler);
+                    }
+                }
+
+                send() {}
+
+                close() {
+                    this.readyState = HangingWebSocket.CLOSED;
+                    // Fire close event so the WebSocketTransport close handler runs
+                    if (this.listeners["close"]) {
+                        this.listeners["close"].forEach((h: Function) => h({ code: 1000, reason: "" }));
+                    }
+                }
+            }
+
+            // Replace global WebSocket with hanging version
+            (global as any).WebSocket = HangingWebSocket;
+
+            // Use a short real timeout so the test completes quickly.
+            // The HangingWebSocket never fires 'open', so the negotiator's
+            // setTimeout will fire after 50ms, triggering fallback to SSE.
+            const negotiator = new TransportNegotiator({ timeout: 50 });
             const result = await negotiator.negotiate();
 
             expect(result.type).toBe(TransportType.SSE);
@@ -267,44 +305,103 @@ describe("TransportNegotiator", () => {
 
             result.transport.close();
 
-            // Restore constructor
-            MockWebSocket.prototype.constructor = originalConstructor;
-            errorSpy.mockRestore();
-            warnSpy.mockRestore();
+            // Restore original mock WebSocket
+            (global as any).WebSocket = OriginalWebSocket;
         });
 
         test("should use custom timeout value", async () => {
-            // Make both transports hang
-            const originalWSConstructor = MockWebSocket.prototype.constructor;
-            const originalESConstructor = MockEventSource.prototype.constructor;
+            // Save original mocks
+            const OriginalWebSocket = (global as any).WebSocket;
+            const OriginalEventSource = (global as any).EventSource;
 
-            MockWebSocket.prototype.constructor = function (this: any, url: string) {
-                this.url = url;
-                this.readyState = MockWebSocket.CONNECTING;
-                this.listeners = {};
-            } as any;
+            // Create hanging versions that never fire 'open'
+            class HangingWebSocket {
+                static CONNECTING = 0;
+                static OPEN = 1;
+                static CLOSING = 2;
+                static CLOSED = 3;
 
-            MockEventSource.prototype.constructor = function (this: any, url: string) {
-                this.url = url;
-                this.readyState = MockEventSource.CONNECTING;
-                this.listeners = {};
-            } as any;
+                readyState = HangingWebSocket.CONNECTING;
+                url: string;
+                private listeners: { [event: string]: Function[] } = {};
+
+                constructor(url: string) {
+                    this.url = url;
+                }
+
+                addEventListener(event: string, handler: Function) {
+                    if (!this.listeners[event]) {
+                        this.listeners[event] = [];
+                    }
+                    this.listeners[event].push(handler);
+                }
+
+                removeEventListener(event: string, handler: Function) {
+                    if (this.listeners[event]) {
+                        this.listeners[event] = this.listeners[event].filter((h: Function) => h !== handler);
+                    }
+                }
+
+                send() {}
+
+                close() {
+                    this.readyState = HangingWebSocket.CLOSED;
+                    if (this.listeners["close"]) {
+                        this.listeners["close"].forEach((h: Function) => h({ code: 1000, reason: "" }));
+                    }
+                }
+            }
+
+            class HangingEventSource {
+                static CONNECTING = 0;
+                static OPEN = 1;
+                static CLOSED = 2;
+
+                readyState = HangingEventSource.CONNECTING;
+                url: string;
+                private listeners: { [event: string]: Function[] } = {};
+
+                constructor(url: string) {
+                    this.url = url;
+                }
+
+                addEventListener(event: string, handler: Function) {
+                    if (!this.listeners[event]) {
+                        this.listeners[event] = [];
+                    }
+                    this.listeners[event].push(handler);
+                }
+
+                removeEventListener(event: string, handler: Function) {
+                    if (this.listeners[event]) {
+                        this.listeners[event] = this.listeners[event].filter((h: Function) => h !== handler);
+                    }
+                }
+
+                close() {
+                    this.readyState = HangingEventSource.CLOSED;
+                }
+            }
+
+            // Replace both globals with hanging versions
+            (global as any).WebSocket = HangingWebSocket;
+            (global as any).EventSource = HangingEventSource;
 
             const negotiator = new TransportNegotiator({ timeout: 50 });
             const startTime = Date.now();
 
-            try {
-                await negotiator.negotiate();
-            } catch (err) {
-                const elapsed = Date.now() - startTime;
-                // Should fail quickly (both transports timeout at ~50ms each = ~100ms total)
-                expect(elapsed).toBeLessThan(200);
-                expect(err).toBeInstanceOf(Error);
-            }
+            await expect(negotiator.negotiate()).rejects.toThrow(
+                "All transports failed"
+            );
 
-            // Restore constructors
-            MockWebSocket.prototype.constructor = originalWSConstructor;
-            MockEventSource.prototype.constructor = originalESConstructor;
+            const elapsed = Date.now() - startTime;
+            // Should complete in roughly 2x timeout (50ms WS + 50ms SSE = ~100ms)
+            expect(elapsed).toBeLessThan(500);
+            expect(elapsed).toBeGreaterThanOrEqual(90);
+
+            // Restore original mocks
+            (global as any).WebSocket = OriginalWebSocket;
+            (global as any).EventSource = OriginalEventSource;
         });
     });
 

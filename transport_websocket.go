@@ -202,6 +202,8 @@ func (t *WebSocketTransport) readPump() {
 				return
 			case <-t.closed:
 				return
+			default:
+				slog.Error("websocket read pump: events channel full, event dropped", "event_t", event.T)
 			}
 
 		case websocket.MessageBinary:

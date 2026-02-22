@@ -308,7 +308,7 @@ func (f *SSETransportFactory) Upgrade(ctx context.Context, w http.ResponseWriter
 
 	// Get or generate session ID from cookies
 	// In a real implementation, this would be coordinated with the session manager
-	sessionID := getSessionIDFromRequest(r)
+	sessionID := GetSessionIDFromRequest(r)
 	if sessionID != "" {
 		f.transportsMu.Lock()
 		f.transports[sessionID] = transport
@@ -340,7 +340,7 @@ func (f *SSETransportFactory) HandlePost(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get session ID from request
-	sessionID := getSessionIDFromRequest(r)
+	sessionID := GetSessionIDFromRequest(r)
 	if sessionID == "" {
 		http.Error(w, "session not found", http.StatusBadRequest)
 		return
@@ -386,20 +386,4 @@ func (f *SSETransportFactory) HandlePost(w http.ResponseWriter, r *http.Request)
 
 	// Return success
 	w.WriteHeader(http.StatusOK)
-}
-
-// getSessionIDFromRequest extracts the session ID from the request.
-// This looks for a session cookie or header.
-func getSessionIDFromRequest(r *http.Request) string {
-	// Try to get session ID from cookie
-	if cookie, err := r.Cookie("live_session"); err == nil {
-		return cookie.Value
-	}
-
-	// Try to get session ID from header
-	if sessionID := r.Header.Get("X-Live-Session"); sessionID != "" {
-		return sessionID
-	}
-
-	return ""
 }

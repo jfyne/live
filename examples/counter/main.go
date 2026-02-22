@@ -128,7 +128,9 @@ func main() {
 			return
 		}
 
-		// Create a session ID (in production, you'd get this from cookies or generate it)
+		// Each WebSocket connection gets its own unique session ID.
+		// Cookies are shared across tabs, so using cookie-based IDs
+		// would cause tab collisions (AddSession overwrites).
 		sessionID := live.SessionID(fmt.Sprintf("session-%d", time.Now().UnixNano()))
 
 		// Create a session with the transport
@@ -186,14 +188,17 @@ func main() {
 	sseConfig := live.DefaultTransportConfig()
 	sseFactory := live.NewSSETransportFactory(sseConfig)
 
-	http.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/live/sse", func(w http.ResponseWriter, r *http.Request) {
 		transport, err := sseFactory.Upgrade(r.Context(), w, r)
 		if err != nil {
 			http.Error(w, "SSE upgrade failed", http.StatusBadRequest)
 			return
 		}
 
-		sessionID := live.SessionID(fmt.Sprintf("session-%d", time.Now().UnixNano()))
+		sessionID := live.SessionID(live.GetSessionIDFromRequest(r))
+		if sessionID == "" {
+			sessionID = live.SessionID(fmt.Sprintf("session-%d", time.Now().UnixNano()))
+		}
 		session := live.NewSession(r.Context(), sessionID, transport)
 		engine.AddSession(session)
 
@@ -236,7 +241,7 @@ func main() {
 	})
 
 	// SSE POST handler for client-to-server events
-	http.HandleFunc("/sse/post", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/live/post", func(w http.ResponseWriter, r *http.Request) {
 		sseFactory.HandlePost(w, r)
 	})
 
@@ -258,11 +263,8 @@ func main() {
 		}
 	})
 
-	// Serve the custom island script
-	http.HandleFunc("/custom-island.js", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/javascript")
-		http.ServeFile(w, r, "custom-island.js")
-	})
+	// Serve the v2 client library
+	http.Handle("/live.js", live.Javascript{})
 
 	// Start server
 	addr := ":8080"

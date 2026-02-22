@@ -532,6 +532,85 @@ func TestIslandPatchJSON(t *testing.T) {
 	}
 }
 
+func TestPatchJSONWireFormat(t *testing.T) {
+	// Test that Patch JSON serialization produces the exact wire format
+	// expected by the TypeScript client.
+	t.Run("exact key names in JSON output", func(t *testing.T) {
+		p := Patch{
+			Anchor:   "_i_test_0",
+			Action:   Replace,
+			HTML:     "<span>5</span>",
+			IslandID: "test",
+		}
+
+		data, err := json.Marshal(p)
+		if err != nil {
+			t.Fatalf("failed to marshal Patch: %v", err)
+		}
+
+		var result map[string]any
+		if err := json.Unmarshal(data, &result); err != nil {
+			t.Fatalf("failed to unmarshal into map: %v", err)
+		}
+
+		// Assert exact key names match the TypeScript client expectations
+		expectedKeys := []string{"Anchor", "Action", "HTML", "island_id"}
+		for _, key := range expectedKeys {
+			if _, ok := result[key]; !ok {
+				t.Errorf("expected key %q in JSON output, but it was missing. Got keys: %v", key, result)
+			}
+		}
+
+		// Verify no unexpected keys
+		if len(result) != len(expectedKeys) {
+			t.Errorf("expected exactly %d keys, got %d. Keys: %v", len(expectedKeys), len(result), result)
+		}
+
+		// Verify values
+		if result["Anchor"] != "_i_test_0" {
+			t.Errorf("Anchor = %v, want %q", result["Anchor"], "_i_test_0")
+		}
+		// Action is a uint32 encoded as float64 in JSON
+		if result["Action"] != float64(Replace) {
+			t.Errorf("Action = %v, want %v", result["Action"], float64(Replace))
+		}
+		if result["HTML"] != "<span>5</span>" {
+			t.Errorf("HTML = %v, want %q", result["HTML"], "<span>5</span>")
+		}
+		if result["island_id"] != "test" {
+			t.Errorf("island_id = %v, want %q", result["island_id"], "test")
+		}
+	})
+
+	t.Run("island_id omitted when empty", func(t *testing.T) {
+		p := Patch{
+			Anchor: "_i_test_0",
+			Action: Replace,
+			HTML:   "<span>5</span>",
+		}
+
+		data, err := json.Marshal(p)
+		if err != nil {
+			t.Fatalf("failed to marshal Patch: %v", err)
+		}
+
+		var result map[string]any
+		if err := json.Unmarshal(data, &result); err != nil {
+			t.Fatalf("failed to unmarshal into map: %v", err)
+		}
+
+		// island_id should be absent when IslandID is empty
+		if _, ok := result["island_id"]; ok {
+			t.Error("expected island_id to be omitted when IslandID is empty, but it was present")
+		}
+
+		// Should have exactly 3 keys: Anchor, Action, HTML
+		if len(result) != 3 {
+			t.Errorf("expected exactly 3 keys when IslandID is empty, got %d. Keys: %v", len(result), result)
+		}
+	})
+}
+
 func TestPatchIslandIDField(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -566,7 +645,7 @@ func TestPatchIslandIDField(t *testing.T) {
 				t.Fatalf("failed to marshal patch: %v", err)
 			}
 
-			var result map[string]interface{}
+			var result map[string]any
 			if err := json.Unmarshal(data, &result); err != nil {
 				t.Fatalf("failed to unmarshal result: %v", err)
 			}
@@ -918,6 +997,107 @@ func TestAnchorIslandTree(t *testing.T) {
 
 		if !checkNode(root) {
 			t.Error("should not duplicate anchors when called multiple times")
+		}
+	})
+}
+
+func TestDiffIslandAnchorsMatchClientDOM(t *testing.T) {
+	t.Run("anchors do not include html/body wrapper prefix", func(t *testing.T) {
+		// DiffIsland uses html.Parse which wraps fragments in <html><body>.
+		// Anchors must NOT reference the wrapper elements because the client
+		// DOM inside <live-island> has no such wrappers.
+		patches, err := DiffIsland("test", "<div>A</div>", "<div>B</div>")
+		if err != nil {
+			t.Fatalf("DiffIsland error: %v", err)
+		}
+
+		if len(patches) == 0 {
+			t.Fatal("expected patches for content change")
+		}
+
+		for _, p := range patches {
+			// The anchor should start directly with content-level elements.
+			// With body stripping, the body itself gets _i_test (no numeric suffix),
+			// and its first child div gets _i_test_0. Anchors should reference
+			// content elements, not wrapper elements like _i_test_0_1 (old body path).
+			if !strings.HasPrefix(p.Anchor, "_i_test") {
+				t.Errorf("anchor %q should start with _i_test", p.Anchor)
+			}
+			// The anchor should be short (content-level), not have the deep
+			// wrapper path that html.Parse would create without body stripping
+			parts := strings.Split(p.Anchor, "_")
+			// _i_test_0 splits to ["", "i", "test", "0"] = 4 parts
+			// Old broken: _i_test_0_1_0 splits to 6+ parts
+			if len(parts) > 5 {
+				t.Errorf("anchor %q has too many segments, likely includes html/body wrapper path", p.Anchor)
+			}
+		}
+	})
+
+	t.Run("initial mount from empty produces valid patches", func(t *testing.T) {
+		// Simulates server initial mount: previousHTML="" (no prior state),
+		// proposed is the rendered island content.
+		patches, err := DiffIsland("counter-1", "", `<div><div class="count">0</div></div>`)
+		if err != nil {
+			t.Fatalf("DiffIsland error: %v", err)
+		}
+
+		if len(patches) == 0 {
+			t.Fatal("initial mount should produce patches")
+		}
+
+		// All patches should have the correct island ID
+		for _, p := range patches {
+			if p.IslandID != "counter-1" {
+				t.Errorf("patch IslandID = %q, want counter-1", p.IslandID)
+			}
+		}
+
+		// Patch HTML should contain the rendered content with anchors
+		found := false
+		for _, p := range patches {
+			if strings.Contains(p.HTML, "count") {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("initial mount patches should contain the rendered content")
+		}
+	})
+
+	t.Run("subsequent diff anchors match initial patch HTML anchors", func(t *testing.T) {
+		// First render: empty -> initial content
+		initialPatches, err := DiffIsland("counter-1", "", `<div><span>0</span></div>`)
+		if err != nil {
+			t.Fatalf("initial DiffIsland error: %v", err)
+		}
+		if len(initialPatches) == 0 {
+			t.Fatal("initial mount should produce patches")
+		}
+
+		// The initial patch HTML contains anchor attributes that the client
+		// will set via innerHTML. Extract an anchor from the initial HTML.
+		initialHTML := initialPatches[0].HTML
+
+		// Second render: same content -> updated content
+		// The "current" should be the raw render output (without anchors),
+		// matching what the server stores in lastRenderedHTML.
+		updatePatches, err := DiffIsland("counter-1", `<div><span>0</span></div>`, `<div><span>1</span></div>`)
+		if err != nil {
+			t.Fatalf("update DiffIsland error: %v", err)
+		}
+		if len(updatePatches) == 0 {
+			t.Fatal("update should produce patches")
+		}
+
+		// The update patch anchor should exist as an attribute in the initial
+		// patch HTML. This validates that the client DOM (set from initial HTML)
+		// will contain the anchor the server references in the update patch.
+		updateAnchor := updatePatches[0].Anchor
+		if !strings.Contains(initialHTML, updateAnchor) {
+			t.Errorf("update anchor %q not found in initial patch HTML %q\n"+
+				"This means the client DOM won't have the anchor the server references",
+				updateAnchor, initialHTML)
 		}
 	})
 }

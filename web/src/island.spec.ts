@@ -462,8 +462,8 @@ describe("LiveIsland Custom Element", () => {
             expect(island.innerHTML).toBe('<div _i_test-1_0="">unchanged</div>');
         });
 
-        test("should warn when patch target not found", () => {
-            const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
+        test("should fallback to innerHTML when patch anchor not found", () => {
+            const debugSpy = jest.spyOn(console, 'debug').mockImplementation();
 
             const island = document.createElement('live-island') as LiveIsland;
             island.setAttribute('type', 'test');
@@ -486,13 +486,11 @@ describe("LiveIsland Custom Element", () => {
 
             handler(patch);
 
-            expect(consoleSpy).toHaveBeenCalledWith(
-                expect.stringContaining('patch target not found'),
-                '_i_test-1_999',
-                'test-1'
-            );
+            // When anchor is not found and HTML is non-empty, the island
+            // falls back to setting innerHTML (initial mount behavior)
+            expect(island.innerHTML).toBe('<div>test</div>');
 
-            consoleSpy.mockRestore();
+            debugSpy.mockRestore();
         });
 
         test("should handle multiple patches in sequence", () => {

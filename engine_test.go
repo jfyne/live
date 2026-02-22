@@ -499,6 +499,185 @@ func TestEngineConcurrentOperations(t *testing.T) {
 	}
 }
 
+// TestEngineStateRestorationOnReconnect tests that island state is restored
+// when a client reconnects with a new session ID.
+func TestEngineStateRestorationOnReconnect(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Register a counter island
+	registry := NewIslandRegistry()
+	err := registry.Register("counter", func() (*Island, error) {
+		island, _ := NewIsland("counter",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				initialValue := props.Int("initial")
+				return map[string]any{"count": initialValue}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return bytes.NewReader([]byte("<div>test</div>")), nil
+			}),
+		)
+		island.HandleEvent("increment", func(ctx context.Context, state any, params Params) (any, error) {
+			stateMap := state.(map[string]any)
+			stateMap["count"] = stateMap["count"].(int) + 1
+			return stateMap, nil
+		})
+		return island, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	// --- Session 1: initial connection ---
+	transport1 := newEngineMockTransport()
+	session1 := NewSession(ctx, "session-1", transport1)
+	engine.AddSession(session1)
+
+	// Mount island with initial count=0
+	_, err = engine.MountIsland("session-1", "counter-1", "counter", Props{"initial": 0})
+	if err != nil {
+		t.Fatalf("failed to mount island: %v", err)
+	}
+
+	// Increment the counter 5 times
+	for i := 0; i < 5; i++ {
+		err = engine.RouteEvent("session-1", Event{
+			T:      "increment",
+			Island: "counter-1",
+			Data:   []byte(`{}`),
+		})
+		if err != nil {
+			t.Fatalf("failed to route event: %v", err)
+		}
+	}
+
+	// Verify count is 5
+	instance1, _ := session1.GetIsland("counter-1")
+	state1 := instance1.State().(map[string]any)
+	if state1["count"] != 5 {
+		t.Fatalf("expected count 5, got %v", state1["count"])
+	}
+
+	// --- Simulate disconnect ---
+	engine.DeleteSession("session-1")
+
+	// --- Session 2: reconnection with new session ID ---
+	transport2 := newEngineMockTransport()
+	session2 := NewSession(ctx, "session-2", transport2)
+	engine.AddSession(session2)
+
+	// Mount the same island again (as the client re-subscribes on reconnect)
+	instance2, err := engine.MountIsland("session-2", "counter-1", "counter", Props{"initial": 0})
+	if err != nil {
+		t.Fatalf("failed to mount island on reconnect: %v", err)
+	}
+
+	// Verify the state was restored from the previous session
+	state2 := instance2.State().(map[string]any)
+	if state2["count"] != 5 {
+		t.Errorf("expected restored count 5, got %v", state2["count"])
+	}
+}
+
+// TestEngineStateRestorationPreservesCurrentSession tests that state from
+// the current session takes priority over cross-session lookup.
+func TestEngineStateRestorationPreservesCurrentSession(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registry := NewIslandRegistry()
+	err := registry.Register("counter", func() (*Island, error) {
+		island, _ := NewIsland("counter",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{"count": 0}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return bytes.NewReader([]byte("<div>test</div>")), nil
+			}),
+		)
+		return island, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	// Pre-populate state store with existing state for this session+island
+	stateStore.Set("session-1", "counter-1", map[string]any{"count": 42}, 1*time.Minute)
+
+	// Create session and mount island
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+
+	instance, err := engine.MountIsland("session-1", "counter-1", "counter", Props{})
+	if err != nil {
+		t.Fatalf("failed to mount island: %v", err)
+	}
+
+	// Should restore from current session state (count=42), not mount default (count=0)
+	state := instance.State().(map[string]any)
+	if state["count"] != 42 {
+		t.Errorf("expected restored count 42, got %v", state["count"])
+	}
+}
+
+// TestEngineDeleteSessionPreservesState tests that DeleteSession keeps
+// state in the store for reconnection.
+func TestEngineDeleteSessionPreservesState(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registry := NewIslandRegistry()
+	err := registry.Register("counter", func() (*Island, error) {
+		return NewIsland("counter",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{"count": 0}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return bytes.NewReader([]byte("<div>test</div>")), nil
+			}),
+		)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	// Create session and mount island
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+
+	_, err = engine.MountIsland("session-1", "counter-1", "counter", Props{})
+	if err != nil {
+		t.Fatalf("failed to mount island: %v", err)
+	}
+
+	// Delete session (simulates disconnect)
+	engine.DeleteSession("session-1")
+
+	// State should still be in the store
+	state, ok := stateStore.Get("session-1", "counter-1")
+	if !ok {
+		t.Fatal("expected state to be preserved after DeleteSession")
+	}
+	stateMap := state.(map[string]any)
+	if stateMap["count"] != 0 {
+		t.Errorf("expected count 0, got %v", stateMap["count"])
+	}
+}
+
 // TestEngineMultipleIslandsPerSession tests multiple islands in a single session
 func TestEngineMultipleIslandsPerSession(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())

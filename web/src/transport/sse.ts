@@ -133,7 +133,7 @@ export class SSETransport implements Transport {
 
                     this.setState(ConnectionState.Reconnecting);
                     setTimeout(() => {
-                        this.connect();
+                        this.connect().catch(() => {});
                     }, delay);
                 } else if (!wasConnected) {
                     reject(new Error("SSE connection failed"));

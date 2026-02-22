@@ -462,6 +462,109 @@ func TestMemoryIslandStateStore_UpdateState(t *testing.T) {
 	}
 }
 
+// TestMemoryIslandStateStore_GetByIslandID tests cross-session state lookup.
+func TestMemoryIslandStateStore_GetByIslandID(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+
+	islandID := IslandID("counter-1")
+
+	// No state exists yet.
+	_, ok := store.GetByIslandID(islandID)
+	if ok {
+		t.Error("Expected GetByIslandID to return false for non-existent state")
+	}
+
+	// Set state in session-1.
+	store.Set("session-1", islandID, "state-from-session-1", 1*time.Minute)
+
+	// GetByIslandID should find it.
+	state, ok := store.GetByIslandID(islandID)
+	if !ok {
+		t.Fatal("Expected GetByIslandID to find state")
+	}
+	if state != "state-from-session-1" {
+		t.Errorf("Expected state-from-session-1, got %v", state)
+	}
+
+	// Set a newer state in session-2 (with longer TTL = later expiry).
+	store.Set("session-2", islandID, "state-from-session-2", 2*time.Minute)
+
+	// GetByIslandID should return the most recent (latest expiry).
+	state, ok = store.GetByIslandID(islandID)
+	if !ok {
+		t.Fatal("Expected GetByIslandID to find state")
+	}
+	if state != "state-from-session-2" {
+		t.Errorf("Expected state-from-session-2, got %v", state)
+	}
+}
+
+// TestMemoryIslandStateStore_GetByIslandIDExpired tests that expired state is skipped.
+func TestMemoryIslandStateStore_GetByIslandIDExpired(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+
+	islandID := IslandID("counter-1")
+
+	// Set state with very short TTL.
+	store.Set("session-1", islandID, "expired-state", 1*time.Millisecond)
+
+	// Wait for expiry.
+	time.Sleep(5 * time.Millisecond)
+
+	// GetByIslandID should not find expired state.
+	_, ok := store.GetByIslandID(islandID)
+	if ok {
+		t.Error("Expected GetByIslandID to skip expired state")
+	}
+
+	// Set non-expired state in another session.
+	store.Set("session-2", islandID, "fresh-state", 1*time.Minute)
+
+	// Should find the fresh state.
+	state, ok := store.GetByIslandID(islandID)
+	if !ok {
+		t.Fatal("Expected GetByIslandID to find fresh state")
+	}
+	if state != "fresh-state" {
+		t.Errorf("Expected fresh-state, got %v", state)
+	}
+}
+
+// TestMemoryIslandStateStore_GetByIslandIDIsolation tests that different island IDs are isolated.
+func TestMemoryIslandStateStore_GetByIslandIDIsolation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	store := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+
+	// Set states for different islands.
+	store.Set("session-1", "counter-1", "counter-1-state", 1*time.Minute)
+	store.Set("session-1", "counter-2", "counter-2-state", 1*time.Minute)
+
+	// GetByIslandID should only find the matching island.
+	state, ok := store.GetByIslandID("counter-1")
+	if !ok || state != "counter-1-state" {
+		t.Errorf("Expected counter-1-state, got %v (ok=%v)", state, ok)
+	}
+
+	state, ok = store.GetByIslandID("counter-2")
+	if !ok || state != "counter-2-state" {
+		t.Errorf("Expected counter-2-state, got %v (ok=%v)", state, ok)
+	}
+
+	// Non-existent island should not be found.
+	_, ok = store.GetByIslandID("counter-3")
+	if ok {
+		t.Error("Expected GetByIslandID to return false for non-existent island")
+	}
+}
+
 // TestMemoryIslandStateStore_InvalidCleanupInterval tests that zero/negative cleanup intervals are handled.
 func TestMemoryIslandStateStore_InvalidCleanupInterval(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())

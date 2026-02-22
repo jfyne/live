@@ -75,11 +75,10 @@ func (e *IslandEngine) GetSession(sessionID SessionID) (*Session, bool) {
 	return session, ok
 }
 
-// DeleteSession removes a session from the engine and cleans up all its resources.
-// This includes:
-// - Closing the session
-// - Removing all islands from the session
-// - Deleting all state from the state store
+// DeleteSession removes a session from the engine.
+// The session is closed and removed from the engine's session map,
+// but island state is preserved in the state store for reconnection.
+// State is cleaned up automatically by the store's TTL mechanism.
 func (e *IslandEngine) DeleteSession(sessionID SessionID) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -87,19 +86,26 @@ func (e *IslandEngine) DeleteSession(sessionID SessionID) {
 	if session, ok := e.sessions[sessionID]; ok {
 		_ = session.Close()
 		delete(e.sessions, sessionID)
-		// Clean up all state for this session
-		e.stateStore.DeleteSession(sessionID)
+		// State is intentionally NOT deleted here to allow
+		// state restoration when the client reconnects with
+		// a new session ID. The state store's TTL will handle
+		// cleanup of stale state.
 	}
 }
 
-// MountIsland creates and mounts a new island instance within a session.
+// MountIsland creates and mounts an island instance within a session.
+// If existing state is found in the state store (e.g., from a previous
+// session before reconnection), it is restored instead of using the
+// mount handler's initial state.
+//
 // The flow is:
 // 1. Get the session
 // 2. Create the island instance from the registry
-// 3. Call the island's Mount() handler
-// 4. Add the instance to the session
-// 5. Save the initial state to the state store
-// 6. Render the island and send the initial patch to the client
+// 3. Call the island's Mount() handler (creates initial state)
+// 4. Check the state store for existing state and restore if found
+// 5. Add the instance to the session
+// 6. Save the state to the state store under the new session ID
+// 7. Render the island and send the initial patch to the client
 //
 // Returns the mounted instance or an error.
 func (e *IslandEngine) MountIsland(sessionID SessionID, islandID IslandID, islandType string, props Props) (*IslandInstance, error) {
@@ -115,15 +121,23 @@ func (e *IslandEngine) MountIsland(sessionID SessionID, islandID IslandID, islan
 		return nil, fmt.Errorf("failed to create island instance: %w", err)
 	}
 
-	// Mount the island (calls the island's mount handler)
+	// Mount the island (calls the island's mount handler to create initial state)
 	if err := instance.Mount(session.Context()); err != nil {
 		return nil, fmt.Errorf("failed to mount island: %w", err)
+	}
+
+	// Check for existing state from a previous session (reconnection scenario).
+	// First check the current session, then search across all sessions.
+	if existingState, ok := e.stateStore.Get(sessionID, islandID); ok {
+		instance.SetState(existingState)
+	} else if existingState, ok := e.stateStore.GetByIslandID(islandID); ok {
+		instance.SetState(existingState)
 	}
 
 	// Add the instance to the session
 	session.AddIsland(instance)
 
-	// Save the initial state to the state store
+	// Save the state to the state store under the current session ID
 	e.mu.RLock()
 	ttl := e.stateTTL
 	e.mu.RUnlock()
@@ -132,7 +146,7 @@ func (e *IslandEngine) MountIsland(sessionID SessionID, islandID IslandID, islan
 	// Render the island and send the initial patch to the client
 	if err := e.renderAndSendIsland(session, instance); err != nil {
 		// Non-fatal - the island is mounted but the client won't see the initial render
-		slog.Debug("failed to render and send island on mount",
+		slog.Error("failed to render and send island on mount",
 			"island", instance.ID,
 			"err", err)
 	}
@@ -267,7 +281,9 @@ func (e *IslandEngine) BroadcastToIslandType(islandType string, event Event) {
 				eventCopy := event
 				eventCopy.Island = instance.ID
 				// Send the event to the session (non-blocking)
-				_ = session.Send(eventCopy)
+				if err := session.Send(eventCopy); err != nil {
+					slog.Error("failed to send broadcast event", "island_type", islandType, "session_id", session.ID, "err", err)
+				}
 			}
 		}
 	}
@@ -290,7 +306,9 @@ func (e *IslandEngine) BroadcastToIsland(islandID IslandID, event Event) {
 			eventCopy := event
 			eventCopy.Island = instance.ID
 			// Send the event to the session (non-blocking)
-			_ = session.Send(eventCopy)
+			if err := session.Send(eventCopy); err != nil {
+				slog.Error("failed to send broadcast event", "island_id", islandID, "session_id", session.ID, "err", err)
+			}
 		}
 	}
 }

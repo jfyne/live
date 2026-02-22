@@ -138,11 +138,14 @@ export class TransportNegotiator {
         let timedOut = false;
         let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-        // Race between connection and timeout
+        // Race between connection and timeout.
+        // When the timeout fires first, it rejects the timeoutPromise and closes
+        // the transport, which causes connectionPromise to also reject. We must
+        // swallow that secondary rejection to avoid unhandled promise rejections.
         const connectionPromise = transport.connect().catch((err) => {
-            // If we timed out, the close was intentional - suppress the error
             if (timedOut) {
-                return Promise.reject(new Error(`Transport ${type} timed out after ${timeout}ms`));
+                // Timeout already handled this - swallow the close-triggered rejection
+                return new Promise<void>(() => {}); // never resolves, but doesn't reject
             }
             throw err;
         });

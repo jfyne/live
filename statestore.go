@@ -18,6 +18,11 @@ type IslandStateStore interface {
 	// Returns the state and true if found, or nil and false if not found.
 	Get(sessionID SessionID, islandID IslandID) (State, bool)
 
+	// GetByIslandID searches across all sessions for state matching the given island ID.
+	// Returns the most recently stored (highest expiry) non-expired state.
+	// This is used for state restoration on reconnect when the session ID has changed.
+	GetByIslandID(islandID IslandID) (State, bool)
+
 	// Set stores the state for a specific island instance with a TTL.
 	// The state will be automatically removed after the TTL expires.
 	Set(sessionID SessionID, islandID IslandID, state State, ttl time.Duration)
@@ -97,6 +102,38 @@ func (m *MemoryIslandStateStore) Get(sessionID SessionID, islandID IslandID) (St
 	}
 
 	return entry.state, true
+}
+
+// GetByIslandID searches across all sessions for state matching the given island ID.
+// Returns the state with the latest expiry time (most recently updated).
+// This enables state restoration when a client reconnects with a new session ID.
+func (m *MemoryIslandStateStore) GetByIslandID(islandID IslandID) (State, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	now := time.Now()
+	var bestState State
+	var bestExpiry time.Time
+	found := false
+
+	for _, sessionStates := range m.store {
+		entry, ok := sessionStates[islandID]
+		if !ok {
+			continue
+		}
+		// Skip expired entries.
+		if now.After(entry.expiresAt) {
+			continue
+		}
+		// Keep the entry with the latest expiry (most recently updated).
+		if !found || entry.expiresAt.After(bestExpiry) {
+			bestState = entry.state
+			bestExpiry = entry.expiresAt
+			found = true
+		}
+	}
+
+	return bestState, found
 }
 
 // Set stores the state for a specific island instance with a TTL.

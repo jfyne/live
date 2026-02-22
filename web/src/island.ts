@@ -2,6 +2,7 @@ import { ConnectionManager } from "./connection";
 import { IslandPatch, Patch, PatchAction } from "./transport/message";
 import { Forms } from "./forms";
 import { EventDispatch } from "./event";
+import { wireIslandEvents } from "./events";
 import { HookRegistry } from "./hooks";
 
 /**
@@ -39,6 +40,7 @@ export class LiveIsland extends HTMLElement {
     private props: IslandProps | null = null;
     private config: IslandConfig;
     private islandId: string | null = null;
+    private eventCleanup: (() => void) | null = null;
 
     constructor() {
         super();
@@ -86,6 +88,11 @@ export class LiveIsland extends HTMLElement {
 
         // Execute mounted hooks for all elements with live-hook attribute
         this.executeHooksForLifecycle('mounted');
+
+        // Wire event handlers for live-click, live-submit, etc.
+        if (this.islandId) {
+            this.eventCleanup = wireIslandEvents(this, this.islandId);
+        }
     }
 
     /**
@@ -97,6 +104,12 @@ export class LiveIsland extends HTMLElement {
 
         // Execute destroyed hooks for all elements with live-hook attribute
         this.executeHooksForLifecycle('destroyed');
+
+        // Clean up event handlers
+        if (this.eventCleanup) {
+            this.eventCleanup();
+            this.eventCleanup = null;
+        }
 
         if (this.islandId) {
             this.connectionManager.unregisterIsland(this.islandId);
@@ -122,7 +135,6 @@ export class LiveIsland extends HTMLElement {
         }
 
         // Re-extract props
-        const oldProps = this.props;
         this.props = this.extractProps();
 
         // Handle id change - need to re-register
@@ -133,6 +145,11 @@ export class LiveIsland extends HTMLElement {
             if (newValue) {
                 this.islandId = newValue;
                 this.registerWithConnectionManager();
+                // Re-wire event handlers for the new island ID
+                if (this.eventCleanup) {
+                    this.eventCleanup();
+                }
+                this.eventCleanup = wireIslandEvents(this, newValue);
             }
         }
 
@@ -207,6 +224,14 @@ export class LiveIsland extends HTMLElement {
 
         // Execute updated hooks for all elements with live-hook attribute
         this.executeHooksForLifecycle('updated');
+
+        // Re-wire event handlers on new DOM content
+        if (this.islandId) {
+            if (this.eventCleanup) {
+                this.eventCleanup();
+            }
+            this.eventCleanup = wireIslandEvents(this, this.islandId);
+        }
     }
 
     /**
@@ -219,7 +244,13 @@ export class LiveIsland extends HTMLElement {
         // Find the target element within this island
         const target = this.querySelector(`*[${patch.Anchor}]`);
         if (target === null) {
-            console.warn('LiveIsland: patch target not found', patch.Anchor, this.islandId);
+            // On initial mount, the server-rendered HTML has no anchor attributes,
+            // so the first patch won't find its target. Fall back to replacing
+            // the island's content, which bootstraps anchored DOM for subsequent patches.
+            if (patch.HTML !== "") {
+                console.debug('LiveIsland: initial render, setting island content', this.islandId);
+                this.innerHTML = patch.HTML;
+            }
             return;
         }
 

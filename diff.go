@@ -125,13 +125,13 @@ type Patch struct {
 	// Anchor is the DOM element identifier where this patch should be applied.
 	// Anchors are generated automatically during rendering and use the format
 	// "_l" for page-level patches or "_i_<islandID>" for island-scoped patches.
-	Anchor string
+	Anchor string `json:"Anchor"`
 
 	// Action specifies how to apply the HTML content (Replace, Append, Prepend, or Noop).
-	Action PatchAction
+	Action PatchAction `json:"Action"`
 
 	// HTML is the HTML content to apply at the anchor point.
-	HTML string
+	HTML string `json:"HTML"`
 
 	// IslandID optionally identifies which island this patch belongs to.
 	// This is used for routing patches in multi-island scenarios.
@@ -226,6 +226,12 @@ func DiffIsland(islandID IslandID, current, proposed string) ([]Patch, error) {
 		return nil, fmt.Errorf("failed to parse proposed HTML: %w", err)
 	}
 	shapeTree(proposedNode)
+
+	// html.Parse wraps fragments in <html><head><body>. Extract the <body>
+	// element so anchors start at the actual content, matching the client DOM
+	// inside <live-island> which has no document wrapper.
+	currentNode = findBodyOrSelf(currentNode)
+	proposedNode = findBodyOrSelf(proposedNode)
 
 	// Anchor both trees with island-scoped anchors
 	idGen := newIslandAnchorGenerator(string(islandID))
@@ -455,6 +461,30 @@ func (d *differ) generatePatch(node *html.Node, target string, action PatchActio
 			Node:   node,
 		}
 	}
+}
+
+// findBodyOrSelf walks the tree to find the <body> element. If found,
+// returns the body node so that island anchors start at content level
+// rather than at the <html> document wrapper. Returns the original
+// node if no <body> is found (e.g., when input is already a fragment).
+func findBodyOrSelf(node *html.Node) *html.Node {
+	if body := findBody(node); body != nil {
+		return body
+	}
+	return node
+}
+
+// findBody recursively searches for a <body> element in the tree.
+func findBody(node *html.Node) *html.Node {
+	if node.Type == html.ElementNode && node.Data == "body" {
+		return node
+	}
+	for c := node.FirstChild; c != nil; c = c.NextSibling {
+		if result := findBody(c); result != nil {
+			return result
+		}
+	}
+	return nil
 }
 
 func findAnchor(node *html.Node) string {

@@ -78,9 +78,9 @@ func NewHandler() *live.Handler {
 			Msg:  msg,
 		}
 		if err := s.Broadcast(newmessage, data); err != nil {
-			return m, fmt.Errorf("failed braodcasting new message: %w", err)
+			return m, fmt.Errorf("failed broadcasting new message: %w", err)
 		}
-		return m, nil
+		return NewChatInstance(s), nil
 	})
 
 	// Handle the broadcasted events.

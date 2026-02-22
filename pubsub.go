@@ -33,7 +33,7 @@ func NewPubSub(ctx context.Context, t PubSubTransport) *PubSub {
 	}
 	go func(ctx context.Context, ps *PubSub) {
 		if err := t.Listen(ctx, ps); err != nil {
-			log.Fatal("could not listen on pubsub: %w", err)
+			log.Fatalf("could not listen on pubsub: %v", err)
 		}
 	}(ctx, p)
 	return p

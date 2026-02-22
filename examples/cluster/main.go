@@ -51,16 +51,16 @@ func (c *CloudTransport) Listen(ctx context.Context, p *live.PubSub) error {
 	for {
 		msg, err := sub.Receive(ctx)
 		if err != nil {
-			log.Println("receive message failed: %w", err)
+			log.Printf("receive message failed: %v", err)
 			break
 		}
 
 		var t live.TransportMessage
 		if err := json.Unmarshal(msg.Body, &t); err != nil {
-			log.Println("malformed message received: %w", err)
+			log.Printf("malformed message received: %v", err)
 			continue
 		}
-		p.Recieve(t.Topic, t.Msg)
+		p.Receive(t.Topic, t.Msg)
 		msg.Ack()
 	}
 	return fmt.Errorf("stopped receiving messages")

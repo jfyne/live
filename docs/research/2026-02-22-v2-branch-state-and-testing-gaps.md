@@ -2,9 +2,10 @@
 date: 2026-02-22T12:00:00+00:00
 researcher: Josh
 topic: "Live v2 Branch: Current State, Testing Completeness, and Remaining Work"
-tags: [research, v2, testing, gaps, branch-state]
+tags: [research, v2, testing, gaps, branch-state, wire-format, session-ids, protobuf]
 last_updated: 2026-02-22
 last_updated_by: Josh
+last_updated_note: "Resolved all 4 open questions: wire format, subscribe protocol, session IDs, polling transport. Added wire format contract analysis."
 ---
 
 # Research: Live v2 Branch State and Remaining Work
@@ -24,6 +25,7 @@ However, there are **significant gaps between the server and client integration*
 3. 8 client tests fail in `negotiator.spec.ts` (transport fallback scenarios)
 4. There are uncommitted changes (error logging improvements) and untracked test files
 5. Only 1 example exists (counter) - no nested islands, forms, broadcasts, or hooks demos
+6. **Session ID handling is incompatible between server and client for WebSocket** (see Resolved Questions)
 
 ## Detailed Findings
 
@@ -124,45 +126,177 @@ The `_v1_backup/` directory contains archived v1 files:
 
 This directory serves no functional purpose on the v2 branch. The v1 code is preserved in git history and on the master branch.
 
+## Resolved Questions
+
+### 1. Wire Format Compatibility: COMPATIBLE (but fragile)
+
+The Go server and TypeScript client wire formats match:
+
+| Field | Go JSON Output | TypeScript Expects | Match |
+|-------|---------------|-------------------|-------|
+| `Event.T` | `"t"` (json tag) | `t` | Yes |
+| `Event.Island` | `"island"` (json tag) | `island?` | Yes |
+| `Event.Data` | `"d"` (json tag) | `d?` | Yes |
+| `Patch.Anchor` | `"Anchor"` (no json tag) | `Anchor` | Yes |
+| `Patch.Action` | `"Action"` (no json tag, number) | `Action` (PatchAction enum) | Yes |
+| `Patch.HTML` | `"HTML"` (no json tag) | `HTML` | Yes |
+| `Patch.IslandID` | `"island_id"` (json tag) | `island_id?` | Yes |
+
+**Example server output:**
+```json
+{
+  "t": "patch",
+  "island": "counter-1",
+  "d": [
+    {"Anchor": "_i_counter-1_0", "Action": 1, "HTML": "<span>5</span>", "island_id": "counter-1"}
+  ]
+}
+```
+
+**Fragility risk:** The `Patch` struct's `Anchor`, `Action`, and `HTML` fields have **no json struct tags** (`diff.go:124-139`). Go defaults to the capitalized field name, which happens to match TypeScript. But adding a `json:"anchor"` tag would silently break the client. This should be made intentional by adding explicit json tags that match the current behavior.
+
+### 2. Subscribe Protocol: COMPATIBLE
+
+Both custom-island.js and the v2 client library send identical subscribe messages:
+
+```json
+{"t": "subscribe", "island": "counter-1", "d": {"type": "counter"}}
+```
+
+**Client library flow** (`connection.ts:203-218`):
+1. `LiveIsland.connectedCallback()` calls `connectionManager.registerIsland(id, type, handler)`
+2. ConnectionManager calls `subscribeIsland(islandId, islandType)`
+3. Sends `{t: "subscribe", island: islandId, d: {type: islandType}}`
+
+**One difference:** The v2 client also sends `{t: "unsubscribe", island: islandId}` on disconnect (`connection.ts:224-237`). The server has no handler for this - events are silently ignored. Island state persists until TTL expiration. This is safe but could be improved.
+
+**Server connect event:** The WebSocket transport sends `{t: "connect"}` after upgrade (`transport_websocket.go:299-303`). The v2 client receives this via its message routing but doesn't depend on it for subscription - subscription is triggered by island registration, not connect events.
+
+### 3. Session ID Alignment: INCOMPATIBLE for WebSocket
+
+This is a real bug that prevents reconnection from restoring state.
+
+**Server behavior** (`examples/counter/main.go:132`):
+```go
+sessionID := live.SessionID(fmt.Sprintf("session-%d", time.Now().UnixNano()))
+```
+Server generates a new timestamp-based session ID per WebSocket connection. The client's cookie is ignored.
+
+**Client behavior** (`web/src/transport/websocket.ts:33-49`):
+- Reads or generates a UUID v4 session ID
+- Stores in `live_session` cookie (60-second TTL)
+- Expects the same session to persist across reconnections
+
+**Result:** Every WebSocket connection gets a new server-side session ID. On reconnect, the client sends the same cookie, but the server creates a fresh `session-{timestamp}` and mounts new island instances. State is lost.
+
+**SSE is partially better:** The server has `getSessionIDFromRequest()` (`transport_sse.go:391-405`) that reads the `live_session` cookie or `X-Live-Session` header. However, the counter example doesn't use it - it also generates a timestamp-based ID (`main.go:196`).
+
+**Fix needed:** The server's connection handlers should read the session ID from the client's `live_session` cookie (available on the HTTP upgrade request), falling back to generating one only if no cookie exists. This applies to both WebSocket and SSE handlers.
+
+### 4. Polling Transport: Intentionally Deferred
+
+The server has no polling transport implementation. The client has `TransportType.Polling` in the negotiator enum but no `PollingTransport` class. The implementation plan lists it as "Optional Deliverable." WebSocket + SSE covers virtually all environments, so this is a reasonable deferral.
+
+## Wire Format Contract Analysis
+
+### Current State: JSON with No Formal Schema
+
+The wire protocol uses 6 system message types plus user-defined event names:
+
+| Message Type | Direction | `d` Payload |
+|-------------|-----------|-------------|
+| `connect` | Server -> Client | None |
+| `ack` | Server -> Client | Optional ID |
+| `err` | Server -> Client | `{source: Event, err: string}` |
+| `patch` | Server -> Client | `[]Patch` (Anchor, Action, HTML, island_id) |
+| `params` | Bidirectional | URL params map |
+| `redirect` | Server -> Client | URL string |
+| User events (`inc`, `dec`, etc.) | Client -> Server | Arbitrary params |
+
+The Go side uses `json.RawMessage` for `Event.Data` and the TypeScript side uses `d?: any`. Neither enforces type safety on the payload.
+
+### Protobuf Assessment: Not Recommended
+
+**Why protobuf is a poor fit for this project:**
+
+1. **String-heavy payloads negate size advantage.** Patches carry raw HTML. For string data, protobuf is only ~84% of gzipped JSON (vs 16% for numeric data). WebSocket per-frame compression handles both equally.
+
+2. **SSE is text-only.** Binary protobuf over SSE requires base64 encoding, negating size savings and adding complexity.
+
+3. **User-defined event names can't be captured in a `.proto` enum.** The `T` field is open-ended by design. Protobuf would only type-check the 6 system message types, not the most important direction (client-to-server user events).
+
+4. **Dependency bloat.** Would add `buf`/`protoc` binary + `@bufbuild/protobuf` npm runtime dep to a project that currently has 3 Go deps and minimal npm deps.
+
+5. **Ecosystem precedent.** Phoenix LiveView shipped JSON after years of development (considered BERT binary, never shipped it). Hotwire/Turbo sends raw HTML over WebSocket. HTMX uses raw HTML fragments. None use binary wire formats.
+
+### Recommended Approach: Explicit JSON Tags + Typed TypeScript
+
+**Tier 1 (do now):** Make the contract intentional without new tooling.
+
+On the Go side, add explicit json tags to the `Patch` struct so the field names are a deliberate choice:
+```go
+type Patch struct {
+    Anchor   string      `json:"Anchor"`
+    Action   PatchAction `json:"Action"`
+    HTML     string      `json:"HTML"`
+    IslandID string      `json:"island_id,omitempty"`
+}
+```
+
+On the TypeScript side, replace `d?: any` in `TransportMessage` with a discriminated union:
+```typescript
+interface PatchMessage { t: "patch"; island: string; d: Patch[]; }
+interface ErrorMessage { t: "err"; d: { source: TransportMessage; err: string }; }
+interface ConnectMessage { t: "connect"; }
+// etc.
+type ServerMessage = PatchMessage | ErrorMessage | ConnectMessage | ...;
+```
+
+**Tier 2 (consider later):** If more message types are added, use **JSON Typedef** (`jtd-codegen`) to generate both Go structs and TypeScript interfaces from a single `.jtd.json` schema file. No wire format change, no runtime deps, single binary tool. Gives compile-time guarantee that both sides match.
+
 ## What Needs Doing
 
 ### Critical: Client-Server Integration
 
-1. **Connect the real client library to the counter example** - Replace `custom-island.js` with `auto.js`. This requires verifying that the `<live-island>` custom element, ConnectionManager, transport negotiation, and island-scoped patching all work together with the Go server's event routing and patch generation.
+1. **Fix session ID handling** - Server WebSocket/SSE handlers must read session ID from the client's `live_session` cookie on the HTTP upgrade request, falling back to generating one only if none exists. Without this, reconnection cannot restore state.
 
-2. **Fix the 8 failing negotiator tests** - The `negotiator.spec.ts` failures indicate a bug in the WebSocket-to-SSE fallback path. Since transport negotiation is a core feature, this needs fixing before the client can be considered complete.
+2. **Connect the real client library to the counter example** - Replace `custom-island.js` with `auto.js`. This requires verifying that the `<live-island>` custom element, ConnectionManager, transport negotiation, and island-scoped patching all work together with the Go server's event routing and patch generation.
 
-3. **Verify patch protocol compatibility** - The Go server sends `Event{T: "patch", Island: "...", Data: [patches]}` where patches use anchor-based targeting. The client's `applyIslandPatches()` expects `IslandPatch{island, patches: Patch[]}`. These wire formats need to be verified as compatible.
+3. **Fix the 8 failing negotiator tests** - The `negotiator.spec.ts` failures indicate a bug in the WebSocket-to-SSE fallback path. Since transport negotiation is a core feature, this needs fixing before the client can be considered complete.
+
+4. **Add explicit json tags to Patch struct** - The current compatibility is accidental (Go defaults to capitalized field names). Adding `json:"Anchor"` etc. makes the contract intentional and prevents future breakage.
 
 ### Important: Additional Testing
 
-4. **End-to-end browser test** - Run the counter example with the real client library and verify in a browser that:
+5. **End-to-end browser test** - Run the counter example with the real client library and verify in a browser that:
    - Islands mount and render initial state from server
    - Click events route to correct island
    - Patches apply correctly within island boundaries
    - Multiple islands operate independently
    - Reconnection works (kill server, restart, verify state)
 
-5. **SSE transport end-to-end** - The SSE transport has server tests and client tests but no end-to-end verification. The counter example serves SSE endpoints but the custom JS doesn't use them.
+6. **SSE transport end-to-end** - The SSE transport has server tests and client tests but no end-to-end verification. The counter example serves SSE endpoints but the custom JS doesn't use them.
 
 ### Recommended: Examples and Cleanup
 
-6. **More examples** demonstrating:
+7. **More examples** demonstrating:
    - Nested/composed islands (parent renders child `<live-island>` elements)
    - Form handling within islands (text inputs, checkboxes with state preservation)
    - Server-to-client broadcasts (`BroadcastToIslandType`, `BroadcastToIsland`)
    - Hook usage (`live-hook` attribute with lifecycle callbacks)
    - SSE-only island (dashboard/feed pattern)
 
-7. **Remove `_v1_backup/` directory** - v1 code is in git history; no need to keep archived copies on the v2 branch.
+8. **Remove `_v1_backup/` directory** - v1 code is in git history; no need to keep archived copies on the v2 branch.
 
-8. **Commit uncommitted changes** - The error logging improvements in `engine.go` and `transport_websocket.go` plus the new `context_test.go` should be committed.
+9. **Commit uncommitted changes** - The error logging improvements in `engine.go` and `transport_websocket.go` plus the new `context_test.go` should be committed.
+
+10. **Tighten TypeScript types** - Replace `d?: any` in `TransportMessage` with discriminated union types per message type.
 
 ### Optional: Coverage Gaps
 
-9. **`transport_endpoints.go` tests** - The HTTP handler factories (`WebSocketHandler`, `SSEHandler`, `UpgradeSSE`) are not directly tested. They're thin wrappers exercised indirectly by integration tests, but direct tests would improve coverage.
+11. **`transport_endpoints.go` tests** - The HTTP handler factories (`WebSocketHandler`, `SSEHandler`, `UpgradeSSE`) are not directly tested. They're thin wrappers exercised indirectly by integration tests, but direct tests would improve coverage.
 
-10. **`javascript.go` tests** - The JS/sourcemap serving handlers are untested.
+12. **`javascript.go` tests** - The JS/sourcemap serving handlers are untested.
 
 ## Code References
 
@@ -172,8 +306,14 @@ This directory serves no functional purpose on the v2 branch. The v1 code is pre
 - `examples_test.go` - New untracked doc example file
 - `examples/counter/custom-island.js` - Hand-written JS bypassing the v2 client library
 - `examples/counter/index.html:117` - Loads custom-island.js instead of auto.js
+- `examples/counter/main.go:132` - Server generates timestamp-based session IDs (incompatible with client)
 - `web/src/transport/negotiator.spec.ts` - 8 failing tests
+- `web/src/transport/websocket.ts:33-49` - Client generates UUID session IDs in cookie
+- `web/src/transport/message.ts` - Wire message types with `d?: any` (untyped)
 - `web/browser/auto.js` - Built v2 client library (19KB minified)
+- `diff.go:124-139` - Patch struct with no json tags (fragile)
+- `transport_sse.go:391-405` - `getSessionIDFromRequest()` reads cookie/header
+- `event.go:45-65` - Event struct with json tags
 - `_v1_backup/` - Archived v1 code (can be removed)
 
 ## Architecture Documentation
@@ -207,12 +347,71 @@ When a client event arrives:
 7. Events sent via ConnectionManager through negotiated transport
 8. Hooks executed on mount/update/destroy lifecycle
 
-## Open Questions
+### Session ID Flow (Current - Broken)
 
-1. **Wire format compatibility**: Does the Go server's patch event format match what the client's `applyIslandPatches()` expects? The server sends `Event{T: "patch", Island: "...", Data: marshaled-patches}` - does the client correctly parse `Data` as `Patch[]`?
+```
+Client                          Server
+  |                               |
+  |-- WebSocket Upgrade --------->|
+  |   (Cookie: live_session=UUID) |
+  |                               |-- Ignores cookie
+  |                               |-- Generates session-{timestamp}
+  |<-- {t: "connect"} -----------|
+  |                               |
+  |-- {t: "subscribe"} --------->|-- MountIsland(session-{timestamp}, ...)
+  |                               |
+  |   ... connection drops ...    |
+  |                               |-- DeleteSession(session-{timestamp})
+  |                               |
+  |-- WebSocket Upgrade --------->|
+  |   (Cookie: live_session=UUID) |  (same UUID!)
+  |                               |-- Ignores cookie AGAIN
+  |                               |-- Generates session-{NEW timestamp}
+  |                               |-- State from old session is LOST
+```
 
-2. **Subscribe protocol**: The counter example uses `{t: "subscribe", island: id, d: {type: "counter"}}`. Does the auto.js client send the same subscribe format? The ConnectionManager's registration flow needs to match the server's expectation.
+### Session ID Flow (Fixed)
 
-3. **Session ID alignment**: The custom JS doesn't manage session IDs (server generates them per WebSocket). The auto.js client uses cookie-based session IDs. Are these compatible with the server's session management?
+```
+Client                          Server
+  |                               |
+  |-- WebSocket Upgrade --------->|
+  |   (Cookie: live_session=UUID) |
+  |                               |-- Reads cookie: UUID
+  |                               |-- Uses UUID as SessionID
+  |<-- {t: "connect"} -----------|
+  |                               |
+  |-- {t: "subscribe"} --------->|-- MountIsland(UUID, ...)
+  |                               |
+  |   ... connection drops ...    |
+  |                               |-- Keeps session in store (TTL)
+  |                               |
+  |-- WebSocket Upgrade --------->|
+  |   (Cookie: live_session=UUID) |  (same UUID!)
+  |                               |-- Reads cookie: UUID
+  |                               |-- Finds existing session
+  |                               |-- Restores island state from store
+```
 
-4. **Polling transport**: The plan mentions polling as optional. The server has no polling transport implementation. The client has `TransportType.Polling` in the negotiator but no `PollingTransport` class. Is this intentionally deferred?
+## External Context
+
+### Wire Format Precedent in LiveView-Style Frameworks
+
+- **Phoenix LiveView**: JSON arrays over WebSocket. Custom diff protocol. Considered BERT binary encoding (community project showed 2-10x faster encoding) but never shipped it in mainline. Chose JSON pragmatism.
+- **Hotwire/Turbo**: Raw HTML strings wrapped in `<turbo-stream>` XML tags over WebSocket/SSE. Zero schema contract.
+- **HTMX**: Raw HTML fragments. No wire format contract at all.
+- **Conclusion**: None of the major server-rendered real-time frameworks use binary wire formats. JSON (or raw HTML) is the standard.
+
+### Schema Contract Options (Evaluated)
+
+| Approach | Effort | Value for Live v2 | New Dependencies |
+|----------|--------|-------------------|------------------|
+| Explicit json tags + TS union types | Low | High - prevents accidental breakage | None |
+| JSON Typedef (`jtd-codegen`) | Moderate | Good - compile-time guarantee | `jtd-codegen` binary (build only) |
+| Protobuf (`buf` + `protobuf-es`) | High | Modest - string-heavy payloads negate size advantage | `buf` binary, `@bufbuild/protobuf` npm |
+| Flatbuffers | Very high | Minimal - complex API, larger wire format | Multiple |
+
+## Historical Context (from docs/)
+
+- `docs/research/2026-01-25-islands-component-architecture.md` - Original v2 architecture research
+- `docs/plans/v2-islands-architecture.md` - Implementation plan with 25 deliverables (all marked complete)

@@ -60,7 +60,7 @@ func (c *CloudTransport) Listen(ctx context.Context, p *live.PubSub) error {
 			log.Println("malformed message received: %w", err)
 			continue
 		}
-		p.Recieve(t.Topic, t.Msg)
+		p.Receive(t.Topic, t.Msg)
 		msg.Ack()
 	}
 	return fmt.Errorf("stopped receiving messages")

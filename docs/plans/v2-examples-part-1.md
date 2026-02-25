@@ -109,14 +109,14 @@ Add framework APIs to support the v2 examples: `SendSelf` for triggering self-ev
 
 ### Context Helpers
 
-- [ ] Add context keys and helpers for SendSelf support (`context.go`) [Stage 1]
+- [x] Add context keys and helpers for SendSelf support (`context.go`) [Stage 1]
   - Files: `context.go` (modifies)
   - Add four new context keys: `sessionIDCtxKey`, `islandIDCtxKey`, `engineCtxKey`, `selfEventQueueCtxKey`
   - Add unexported setters: `contextWithSessionID(ctx, SessionID)`, `contextWithIslandID(ctx, IslandID)`, `contextWithEngine(ctx, *IslandEngine)`, `contextWithSelfEventQueue(ctx, *[]Event)`
   - Add getters: unexported `sessionIDFromContext`, `islandIDFromContext`, `engineFromContext`, `selfEventQueueFromContext`
   - Follow exact pattern of existing `requestKey`/`contextWithRequest`/`Request`
 
-- [ ] Write context helper tests (`context_test.go`) [Stage 1]
+- [x] Write context helper tests (`context_test.go`) [Stage 1]
   - Files: `context_test.go` (modifies)
   - Test round-trip set/get for each new key
   - Test nil/missing returns empty values
@@ -124,7 +124,7 @@ Add framework APIs to support the v2 examples: `SendSelf` for triggering self-ev
 
 ### Island API Changes
 
-- [ ] Add `errorHandler` and `eventDelays` fields to Island struct (`island.go`) [Stage 1]
+- [x] Add `errorHandler` and `eventDelays` fields to Island struct (`island.go`) [Stage 1]
   - Files: `island.go` (modifies)
   - Add `errorHandler func(ctx context.Context, err error) Event` field
   - Add `eventDelays map[string]time.Duration` field
@@ -132,26 +132,26 @@ Add framework APIs to support the v2 examples: `SendSelf` for triggering self-ev
   - Set `errorHandler` to `defaultErrorHandler` in `NewIsland()`
   - Add import for `encoding/json` and `time`
 
-- [ ] Implement `defaultErrorHandler` (`island.go`) [Stage 1]
+- [x] Implement `defaultErrorHandler` (`island.go`) [Stage 1]
   - Files: `island.go` (modifies)
   - `func defaultErrorHandler(ctx context.Context, err error) Event` — marshals `{"err": err.Error()}` into `Event{T: EventError, Data: jsonBytes}`
 
-- [ ] Implement `WithErrorHandler` IslandConfig (`island.go`) [Stage 1]
+- [x] Implement `WithErrorHandler` IslandConfig (`island.go`) [Stage 1]
   - Files: `island.go` (modifies)
   - `func WithErrorHandler(fn func(ctx context.Context, err error) Event) IslandConfig` — sets `i.errorHandler = fn`
   - Follow WithMount/WithRender pattern
 
-- [ ] Implement `WithEventDelay` IslandConfig (`island.go`) [Stage 1]
+- [x] Implement `WithEventDelay` IslandConfig (`island.go`) [Stage 1]
   - Files: `island.go` (modifies)
   - `func WithEventDelay(event string, delay time.Duration) IslandConfig` — sets `i.eventDelays[event] = delay`
   - Add `func (i *Island) GetEventDelay(event string) (time.Duration, bool)` getter with RLock
 
-- [ ] Implement `SendSelf` function (`island.go`) [Stage 1, depends: context helpers]
+- [x] Implement `SendSelf` function (`island.go`) [Stage 1, depends: context helpers]
   - Files: `island.go` (modifies)
   - `func SendSelf(ctx context.Context, event string, data any)` — reads selfEventQueue from context, appends `Event{T: event, Island: islandID, SelfData: data}`
   - Silent no-op if queue not in context (called outside handler)
 
-- [ ] Write island API tests (`island_test.go`) [Stage 1]
+- [x] Write island API tests (`island_test.go`) [Stage 1]
   - Files: `island_test.go` (modifies)
   - TestWithErrorHandler_Custom, TestWithErrorHandler_Default
   - TestWithEventDelay_ConfiguresDelay, TestGetEventDelay_Unknown
@@ -159,7 +159,7 @@ Add framework APIs to support the v2 examples: `SendSelf` for triggering self-ev
 
 ### Instance Timer Tracking
 
-- [ ] Add pending timer tracking to IslandInstance (`instance.go`) [Stage 1]
+- [x] Add pending timer tracking to IslandInstance (`instance.go`) [Stage 1]
   - Files: `instance.go` (modifies)
   - Add `pendingTimers map[string]*time.Timer` field
   - Initialize in `NewIslandInstanceFromRegistry` to `make(map[string]*time.Timer)`
@@ -167,13 +167,13 @@ Add framework APIs to support the v2 examples: `SendSelf` for triggering self-ev
   - Call `CancelTimers()` at start of `Unmount()`
   - Thread safety: `pendingTimers` is accessed by `time.AfterFunc` goroutines (engine adds timers) and by `Unmount` → `CancelTimers()`. Both must hold `i.mu`
 
-- [ ] Write instance timer tests (`instance_test.go`) [Stage 1]
+- [x] Write instance timer tests (`instance_test.go`) [Stage 1]
   - Files: `instance_test.go` (modifies)
   - TestIslandInstance_CancelTimers: add timers, call Unmount, verify stopped
 
 ### Session Context Parameter
 
-- [ ] Update handleEvent and routeToIsland to accept context, fix all test call sites (`session.go`, `session_test.go`, `engine_test.go`) [Stage 2, depends: Stage 1, must complete before engine integration]
+- [x] Update handleEvent and routeToIsland to accept context, fix all test call sites (`session.go`, `session_test.go`, `engine_test.go`) [Stage 2, depends: Stage 1, must complete before engine integration]
   - Files: `session.go` (modifies), `session_test.go` (modifies), `engine_test.go` (modifies)
   - Change `handleEvent(event Event) error` → `handleEvent(ctx context.Context, event Event) error`
   - Change `routeToIsland(event Event) error` → `routeToIsland(ctx context.Context, event Event) error`
@@ -183,7 +183,7 @@ Add framework APIs to support the v2 examples: `SendSelf` for triggering self-ev
 
 ### Engine Integration
 
-- [ ] Enrich handler context and process self-events in RouteEvent (`engine.go`) [Stage 2, depends: Session context task must complete first]
+- [x] Enrich handler context and process self-events in RouteEvent (`engine.go`) [Stage 2, depends: Session context task must complete first]
   - Files: `engine.go` (modifies)
   - In `RouteEvent`: create enriched context with sessionID, islandID, engine, selfEventQueue
   - Pass enriched context to `session.handleEvent(ctx, event)`
@@ -192,7 +192,7 @@ Add framework APIs to support the v2 examples: `SendSelf` for triggering self-ev
   - After self-event handler: check `island.GetEventDelay(event.T)`, schedule `time.AfterFunc`, store timer on `instance.pendingTimers` (hold `instance.mu` when writing)
   - In `MountIsland`: enrich context before calling `instance.Mount(ctx)`, drain self-event queue after mount
 
-- [ ] Write engine integration tests (`engine_test.go`) [Stage 2]
+- [x] Write engine integration tests (`engine_test.go`) [Stage 2]
   - Files: `engine_test.go` (modifies)
   - TestEngineSendSelfFromHandler: handler calls SendSelf, verify self-handler executes
   - TestEngineErrorHandler: handler returns error, verify error event sent to transport
@@ -200,7 +200,7 @@ Add framework APIs to support the v2 examples: `SendSelf` for triggering self-ev
 
 ### Client Error Event Routing
 
-- [ ] Fix client routeMessage to dispatch non-patch events to hooks (`web/src/connection.ts`) [Stage 2]
+- [x] Fix client routeMessage to dispatch non-patch events to hooks (`web/src/connection.ts`) [Stage 2]
   - Files: `web/src/connection.ts` (modifies)
   - In `routeMessage`, after patch handling, route messages with `message.island` and `message.t !== "patch"` to `HookRegistry.handleServerEvent(message.island, message.t, message.d)`
   - Note: `message.d` is already parsed JSON (the transport deserializes it), so the client hook receives a JS object
@@ -209,13 +209,13 @@ Add framework APIs to support the v2 examples: `SendSelf` for triggering self-ev
 
 ### Broadcast Transport (cross-server broadcasting)
 
-- [ ] Add `BroadcastSelfToIslandType` method to IslandEngine (`engine.go`) [Stage 2, depends: engine integration]
+- [x] Add `BroadcastSelfToIslandType` method to IslandEngine (`engine.go`) [Stage 2, depends: engine integration]
   - Files: `engine.go` (modifies)
   - `func (e *IslandEngine) BroadcastSelfToIslandType(islandType string, event Event)` — iterates all sessions, finds islands of the given type, and calls `e.RouteEvent(sessionID, eventCopy)` for each with `SelfData` set
   - Unlike `BroadcastToIslandType` (which sends directly to client transport), this routes through `HandleSelf` handlers so server-side state is updated before re-rendering
   - Thread safety: takes RLock on sessions map, releases before calling RouteEvent
 
-- [ ] Implement `BroadcastTransport` interface, `Broadcast` struct, and `LocalTransport` (`broadcast.go`) [Stage 2, depends: BroadcastSelfToIslandType]
+- [x] Implement `BroadcastTransport` interface, `Broadcast` struct, and `LocalTransport` (`broadcast.go`) [Stage 2, depends: BroadcastSelfToIslandType]
   - Files: `broadcast.go` (creates)
   - **`BroadcastTransport` interface**:
     ```go
@@ -248,7 +248,7 @@ Add framework APIs to support the v2 examples: `SendSelf` for triggering self-ev
     func (l *LocalTransport) Listen(ctx, b) error            // receives from channel, calls b.Receive
     ```
 
-- [ ] Write Broadcast tests (`broadcast_test.go`) [Stage 2]
+- [x] Write Broadcast tests (`broadcast_test.go`) [Stage 2]
   - Files: `broadcast_test.go` (creates)
   - **TestBroadcast_SubscribeAndReceive**: Subscribe engine to topic, call Receive, verify BroadcastSelfToIslandType routes self-event to matching islands
   - **TestBroadcast_PublishThroughLocalTransport**: Create Broadcast with LocalTransport, publish message, verify it arrives at subscribed engine

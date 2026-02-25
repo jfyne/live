@@ -61,7 +61,8 @@ type Event struct {
 
 	// SelfData is used for server-originated events targeting island self-handlers.
 	// This bypasses JSON encoding and passes data directly to the handler.
-	SelfData any `json:"s,omitempty"`
+	// The "-" JSON tag ensures clients cannot set this field via the wire protocol.
+	SelfData any `json:"-"`
 }
 
 // Params extracts and decodes parameters from the event's Data field.

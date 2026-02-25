@@ -237,7 +237,7 @@ func TestSession_EventRouting(t *testing.T) {
 	}
 
 	// Route the event manually (simulating what the engine does)
-	err = session.handleEvent(event)
+	err = session.handleEvent(context.Background(), event)
 	if err != nil {
 		t.Fatalf("failed to handle event: %v", err)
 	}
@@ -478,7 +478,7 @@ func TestSession_SelfEvent(t *testing.T) {
 	}
 
 	// Route the event manually (simulating what the engine does)
-	err = session.handleEvent(event)
+	err = session.handleEvent(context.Background(), event)
 	if err != nil {
 		t.Fatalf("failed to handle event: %v", err)
 	}

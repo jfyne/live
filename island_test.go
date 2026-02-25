@@ -2,11 +2,13 @@ package live
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestPropsString(t *testing.T) {
@@ -672,4 +674,198 @@ func TestIslandSelfHandlerWithData(t *testing.T) {
 	if result != "new state" {
 		t.Errorf("handler result = %v, want %q", result, "new state")
 	}
+}
+
+// --- New feature tests (RED) ---
+
+func TestWithErrorHandler(t *testing.T) {
+	t.Run("custom error handler is set", func(t *testing.T) {
+		customHandlerCalled := false
+		customHandler := func(ctx context.Context, err error) Event {
+			customHandlerCalled = true
+			return Event{T: EventError}
+		}
+
+		island, err := NewIsland("counter", WithErrorHandler(customHandler))
+		if err != nil {
+			t.Fatalf("NewIsland() error = %v", err)
+		}
+
+		if island.errorHandler == nil {
+			t.Fatal("island.errorHandler = nil, want non-nil")
+		}
+
+		// Call the stored handler to confirm it is our custom one
+		island.errorHandler(context.Background(), errors.New("test"))
+		if !customHandlerCalled {
+			t.Error("custom error handler was not stored / not called")
+		}
+	})
+
+	t.Run("default error handler returns error event", func(t *testing.T) {
+		island, err := NewIsland("counter")
+		if err != nil {
+			t.Fatalf("NewIsland() error = %v", err)
+		}
+
+		if island.errorHandler == nil {
+			t.Fatal("island.errorHandler = nil, want default handler")
+		}
+
+		testErr := errors.New("test error")
+		event := island.errorHandler(context.Background(), testErr)
+
+		if event.T != EventError {
+			t.Errorf("default error handler event.T = %q, want %q", event.T, EventError)
+		}
+
+		// Data should be JSON {"err": "test error"}
+		if event.Data == nil {
+			t.Fatal("default error handler event.Data = nil, want JSON payload")
+		}
+
+		var payload map[string]string
+		if err := json.Unmarshal(event.Data, &payload); err != nil {
+			t.Fatalf("failed to unmarshal event.Data: %v", err)
+		}
+
+		if payload["err"] != testErr.Error() {
+			t.Errorf("event.Data[\"err\"] = %q, want %q", payload["err"], testErr.Error())
+		}
+	})
+}
+
+func TestWithEventDelay(t *testing.T) {
+	t.Run("configures delay for event", func(t *testing.T) {
+		island, err := NewIsland("counter", WithEventDelay("tick", 100*time.Millisecond))
+		if err != nil {
+			t.Fatalf("NewIsland() error = %v", err)
+		}
+
+		delay, ok := island.GetEventDelay("tick")
+		if !ok {
+			t.Fatal("GetEventDelay(\"tick\") ok = false, want true")
+		}
+		if delay != 100*time.Millisecond {
+			t.Errorf("GetEventDelay(\"tick\") = %v, want %v", delay, 100*time.Millisecond)
+		}
+	})
+
+	t.Run("multiple delays can be configured", func(t *testing.T) {
+		island, err := NewIsland("counter",
+			WithEventDelay("tick", 100*time.Millisecond),
+			WithEventDelay("refresh", 5*time.Second),
+		)
+		if err != nil {
+			t.Fatalf("NewIsland() error = %v", err)
+		}
+
+		tickDelay, ok := island.GetEventDelay("tick")
+		if !ok {
+			t.Fatal("GetEventDelay(\"tick\") ok = false, want true")
+		}
+		if tickDelay != 100*time.Millisecond {
+			t.Errorf("GetEventDelay(\"tick\") = %v, want %v", tickDelay, 100*time.Millisecond)
+		}
+
+		refreshDelay, ok := island.GetEventDelay("refresh")
+		if !ok {
+			t.Fatal("GetEventDelay(\"refresh\") ok = false, want true")
+		}
+		if refreshDelay != 5*time.Second {
+			t.Errorf("GetEventDelay(\"refresh\") = %v, want %v", refreshDelay, 5*time.Second)
+		}
+	})
+}
+
+func TestGetEventDelay(t *testing.T) {
+	t.Run("returns delay for configured event", func(t *testing.T) {
+		island, err := NewIsland("counter", WithEventDelay("tick", 200*time.Millisecond))
+		if err != nil {
+			t.Fatalf("NewIsland() error = %v", err)
+		}
+
+		delay, ok := island.GetEventDelay("tick")
+		if !ok {
+			t.Fatal("GetEventDelay(\"tick\") ok = false, want true")
+		}
+		if delay != 200*time.Millisecond {
+			t.Errorf("GetEventDelay(\"tick\") = %v, want %v", delay, 200*time.Millisecond)
+		}
+	})
+
+	t.Run("returns false for unconfigured event", func(t *testing.T) {
+		island, err := NewIsland("counter")
+		if err != nil {
+			t.Fatalf("NewIsland() error = %v", err)
+		}
+
+		delay, ok := island.GetEventDelay("unknown")
+		if ok {
+			t.Errorf("GetEventDelay(\"unknown\") ok = true, want false")
+		}
+		if delay != 0 {
+			t.Errorf("GetEventDelay(\"unknown\") delay = %v, want 0", delay)
+		}
+	})
+}
+
+func TestSendSelf(t *testing.T) {
+	t.Run("enqueues event when queue is in context", func(t *testing.T) {
+		queue := &[]Event{}
+		ctx := context.Background()
+		ctx = contextWithSelfEventQueue(ctx, queue)
+		ctx = contextWithIslandID(ctx, IslandID("counter-1"))
+
+		SendSelf(ctx, "tick", "payload")
+
+		if len(*queue) != 1 {
+			t.Fatalf("queue length = %d, want 1", len(*queue))
+		}
+
+		event := (*queue)[0]
+		if event.T != "tick" {
+			t.Errorf("event.T = %q, want %q", event.T, "tick")
+		}
+		if event.Island != "counter-1" {
+			t.Errorf("event.Island = %q, want %q", event.Island, "counter-1")
+		}
+		if event.SelfData != "payload" {
+			t.Errorf("event.SelfData = %v, want %q", event.SelfData, "payload")
+		}
+	})
+
+	t.Run("no panic when queue not in context", func(t *testing.T) {
+		// SendSelf should be a silent no-op when queue is not in context
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("SendSelf panicked with plain context: %v", r)
+			}
+		}()
+		SendSelf(context.Background(), "tick", "payload")
+	})
+}
+
+func TestDefaultErrorHandler(t *testing.T) {
+	t.Run("returns error event with message", func(t *testing.T) {
+		testErr := errors.New("something went wrong")
+		event := defaultErrorHandler(context.Background(), testErr)
+
+		if event.T != EventError {
+			t.Errorf("defaultErrorHandler event.T = %q, want %q", event.T, EventError)
+		}
+
+		if event.Data == nil {
+			t.Fatal("defaultErrorHandler event.Data = nil, want JSON payload")
+		}
+
+		var payload map[string]string
+		if err := json.Unmarshal(event.Data, &payload); err != nil {
+			t.Fatalf("failed to unmarshal event.Data: %v", err)
+		}
+
+		if payload["err"] != testErr.Error() {
+			t.Errorf("event.Data[\"err\"] = %q, want %q", payload["err"], testErr.Error())
+		}
+	})
 }

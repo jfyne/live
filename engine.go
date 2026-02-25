@@ -121,8 +121,16 @@ func (e *IslandEngine) MountIsland(sessionID SessionID, islandID IslandID, islan
 		return nil, fmt.Errorf("failed to create island instance: %w", err)
 	}
 
+	// Create self-event queue and enriched context for mount
+	var selfQueue []Event
+	mountCtx := session.Context()
+	mountCtx = contextWithSessionID(mountCtx, sessionID)
+	mountCtx = contextWithIslandID(mountCtx, islandID)
+	mountCtx = contextWithEngine(mountCtx, e)
+	mountCtx = contextWithSelfEventQueue(mountCtx, &selfQueue)
+
 	// Mount the island (calls the island's mount handler to create initial state)
-	if err := instance.Mount(session.Context()); err != nil {
+	if err := instance.Mount(mountCtx); err != nil {
 		return nil, fmt.Errorf("failed to mount island: %w", err)
 	}
 
@@ -149,6 +157,34 @@ func (e *IslandEngine) MountIsland(sessionID SessionID, islandID IslandID, islan
 		slog.Error("failed to render and send island on mount",
 			"island", instance.ID,
 			"err", err)
+	}
+
+	// Drain self-event queue from mount handler
+	for _, selfEvent := range selfQueue {
+		selfEvent.Island = string(islandID)
+		if err := e.routeEventWithDepth(sessionID, selfEvent, 0); err != nil {
+			slog.Debug("mount self-event handling error", "event", selfEvent.T, "err", err)
+		}
+
+		// Check for event delay on the self-event
+		if delay, ok := instance.Island().GetEventDelay(selfEvent.T); ok {
+			eventCopy := selfEvent
+			timer := time.AfterFunc(delay, func() {
+				instance.mu.RLock()
+				mounted := instance.mounted
+				instance.mu.RUnlock()
+				if !mounted {
+					return
+				}
+				_ = e.routeEventWithDepth(sessionID, eventCopy, 0)
+			})
+			instance.mu.Lock()
+			if old, exists := instance.pendingTimers[selfEvent.T]; exists {
+				old.Stop()
+			}
+			instance.pendingTimers[selfEvent.T] = timer
+			instance.mu.Unlock()
+		}
 	}
 
 	return instance, nil
@@ -192,6 +228,16 @@ func (e *IslandEngine) UnmountIsland(sessionID SessionID, islandID IslandID) err
 // The session handles the actual event dispatch to the island.
 // After the event is processed, the island is re-rendered and a patch is sent to the client.
 func (e *IslandEngine) RouteEvent(sessionID SessionID, event Event) error {
+	return e.routeEventWithDepth(sessionID, event, 0)
+}
+
+// routeEventWithDepth is the recursive implementation of RouteEvent that tracks
+// recursion depth to prevent infinite loops from self-event cycles.
+func (e *IslandEngine) routeEventWithDepth(sessionID SessionID, event Event, depth int) error {
+	if depth > 10 {
+		return fmt.Errorf("max self-event recursion depth exceeded")
+	}
+
 	// Get the session
 	session, ok := e.GetSession(sessionID)
 	if !ok {
@@ -210,8 +256,20 @@ func (e *IslandEngine) RouteEvent(sessionID SessionID, event Event) error {
 		return fmt.Errorf("island not found: %s", islandID)
 	}
 
-	// Let the session handle the event (this updates the island state)
-	if err := session.handleEvent(event); err != nil {
+	// Create self-event queue and enriched context
+	var selfQueue []Event
+	ctx := session.Context()
+	ctx = contextWithSessionID(ctx, sessionID)
+	ctx = contextWithIslandID(ctx, islandID)
+	ctx = contextWithEngine(ctx, e)
+	ctx = contextWithSelfEventQueue(ctx, &selfQueue)
+
+	// Handle the event
+	if err := session.handleEvent(ctx, event); err != nil {
+		// Call the island's error handler and send the resulting event
+		errEvent := instance.Island().GetErrorHandler()(ctx, err)
+		errEvent.Island = event.Island
+		_ = session.Send(errEvent)
 		return fmt.Errorf("failed to handle event: %w", err)
 	}
 
@@ -224,6 +282,58 @@ func (e *IslandEngine) RouteEvent(sessionID SessionID, event Event) error {
 	// Re-render the island and send the patch to the client
 	if err := e.renderAndSendIsland(session, instance); err != nil {
 		return fmt.Errorf("failed to render island: %w", err)
+	}
+
+	// If the primary event was a self-event, check for a configured event delay
+	// and schedule re-delivery if configured.
+	if event.SelfData != nil {
+		if delay, ok := instance.Island().GetEventDelay(event.T); ok {
+			eventCopy := event
+			timer := time.AfterFunc(delay, func() {
+				instance.mu.RLock()
+				mounted := instance.mounted
+				instance.mu.RUnlock()
+				if !mounted {
+					return
+				}
+				_ = e.routeEventWithDepth(sessionID, eventCopy, 0)
+			})
+			instance.mu.Lock()
+			if old, exists := instance.pendingTimers[event.T]; exists {
+				old.Stop()
+			}
+			instance.pendingTimers[event.T] = timer
+			instance.mu.Unlock()
+		}
+	}
+
+	// Drain self-event queue
+	for _, selfEvent := range selfQueue {
+		selfEvent.Island = event.Island // ensure island is set
+		if err := e.routeEventWithDepth(sessionID, selfEvent, depth+1); err != nil {
+			slog.Debug("self-event handling error", "event", selfEvent.T, "err", err)
+		}
+
+		// After processing the self-event, check for event delay
+		if delay, ok := instance.Island().GetEventDelay(selfEvent.T); ok {
+			// Schedule re-delivery
+			eventCopy := selfEvent
+			timer := time.AfterFunc(delay, func() {
+				instance.mu.RLock()
+				mounted := instance.mounted
+				instance.mu.RUnlock()
+				if !mounted {
+					return
+				}
+				_ = e.routeEventWithDepth(sessionID, eventCopy, 0)
+			})
+			instance.mu.Lock()
+			if old, exists := instance.pendingTimers[selfEvent.T]; exists {
+				old.Stop()
+			}
+			instance.pendingTimers[selfEvent.T] = timer
+			instance.mu.Unlock()
+		}
 	}
 
 	return nil
@@ -284,6 +394,32 @@ func (e *IslandEngine) BroadcastToIslandType(islandType string, event Event) {
 				if err := session.Send(eventCopy); err != nil {
 					slog.Error("failed to send broadcast event", "island_type", islandType, "session_id", session.ID, "err", err)
 				}
+			}
+		}
+	}
+}
+
+// BroadcastSelfToIslandType sends an event as a self-event to all islands of a specific type
+// across all sessions. Unlike BroadcastToIslandType (which sends directly to client transport),
+// this routes through HandleSelf handlers via RouteEvent so server-side state is updated.
+func (e *IslandEngine) BroadcastSelfToIslandType(islandType string, event Event) {
+	e.mu.RLock()
+	sessions := make([]*Session, 0, len(e.sessions))
+	sessionIDs := make([]SessionID, 0, len(e.sessions))
+	for id, session := range e.sessions {
+		sessions = append(sessions, session)
+		sessionIDs = append(sessionIDs, id)
+	}
+	e.mu.RUnlock()
+
+	for i, session := range sessions {
+		instances := session.ListIslands()
+		for _, instance := range instances {
+			if instance.Type == islandType {
+				eventCopy := event
+				eventCopy.Island = instance.ID
+				// Route as self-event through RouteEvent so the handler fires
+				_ = e.RouteEvent(sessionIDs[i], eventCopy)
 			}
 		}
 	}

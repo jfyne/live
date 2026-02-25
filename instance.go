@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"io"
 	"sync"
+	"time"
 )
 
 // IslandInstance represents a running instance of an island.
@@ -36,6 +37,11 @@ type IslandInstance struct {
 
 	// lastRenderedHTML stores the last rendered HTML for diffing.
 	lastRenderedHTML template.HTML
+
+	// pendingTimers tracks active event delay timers for this instance.
+	// Timers are added by the engine when a self-event handler has a configured delay.
+	// They are cancelled when the island is unmounted.
+	pendingTimers map[string]*time.Timer
 }
 
 // NewIslandInstance creates a new island instance with the given ID, type, and props.
@@ -63,12 +69,13 @@ func NewIslandInstanceFromRegistry(id, islandType string, props Props, registry 
 	}
 
 	return &IslandInstance{
-		ID:       id,
-		Type:     islandType,
-		island:   island,
-		props:    props,
-		children: "",
-		mounted:  false,
+		ID:            id,
+		Type:          islandType,
+		island:        island,
+		props:         props,
+		children:      "",
+		mounted:       false,
+		pendingTimers: make(map[string]*time.Timer),
 	}, nil
 }
 
@@ -142,11 +149,32 @@ func (i *IslandInstance) Render(ctx context.Context) (template.HTML, error) {
 	return result, nil
 }
 
+// cancelTimersLocked stops all pending timers and clears the map.
+// Must be called with i.mu held.
+func (i *IslandInstance) cancelTimersLocked() {
+	for name, timer := range i.pendingTimers {
+		timer.Stop()
+		delete(i.pendingTimers, name)
+	}
+}
+
+// CancelTimers stops all pending event delay timers and clears the map.
+// This is called during Unmount to prevent timers from firing after the island
+// is removed.
+func (i *IslandInstance) CancelTimers() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.cancelTimersLocked()
+}
+
 // Unmount cleans up the island instance by calling the island's unmount handler.
 // After unmounting, the instance should not be used.
 func (i *IslandInstance) Unmount(ctx context.Context) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
+
+	// Cancel any pending timers before unmounting.
+	i.cancelTimersLocked()
 
 	if !i.mounted {
 		return nil

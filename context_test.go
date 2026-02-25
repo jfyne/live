@@ -156,6 +156,105 @@ func TestMultipleGoroutines(t *testing.T) {
 	})
 }
 
+func TestContextWithSessionID(t *testing.T) {
+	t.Run("stores and retrieves session ID correctly", func(t *testing.T) {
+		ctx := context.Background()
+		id := SessionID("test-session-123")
+
+		ctx = contextWithSessionID(ctx, id)
+		retrieved := sessionIDFromContext(ctx)
+		if retrieved != id {
+			t.Errorf("Expected session ID %q, got %q", id, retrieved)
+		}
+	})
+
+	t.Run("returns empty session ID for missing key", func(t *testing.T) {
+		retrieved := sessionIDFromContext(context.Background())
+		if retrieved != SessionID("") {
+			t.Errorf("Expected empty session ID, got %q", retrieved)
+		}
+	})
+}
+
+func TestContextWithIslandID(t *testing.T) {
+	t.Run("stores and retrieves island ID correctly", func(t *testing.T) {
+		ctx := context.Background()
+		id := IslandID("counter-1")
+
+		ctx = contextWithIslandID(ctx, id)
+		retrieved := islandIDFromContext(ctx)
+		if retrieved != id {
+			t.Errorf("Expected island ID %q, got %q", id, retrieved)
+		}
+	})
+
+	t.Run("returns empty island ID for missing key", func(t *testing.T) {
+		retrieved := islandIDFromContext(context.Background())
+		if retrieved != IslandID("") {
+			t.Errorf("Expected empty island ID, got %q", retrieved)
+		}
+	})
+}
+
+func TestContextWithEngine(t *testing.T) {
+	t.Run("stores and retrieves engine correctly", func(t *testing.T) {
+		ctx := context.Background()
+		engine := &IslandEngine{}
+
+		ctx = contextWithEngine(ctx, engine)
+		retrieved := engineFromContext(ctx)
+		if retrieved != engine {
+			t.Errorf("Expected engine %p, got %p", engine, retrieved)
+		}
+	})
+
+	t.Run("returns nil for missing engine", func(t *testing.T) {
+		retrieved := engineFromContext(context.Background())
+		if retrieved != nil {
+			t.Errorf("Expected nil engine, got %v", retrieved)
+		}
+	})
+}
+
+func TestContextWithSelfEventQueue(t *testing.T) {
+	t.Run("stores and retrieves self event queue correctly", func(t *testing.T) {
+		ctx := context.Background()
+		queue := &[]Event{}
+
+		ctx = contextWithSelfEventQueue(ctx, queue)
+		retrieved := selfEventQueueFromContext(ctx)
+		if retrieved != queue {
+			t.Errorf("Expected queue %p, got %p", queue, retrieved)
+		}
+	})
+
+	t.Run("returns nil for missing queue", func(t *testing.T) {
+		retrieved := selfEventQueueFromContext(context.Background())
+		if retrieved != nil {
+			t.Errorf("Expected nil queue, got %v", retrieved)
+		}
+	})
+
+	t.Run("appending to queue modifies original slice", func(t *testing.T) {
+		ctx := context.Background()
+		queue := &[]Event{}
+
+		ctx = contextWithSelfEventQueue(ctx, queue)
+		retrieved := selfEventQueueFromContext(ctx)
+
+		// Append via the retrieved pointer
+		*retrieved = append(*retrieved, Event{T: "test-event"})
+
+		// The original queue pointer should see the change
+		if len(*queue) != 1 {
+			t.Errorf("Expected original queue to have 1 event, got %d", len(*queue))
+		}
+		if (*queue)[0].T != "test-event" {
+			t.Errorf("Expected event type %q, got %q", "test-event", (*queue)[0].T)
+		}
+	})
+}
+
 // testResponseWriter is a minimal http.ResponseWriter implementation for testing
 type testResponseWriter struct{}
 

@@ -1,6 +1,7 @@
 import { Transport, ConnectionState } from "./transport/transport";
 import { TransportNegotiator, NegotiatorConfig } from "./transport/negotiator";
 import { TransportMessage, IslandPatch, MessageType } from "./transport/message";
+import { HookRegistry } from "./hooks";
 
 /**
  * IslandHandler is called when a patch is received for a specific island.
@@ -161,37 +162,36 @@ export class ConnectionManager {
      * @param message - Incoming transport message
      */
     private routeMessage(message: TransportMessage): void {
-        // Only route patch messages
-        if (message.t !== MessageType.Patch) {
-            console.debug("ConnectionManager: ignoring non-patch message", message.t);
+        // Route patch messages to island handlers
+        if (message.t === MessageType.Patch) {
+            const islandId = message.island;
+            if (!islandId) {
+                console.warn("ConnectionManager: patch message missing island field", message);
+                return;
+            }
+
+            const registration = this.islands.get(islandId);
+            if (!registration) {
+                console.warn(`ConnectionManager: no handler registered for island ${islandId}`);
+                return;
+            }
+
+            const islandPatch: IslandPatch = {
+                island_id: islandId,
+                patches: message.d || [],
+            };
+
+            try {
+                registration.handler(islandPatch);
+            } catch (err) {
+                console.error(`ConnectionManager: error in island handler for ${islandId}`, err);
+            }
             return;
         }
 
-        // Extract island ID from message
-        const islandId = message.island;
-        if (!islandId) {
-            console.warn("ConnectionManager: patch message missing island field", message);
-            return;
-        }
-
-        // Find registered handler
-        const registration = this.islands.get(islandId);
-        if (!registration) {
-            console.warn(`ConnectionManager: no handler registered for island ${islandId}`);
-            return;
-        }
-
-        // Construct IslandPatch from message data
-        const islandPatch: IslandPatch = {
-            island_id: islandId,
-            patches: message.d || [],
-        };
-
-        // Call island handler
-        try {
-            registration.handler(islandPatch);
-        } catch (err) {
-            console.error(`ConnectionManager: error in island handler for ${islandId}`, err);
+        // Route non-patch events with an island field to the hook system
+        if (message.island && message.t) {
+            HookRegistry.handleServerEvent(message.island, message.t, message.d);
         }
     }
 

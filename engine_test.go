@@ -3,8 +3,11 @@ package live
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -747,5 +750,403 @@ func TestEngineMultipleIslandsPerSession(t *testing.T) {
 	_, ok = session.GetIsland("timer-1")
 	if !ok {
 		t.Error("expected to find timer island")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// New feature tests (RED state — will fail until engine integration is added)
+// ---------------------------------------------------------------------------
+
+// TestEngineSendSelfFromHandler tests that when an event handler calls SendSelf,
+// the queued self-event is dispatched by the engine after the primary event completes.
+// This test will FAIL until the engine creates an enriched context with the self-event
+// queue and drains it after session.handleEvent returns.
+func TestEngineSendSelfFromHandler(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registry := NewIslandRegistry()
+	err := registry.Register("ticker", func() (*Island, error) {
+		island, _ := NewIsland("ticker",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{"processed": false, "notified": false}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return strings.NewReader("<div>ticker</div>"), nil
+			}),
+		)
+		// "process" event calls SendSelf to enqueue a "notify" self-event
+		island.HandleEvent("process", func(ctx context.Context, state any, params Params) (any, error) {
+			stateMap := state.(map[string]any)
+			stateMap["processed"] = true
+			SendSelf(ctx, "notify", "notification-data")
+			return stateMap, nil
+		})
+		// "notify" self handler updates state to record its execution
+		island.HandleSelf("notify", func(ctx context.Context, state any, data any) (any, error) {
+			stateMap := state.(map[string]any)
+			stateMap["notified"] = true
+			return stateMap, nil
+		})
+		return island, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+	time.Sleep(10 * time.Millisecond)
+
+	instance, err := engine.MountIsland("session-1", "ticker-1", "ticker", Props{})
+	if err != nil {
+		t.Fatalf("failed to mount island: %v", err)
+	}
+
+	// Clear sent events from mounting
+	transport.mu.Lock()
+	transport.sent = []Event{}
+	transport.mu.Unlock()
+
+	// Route the "process" event - the engine should dispatch "notify" after it
+	err = engine.RouteEvent("session-1", Event{
+		T:      "process",
+		Island: "ticker-1",
+		Data:   []byte(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("RouteEvent failed: %v", err)
+	}
+
+	// Verify the "notify" self handler executed (state was updated by both handlers)
+	state := instance.State().(map[string]any)
+	if !state["processed"].(bool) {
+		t.Error("expected 'processed' to be true after process event")
+	}
+	if !state["notified"].(bool) {
+		t.Error("expected 'notified' to be true after SendSelf dispatched 'notify' self-event; engine must drain the self-event queue after handleEvent")
+	}
+
+	// Verify at least 2 patch events were sent: one for "process", one for "notify"
+	sent := transport.GetSent()
+	patchCount := 0
+	for _, e := range sent {
+		if e.T == EventPatch {
+			patchCount++
+		}
+	}
+	if patchCount < 2 {
+		t.Errorf("expected at least 2 patch events (one for 'process' and one for 'notify'), got %d", patchCount)
+	}
+}
+
+// TestEngineErrorHandler tests that when an event handler returns an error, the engine
+// sends an error event to the client via the default error handler.
+// This test will FAIL until the engine calls island.errorHandler and sends the resulting
+// event to the session transport when session.handleEvent returns an error.
+func TestEngineErrorHandler(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registry := NewIslandRegistry()
+	err := registry.Register("failer", func() (*Island, error) {
+		island, _ := NewIsland("failer",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return strings.NewReader("<div>failer</div>"), nil
+			}),
+		)
+		island.HandleEvent("fail", func(ctx context.Context, state any, params Params) (any, error) {
+			return nil, fmt.Errorf("something went wrong")
+		})
+		return island, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+	time.Sleep(10 * time.Millisecond)
+
+	_, err = engine.MountIsland("session-1", "failer-1", "failer", Props{})
+	if err != nil {
+		t.Fatalf("failed to mount island: %v", err)
+	}
+
+	// Clear sent events from mounting
+	transport.mu.Lock()
+	transport.sent = []Event{}
+	transport.mu.Unlock()
+
+	// Route the "fail" event — the engine should return an error
+	err = engine.RouteEvent("session-1", Event{
+		T:      "fail",
+		Island: "failer-1",
+		Data:   []byte(`{}`),
+	})
+	if err == nil {
+		t.Fatal("expected RouteEvent to return an error when the handler fails")
+	}
+
+	// Verify the transport received an error event with T == EventError
+	sent := transport.GetSent()
+	var errorEvent *Event
+	for i := range sent {
+		if sent[i].T == EventError {
+			errorEvent = &sent[i]
+			break
+		}
+	}
+	if errorEvent == nil {
+		t.Fatal("expected an error event to be sent to the transport; engine must call island.errorHandler and send the result")
+	}
+
+	// Verify the error event data contains {"err": "something went wrong"}
+	var errData map[string]string
+	if jsonErr := json.Unmarshal(errorEvent.Data, &errData); jsonErr != nil {
+		t.Fatalf("failed to unmarshal error event data: %v", jsonErr)
+	}
+	if errData["err"] != "something went wrong" {
+		t.Errorf("expected error message 'something went wrong', got %q", errData["err"])
+	}
+}
+
+// TestEngineErrorHandler_Custom tests that when an island has a custom error handler,
+// that handler's event is sent to the client instead of the default error event.
+// This test will FAIL until the engine calls island.errorHandler (which will invoke
+// the custom handler) and sends the resulting event to the session transport.
+func TestEngineErrorHandler_Custom(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registry := NewIslandRegistry()
+	err := registry.Register("custom-failer", func() (*Island, error) {
+		island, _ := NewIsland("custom-failer",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return strings.NewReader("<div>custom-failer</div>"), nil
+			}),
+			WithErrorHandler(func(ctx context.Context, err error) Event {
+				data, _ := json.Marshal(map[string]string{"custom": err.Error()})
+				return Event{T: "custom-err", Data: data}
+			}),
+		)
+		island.HandleEvent("fail", func(ctx context.Context, state any, params Params) (any, error) {
+			return nil, fmt.Errorf("custom failure")
+		})
+		return island, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+	time.Sleep(10 * time.Millisecond)
+
+	_, err = engine.MountIsland("session-1", "custom-failer-1", "custom-failer", Props{})
+	if err != nil {
+		t.Fatalf("failed to mount island: %v", err)
+	}
+
+	// Clear sent events from mounting
+	transport.mu.Lock()
+	transport.sent = []Event{}
+	transport.mu.Unlock()
+
+	// Route the "fail" event
+	err = engine.RouteEvent("session-1", Event{
+		T:      "fail",
+		Island: "custom-failer-1",
+		Data:   []byte(`{}`),
+	})
+	if err == nil {
+		t.Fatal("expected RouteEvent to return an error when the handler fails")
+	}
+
+	// Verify the transport received the custom error event
+	sent := transport.GetSent()
+	var customErrEvent *Event
+	for i := range sent {
+		if sent[i].T == "custom-err" {
+			customErrEvent = &sent[i]
+			break
+		}
+	}
+	if customErrEvent == nil {
+		t.Fatal("expected a 'custom-err' event to be sent to transport; engine must use island.errorHandler (the custom one)")
+	}
+
+	// Verify the custom error event data contains {"custom": "custom failure"}
+	var errData map[string]string
+	if jsonErr := json.Unmarshal(customErrEvent.Data, &errData); jsonErr != nil {
+		t.Fatalf("failed to unmarshal custom error event data: %v", jsonErr)
+	}
+	if errData["custom"] != "custom failure" {
+		t.Errorf("expected 'custom' field 'custom failure', got %q", errData["custom"])
+	}
+}
+
+// TestEngineEventDelay tests that WithEventDelay causes the engine to re-schedule
+// a self-event after the configured delay, and that the timer is cancelled on unmount.
+// This test will FAIL until the engine checks island.GetEventDelay after handling
+// a self-event and schedules a time.AfterFunc to re-deliver it.
+func TestEngineEventDelay(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registry := NewIslandRegistry()
+	err := registry.Register("delayer", func() (*Island, error) {
+		island, _ := NewIsland("delayer",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{"tickCount": 0}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return strings.NewReader("<div>delayer</div>"), nil
+			}),
+			WithEventDelay("tick", 50*time.Millisecond),
+		)
+		// "tick" self handler increments tickCount
+		island.HandleSelf("tick", func(ctx context.Context, state any, data any) (any, error) {
+			stateMap := state.(map[string]any)
+			stateMap["tickCount"] = stateMap["tickCount"].(int) + 1
+			return stateMap, nil
+		})
+		return island, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+	time.Sleep(10 * time.Millisecond)
+
+	instance, err := engine.MountIsland("session-1", "delayer-1", "delayer", Props{})
+	if err != nil {
+		t.Fatalf("failed to mount island: %v", err)
+	}
+
+	// Manually trigger the first "tick" self-event via RouteEvent with SelfData
+	err = engine.RouteEvent("session-1", Event{
+		T:        "tick",
+		Island:   "delayer-1",
+		SelfData: "tick-data",
+	})
+	if err != nil {
+		t.Fatalf("first RouteEvent for tick failed: %v", err)
+	}
+
+	// After the first tick, the engine should schedule a re-delivery after 50ms.
+	// Wait 100ms to allow at least one re-delivery to fire.
+	time.Sleep(100 * time.Millisecond)
+
+	// The "tick" handler should have executed at least twice: initial + delayed re-delivery
+	state := instance.State().(map[string]any)
+	tickCount := state["tickCount"].(int)
+	if tickCount < 2 {
+		t.Errorf("expected 'tickCount' >= 2 after 100ms (initial + at least one delayed re-delivery), got %d; engine must schedule re-delivery via time.AfterFunc after a self-event with a configured delay", tickCount)
+	}
+
+	// Unmount the island — this should cancel any pending timers
+	err = engine.UnmountIsland("session-1", "delayer-1")
+	if err != nil {
+		t.Fatalf("failed to unmount island: %v", err)
+	}
+
+	// After unmount, verify the island is no longer in the session
+	_, stillMounted := session.GetIsland("delayer-1")
+	if stillMounted {
+		t.Error("expected island to be unmounted from session")
+	}
+}
+
+// TestEngineSendSelfFromMount tests that when the Mount handler calls SendSelf,
+// the queued self-event is dispatched by the engine after MountIsland completes.
+// This test will FAIL until MountIsland creates an enriched context with the
+// self-event queue and drains it after instance.Mount returns.
+func TestEngineSendSelfFromMount(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registry := NewIslandRegistry()
+	err := registry.Register("initter", func() (*Island, error) {
+		island, _ := NewIsland("initter",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				// Call SendSelf during mount to queue an "init" self-event
+				SendSelf(ctx, "init", "init-data")
+				return map[string]any{"initialized": false}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return strings.NewReader("<div>initter</div>"), nil
+			}),
+		)
+		// "init" self handler marks the island as initialized
+		island.HandleSelf("init", func(ctx context.Context, state any, data any) (any, error) {
+			stateMap := state.(map[string]any)
+			stateMap["initialized"] = true
+			return stateMap, nil
+		})
+		return island, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+	time.Sleep(10 * time.Millisecond)
+
+	instance, err := engine.MountIsland("session-1", "initter-1", "initter", Props{})
+	if err != nil {
+		t.Fatalf("failed to mount island: %v", err)
+	}
+
+	// Verify the "init" self handler executed during MountIsland
+	state := instance.State().(map[string]any)
+	if !state["initialized"].(bool) {
+		t.Error("expected 'initialized' to be true after MountIsland; engine must drain the self-event queue queued during the mount handler")
+	}
+
+	// Verify at least 2 patch events were sent: one for mount, one for "init" self-event
+	sent := transport.GetSent()
+	patchCount := 0
+	for _, e := range sent {
+		if e.T == EventPatch {
+			patchCount++
+		}
+	}
+	if patchCount < 2 {
+		t.Errorf("expected at least 2 patch events (mount + 'init' self-event), got %d", patchCount)
 	}
 }

@@ -50,8 +50,10 @@ package live
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"sync"
+	"time"
 )
 
 // Props are the properties passed to an island instance.
@@ -155,6 +157,12 @@ type Island struct {
 	// selfHandlers maps self event names to their handlers.
 	selfHandlers map[string]IslandSelfHandler
 
+	// errorHandler is called when an event handler returns an error.
+	errorHandler func(ctx context.Context, err error) Event
+
+	// eventDelays maps self-event names to their re-delivery delay.
+	eventDelays map[string]time.Duration
+
 	// mu protects concurrent access to handler maps.
 	mu sync.RWMutex
 }
@@ -165,6 +173,8 @@ func NewIsland(name string, configs ...IslandConfig) (*Island, error) {
 		Name:          name,
 		eventHandlers: make(map[string]IslandEventHandler),
 		selfHandlers:  make(map[string]IslandSelfHandler),
+		eventDelays:   make(map[string]time.Duration),
+		errorHandler:  defaultErrorHandler,
 		Mount: func(ctx context.Context, props Props, children string) (any, error) {
 			return nil, nil
 		},
@@ -285,4 +295,59 @@ func WithRender(handler IslandRenderHandler) IslandConfig {
 		i.Render = handler
 		return nil
 	}
+}
+
+// WithErrorHandler sets a custom error handler for the island.
+// The handler is called when an event handler returns an error, and must
+// return an Event to send back to the client.
+func WithErrorHandler(fn func(ctx context.Context, err error) Event) IslandConfig {
+	return func(i *Island) error {
+		i.errorHandler = fn
+		return nil
+	}
+}
+
+// WithEventDelay configures a re-delivery delay for a named self-event.
+// When the engine re-delivers a self-event with this name, it will wait
+// for the specified duration before delivery.
+func WithEventDelay(event string, delay time.Duration) IslandConfig {
+	return func(i *Island) error {
+		i.eventDelays[event] = delay
+		return nil
+	}
+}
+
+// GetEventDelay returns the configured delay for the given self-event name.
+// Returns (0, false) if no delay is configured for the event.
+func (i *Island) GetEventDelay(event string) (time.Duration, bool) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	delay, ok := i.eventDelays[event]
+	return delay, ok
+}
+
+// GetErrorHandler returns the island's error handler under read lock.
+func (i *Island) GetErrorHandler() func(ctx context.Context, err error) Event {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.errorHandler
+}
+
+// defaultErrorHandler is the built-in error handler used when no custom
+// handler is configured. It marshals the error message into a JSON payload
+// and returns an EventError event.
+func defaultErrorHandler(ctx context.Context, err error) Event {
+	data, _ := json.Marshal(map[string]string{"err": err.Error()})
+	return Event{T: EventError, Data: data}
+}
+
+// SendSelf enqueues a self-directed event onto the island's self-event queue
+// stored in ctx. This is a no-op if the queue is not present in the context.
+func SendSelf(ctx context.Context, event string, data any) {
+	queue := selfEventQueueFromContext(ctx)
+	if queue == nil {
+		return
+	}
+	islandID := string(islandIDFromContext(ctx))
+	*queue = append(*queue, Event{T: event, Island: islandID, SelfData: data})
 }

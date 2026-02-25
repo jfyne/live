@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // counterState is a test state type for counter islands.
@@ -753,6 +754,101 @@ func TestIslandInstanceIsland(t *testing.T) {
 		}
 		if island.Name != "counter" {
 			t.Errorf("Island().Name = %q, want %q", island.Name, "counter")
+		}
+	})
+}
+
+func TestIslandInstance_CancelTimers(t *testing.T) {
+	registry := createTestRegistry()
+
+	t.Run("cancels pending timers", func(t *testing.T) {
+		instance, err := NewIslandInstanceFromRegistry("counter-1", "counter", Props{}, registry)
+		if err != nil {
+			t.Fatalf("NewIslandInstanceFromRegistry() error = %v", err)
+		}
+
+		// Add timers with a long delay so they don't fire during the test.
+		instance.pendingTimers["timer-1"] = time.AfterFunc(time.Hour, func() {})
+		instance.pendingTimers["timer-2"] = time.AfterFunc(time.Hour, func() {})
+
+		if len(instance.pendingTimers) != 2 {
+			t.Fatalf("expected 2 pending timers before cancel, got %d", len(instance.pendingTimers))
+		}
+
+		instance.CancelTimers()
+
+		if len(instance.pendingTimers) != 0 {
+			t.Errorf("expected 0 pending timers after CancelTimers(), got %d", len(instance.pendingTimers))
+		}
+	})
+
+	t.Run("safe to call with no timers", func(t *testing.T) {
+		instance, err := NewIslandInstanceFromRegistry("counter-1", "counter", Props{}, registry)
+		if err != nil {
+			t.Fatalf("NewIslandInstanceFromRegistry() error = %v", err)
+		}
+
+		// Calling CancelTimers on an empty map should not panic.
+		instance.CancelTimers()
+
+		if len(instance.pendingTimers) != 0 {
+			t.Errorf("expected 0 pending timers, got %d", len(instance.pendingTimers))
+		}
+	})
+}
+
+func TestIslandInstance_UnmountCancelsTimers(t *testing.T) {
+	registry := createTestRegistry()
+
+	t.Run("unmount cancels pending timers", func(t *testing.T) {
+		instance, err := NewIslandInstanceFromRegistry("counter-1", "counter", Props{}, registry)
+		if err != nil {
+			t.Fatalf("NewIslandInstanceFromRegistry() error = %v", err)
+		}
+
+		if err := instance.Mount(context.Background()); err != nil {
+			t.Fatalf("Mount() error = %v", err)
+		}
+
+		// Add timers with a long delay so they don't fire during the test.
+		instance.pendingTimers["timer-1"] = time.AfterFunc(time.Hour, func() {})
+		instance.pendingTimers["timer-2"] = time.AfterFunc(time.Hour, func() {})
+
+		if len(instance.pendingTimers) != 2 {
+			t.Fatalf("expected 2 pending timers before unmount, got %d", len(instance.pendingTimers))
+		}
+
+		if err := instance.Unmount(context.Background()); err != nil {
+			t.Fatalf("Unmount() error = %v", err)
+		}
+
+		if len(instance.pendingTimers) != 0 {
+			t.Errorf("expected 0 pending timers after Unmount(), got %d", len(instance.pendingTimers))
+		}
+	})
+
+	t.Run("timer callback does not fire after cancel", func(t *testing.T) {
+		instance, err := NewIslandInstanceFromRegistry("counter-1", "counter", Props{}, registry)
+		if err != nil {
+			t.Fatalf("NewIslandInstanceFromRegistry() error = %v", err)
+		}
+
+		fired := make(chan struct{}, 1)
+
+		// Add a short-delay timer — it would fire in 50ms if not cancelled.
+		instance.pendingTimers["short-timer"] = time.AfterFunc(50*time.Millisecond, func() {
+			fired <- struct{}{}
+		})
+
+		// Immediately cancel all timers.
+		instance.CancelTimers()
+
+		// Wait longer than the original delay to confirm the callback did not run.
+		select {
+		case <-fired:
+			t.Error("timer callback fired after CancelTimers(); expected it to be stopped")
+		case <-time.After(150 * time.Millisecond):
+			// Correct: the timer did not fire.
 		}
 	})
 }

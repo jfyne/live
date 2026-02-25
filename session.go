@@ -56,10 +56,10 @@ func NewSession(ctx context.Context, sessionID SessionID, transport Transport) *
 
 // handleEvent routes an event to the correct island or handles session-level events.
 // This method is called by IslandEngine.RouteEvent() after receiving events from the transport.
-func (s *Session) handleEvent(event Event) error {
+func (s *Session) handleEvent(ctx context.Context, event Event) error {
 	// If the event has an island field, route it to that island
 	if event.Island != "" {
-		return s.routeToIsland(event)
+		return s.routeToIsland(ctx, event)
 	}
 
 	// Session-level events (no island field) can be handled here
@@ -68,7 +68,7 @@ func (s *Session) handleEvent(event Event) error {
 }
 
 // routeToIsland routes an event to a specific island instance.
-func (s *Session) routeToIsland(event Event) error {
+func (s *Session) routeToIsland(ctx context.Context, event Event) error {
 	islandID := IslandID(event.Island)
 
 	// Get the island instance
@@ -87,11 +87,11 @@ func (s *Session) routeToIsland(event Event) error {
 	// or is a client event
 	if event.SelfData != nil {
 		// Self-targeted event from server
-		return instance.CallSelf(s.ctx, event.T, event.SelfData)
+		return instance.CallSelf(ctx, event.T, event.SelfData)
 	}
 
 	// Client event
-	return instance.CallEvent(s.ctx, event.T, params)
+	return instance.CallEvent(ctx, event.T, params)
 }
 
 // AddIsland registers an island instance with this session.

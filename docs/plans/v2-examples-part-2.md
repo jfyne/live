@@ -72,7 +72,7 @@ Create two v2 examples that exercise the new framework APIs from Part 1: the clo
 
 ### Clock Example
 
-- [ ] Write clock integration tests (`examples/clock/main_test.go`) [Stage 1, Test Creation Phase]
+- [x] Write clock integration tests (`examples/clock/main_test.go`) [Stage 1, Test Creation Phase]
   - Files: `examples/clock/main_test.go` (creates)
   - **TestClockIsland_MountWithTimezone**: Mount with `Props{"timezone": "America/New_York", "label": "NYC"}`, verify state.Location is New York, state.Label is "NYC"
   - **TestClockIsland_MountUTC**: Mount with `Props{"timezone": "UTC", "label": "UTC"}`, verify state.Location is UTC
@@ -82,7 +82,7 @@ Create two v2 examples that exercise the new framework APIs from Part 1: the clo
   - Test strategy: use `50ms` WithEventDelay in tests, assert state changes within 200ms timeout
   - Helper: create registry, engine, mock transport, session — same pattern as `engine_test.go`
 
-- [ ] Create clock island definition and HTTP server (`examples/clock/main.go`) [Stage 1]
+- [x] Create clock island definition and HTTP server (`examples/clock/main.go`) [Stage 1]
   - Files: `examples/clock/main.go` (creates)
   - Follow `examples/counter/main.go` pattern exactly
   - State struct:
@@ -120,7 +120,7 @@ Create two v2 examples that exercise the new framework APIs from Part 1: the clo
   - Subscribe handler: lookup clock config by island ID, pass `Props{"timezone": config.Timezone, "label": config.Label}`
   - Multiple instances of same island type, each with different timezone props (like counter with different initial values)
 
-- [ ] Create clock page template (`examples/clock/index.html`) [Stage 1]
+- [x] Create clock page template (`examples/clock/index.html`) [Stage 1]
   - Files: `examples/clock/index.html` (creates)
   - Follow `examples/counter/index.html` CSS/layout pattern
   - Title: "Live v2 Clock Example"
@@ -140,7 +140,7 @@ Create two v2 examples that exercise the new framework APIs from Part 1: the clo
   - Feature list: HandleSelf, server push, WithEventDelay, SendSelf, multiple timezones, state isolation
   - `<script src="/live.js"></script>`
 
-- [ ] Create clock island template (`examples/clock/clock.html`) [Stage 1]
+- [x] Create clock island template (`examples/clock/clock.html`) [Stage 1]
   - Files: `examples/clock/clock.html` (creates)
   - Simple HTML fragment showing formatted time for the island's timezone:
     ```html
@@ -151,13 +151,13 @@ Create two v2 examples that exercise the new framework APIs from Part 1: the clo
 
 ### Hooks Example
 
-- [ ] Write hooks integration tests (`examples/hooks/main_test.go`) [Stage 1, Test Creation Phase]
+- [x] Write hooks integration tests (`examples/hooks/main_test.go`) [Stage 1, Test Creation Phase]
   - Files: `examples/hooks/main_test.go` (creates)
   - **TestHooksIsland_ProblemReturnsError**: Create island, call "problem" event handler, verify it returns an error
   - **TestHooksIsland_ErrorEventSentToTransport**: Mount island via engine with mock transport, route "problem" event, verify mock transport receives an error event with `T: "err"` and data containing `{"err": "something went wrong"}`
   - Helper: create registry, engine, mock transport, session — same pattern as `engine_test.go`
 
-- [ ] Create hooks island definition and HTTP server (`examples/hooks/main.go`) [Stage 1]
+- [x] Create hooks island definition and HTTP server (`examples/hooks/main.go`) [Stage 1]
   - Files: `examples/hooks/main.go` (creates)
   - Follow `examples/counter/main.go` pattern exactly
   - Minimal state: `type HooksState struct{}` (or empty interface)
@@ -176,7 +176,7 @@ Create two v2 examples that exercise the new framework APIs from Part 1: the clo
     ```
   - The default error handler (from Part 1) sends `Event{T: "err", Data: {"err": "..."}}` to the client automatically
 
-- [ ] Create hooks page template (`examples/hooks/index.html`) [Stage 1]
+- [x] Create hooks page template (`examples/hooks/index.html`) [Stage 1]
   - Files: `examples/hooks/index.html` (creates)
   - Follow counter index.html pattern
   - Title: "Live v2 Hooks Example"
@@ -197,7 +197,7 @@ Create two v2 examples that exercise the new framework APIs from Part 1: the clo
   - `<script src="/live.js"></script>` (after hooks definition)
   - Description explaining error handling and hook communication
 
-- [ ] Create hooks island template (`examples/hooks/hooks.html`) [Stage 1]
+- [x] Create hooks island template (`examples/hooks/hooks.html`) [Stage 1]
   - Files: `examples/hooks/hooks.html` (creates)
   - Simple HTML fragment:
     ```html

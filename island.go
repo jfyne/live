@@ -341,13 +341,27 @@ func defaultErrorHandler(ctx context.Context, err error) Event {
 	return Event{T: EventError, Data: data}
 }
 
+// selfEventSentinel is a non-nil marker used when SendSelf is called with nil data.
+// It distinguishes self-events (which always have non-nil SelfData) from client
+// events (which always have nil SelfData) when the caller passes nil.
+var selfEventSentinel = struct{}{}
+
 // SendSelf enqueues a self-directed event onto the island's self-event queue
 // stored in ctx. This is a no-op if the queue is not present in the context.
+// When data is nil, a sentinel value is used to preserve the distinction between
+// self-events and client events (which the router checks via SelfData != nil).
 func SendSelf(ctx context.Context, event string, data any) {
 	queue := selfEventQueueFromContext(ctx)
 	if queue == nil {
 		return
 	}
 	islandID := string(islandIDFromContext(ctx))
-	*queue = append(*queue, Event{T: event, Island: islandID, SelfData: data})
+	// Use a sentinel when data is nil so that SelfData is never nil for self-events.
+	// The session router uses event.SelfData != nil to distinguish self-events from
+	// client events; a nil SelfData would cause the tick to be routed as a client event.
+	selfData := data
+	if selfData == nil {
+		selfData = selfEventSentinel
+	}
+	*queue = append(*queue, Event{T: event, Island: islandID, SelfData: selfData})
 }

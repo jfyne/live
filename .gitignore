@@ -2,4 +2,6 @@
 .claude/settings.local.json
 *.test
 examples/counter/counter
+examples/clock/clock
+examples/hooks/hooks
 web/-o

@@ -1,0 +1,9 @@
+<div id="messages" class="messages" live-update="append">
+    {{ range .Messages }}
+    <div id="{{ .ID }}" class="message"><strong class="user">{{ .User }}:</strong> {{ .Msg }}</div>
+    {{ end }}
+</div>
+<form id="chat-form" live-submit="send" live-hook="chat">
+    <input type="text" name="message" placeholder="Type a message..." autocomplete="off">
+    <button type="submit">Send</button>
+</form>

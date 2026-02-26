@@ -1,0 +1,15 @@
+<div>
+    <form id="todo-form" live-change="validate" live-submit="save">
+        {{ if index .Errors "message" }}<div class="error">{{ index .Errors "message" }}</div>{{ end }}
+        <input type="text" name="task" live-debounce="blur" placeholder="Enter a task...">
+        <button type="submit">Add Task</button>
+    </form>
+    <div class="task-list">
+        {{ range .Tasks }}
+        <div class="task">
+            <input type="checkbox" live-click="done" live-value-id="{{ .ID }}" {{ if .Complete }}checked{{ end }}>
+            <span {{ if .Complete }}class="done"{{ end }}>{{ .Name }}</span>
+        </div>
+        {{ end }}
+    </div>
+</div>

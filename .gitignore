@@ -4,4 +4,7 @@
 examples/counter/counter
 examples/clock/clock
 examples/hooks/hooks
+examples/forms/forms
+examples/chat/chat
+examples/alpine/alpine
 web/-o

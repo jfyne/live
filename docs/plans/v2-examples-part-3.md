@@ -80,7 +80,7 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
 
 ### Forms Example (merged todo + prefill)
 
-- [ ] Write forms integration tests (`examples/forms/main_test.go`) [Stage 1, Test Creation Phase]
+- [x] Write forms integration tests (`examples/forms/main_test.go`) [Stage 1, Test Creation Phase]
   - Files: `examples/forms/main_test.go` (creates)
   - **TestTodoIsland_Validate**: Create todo island, call "validate" with empty task name, verify `Errors["message"]` is set
   - **TestTodoIsland_Save**: Call "save" with valid task name, verify task appended, NextID incremented
@@ -89,7 +89,7 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
   - **TestPrefillIsland_Validate**: Call "validate" with short name, verify Validation message set
   - Helper: create registry, engine, mock transport, session — same pattern as `engine_test.go`
 
-- [ ] Create forms island definitions and HTTP server (`examples/forms/main.go`) [Stage 1]
+- [x] Create forms island definitions and HTTP server (`examples/forms/main.go`) [Stage 1]
   - Files: `examples/forms/main.go` (creates)
   - Two island types registered: "todo" and "prefill"
   - **TodoState**:
@@ -124,7 +124,7 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
   - Subscribe handler: for "prefill" type, pass `Props{"name": "Test User", "age": 35}`; for "todo", pass empty Props
   - Page handler: render index.html with static data (island IDs/types)
 
-- [ ] Create forms page template (`examples/forms/index.html`) [Stage 1]
+- [x] Create forms page template (`examples/forms/index.html`) [Stage 1]
   - Files: `examples/forms/index.html` (creates)
   - Two sections: Todo List and Prefill Form
   - `<live-island type="todo" id="todo-list">` with fallback form
@@ -133,7 +133,7 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
   - Feature list: live-change, live-submit, live-debounce, checkboxes, validation, prefill
   - `<script src="/live.js"></script>`
 
-- [ ] Create todo island template (`examples/forms/todo.html`) [Stage 1]
+- [x] Create todo island template (`examples/forms/todo.html`) [Stage 1]
   - Files: `examples/forms/todo.html` (creates)
   - Form with `id="todo-form" live-change="validate" live-submit="save"`
   - Error display: `{{ if index .Errors "message" }}<div class="error">{{ index .Errors "message" }}</div>{{ end }}`
@@ -141,7 +141,7 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
   - Submit button: `<button type="submit">Add Task</button>`
   - Task list: `{{ range .Tasks }}` with checkbox `<input type="checkbox" live-click="done" live-value-id="{{ .ID }}" {{ if .Complete }}checked{{ end }}>` and name with conditional strikethrough
 
-- [ ] Create prefill island template (`examples/forms/prefill.html`) [Stage 1]
+- [x] Create prefill island template (`examples/forms/prefill.html`) [Stage 1]
   - Files: `examples/forms/prefill.html` (creates)
   - Form with `id="prefill-form" live-change="validate" live-submit="save"`
   - Validation: `{{ if .Validation }}<div class="error">{{ .Validation }}</div>{{ end }}`
@@ -152,14 +152,14 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
 
 ### Chat Example (merged chat + cluster)
 
-- [ ] Write chat integration tests (`examples/chat/main_test.go`) [Stage 1, Test Creation Phase]
+- [x] Write chat integration tests (`examples/chat/main_test.go`) [Stage 1, Test Creation Phase]
   - Files: `examples/chat/main_test.go` (creates)
   - **TestChatIsland_NewMessage**: Create chat island, call "newmessage" self handler with Message data, verify state.Messages contains the message
   - **TestChatIsland_NewMessageAppend**: Call "newmessage" twice, verify state only contains the latest message (single-message for append mode)
   - **TestChatIsland_Mount**: Mount chat island with Props{"user": "session-1"}, verify initial state has welcome message
   - Helper: create registry, engine, mock transport, session — same pattern as `engine_test.go`
 
-- [ ] Create chat island definition and HTTP server (`examples/chat/main.go`) [Stage 1]
+- [x] Create chat island definition and HTTP server (`examples/chat/main.go`) [Stage 1]
   - Files: `examples/chat/main.go` (creates)
   - **State**:
     ```go
@@ -212,7 +212,7 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
   - HTTP server: `startServer(addr string, broadcast *live.Broadcast)` function with engine setup, WS/SSE transport
   - Subscribe handler: `engine.MountIsland(sessionID, islandID, "chat", Props{"user": string(sessionID)})`
 
-- [ ] Create chat page template (`examples/chat/index.html`) [Stage 1]
+- [x] Create chat page template (`examples/chat/index.html`) [Stage 1]
   - Files: `examples/chat/index.html` (creates)
   - Single `<live-island type="chat" id="chat-room">`
   - Description: explains cluster demo — open two browser tabs on different ports (8080 and 8081) to see cross-server messaging
@@ -233,14 +233,14 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
   - CSS for .messages (scrollable), .message (flex row), .user (bold), form layout
   - `<script src="/live.js"></script>`
 
-- [ ] Create chat island template (`examples/chat/chat.html`) [Stage 1]
+- [x] Create chat island template (`examples/chat/chat.html`) [Stage 1]
   - Files: `examples/chat/chat.html` (creates)
   - Messages container: `<div id="messages" class="messages" live-update="append">{{ range .Messages }}<div id="{{ .ID }}" class="message"><strong>{{ .User }}:</strong> {{ .Msg }}</div>{{ end }}</div>`
   - Form: `<form id="chat-form" live-submit="send" live-hook="chat"><input type="text" name="message" placeholder="Type a message..." autocomplete="off"><button type="submit">Send</button></form>`
 
 ### Alpine Example
 
-- [ ] Write alpine integration tests (`examples/alpine/main_test.go`) [Stage 1, Test Creation Phase]
+- [x] Write alpine integration tests (`examples/alpine/main_test.go`) [Stage 1, Test Creation Phase]
   - Files: `examples/alpine/main_test.go` (creates)
   - **TestAlpineIsland_Suggest**: Create island, call "suggest" with search "go", verify Suggestions contains matching items
   - **TestAlpineIsland_SuggestNoMatch**: Call "suggest" with search "xyz", verify Suggestions is empty
@@ -248,7 +248,7 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
   - **TestAlpineIsland_SelectedNoDuplicate**: Select same item twice, verify Selected has it only once
   - Helper: create registry, engine, mock transport, session
 
-- [ ] Create alpine island definition and HTTP server (`examples/alpine/main.go`) [Stage 1]
+- [x] Create alpine island definition and HTTP server (`examples/alpine/main.go`) [Stage 1]
   - Files: `examples/alpine/main.go` (creates)
   - **State**:
     ```go
@@ -273,7 +273,7 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
   - HTTP server: same pattern as counter
   - Subscribe handler: mount with empty props
 
-- [ ] Create alpine page template (`examples/alpine/index.html`) [Stage 1]
+- [x] Create alpine page template (`examples/alpine/index.html`) [Stage 1]
   - Files: `examples/alpine/index.html` (creates)
   - Alpine.js v3 via CDN: `<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>`
   - Single `<live-island type="alpine" id="autocomplete-1">`
@@ -291,7 +291,7 @@ Create three v2 examples: forms (merged todo + prefill), chat (multi-server broa
   - `<script src="/live.js"></script>` (before Alpine to ensure live.js loads first)
   - Note: Use Alpine.js v3 `@click.outside` instead of v2 `@click.away`
 
-- [ ] Create alpine island template (`examples/alpine/alpine.html`) [Stage 1]
+- [x] Create alpine island template (`examples/alpine/alpine.html`) [Stage 1]
   - Files: `examples/alpine/alpine.html` (creates)
   - Wrapper: `<div class="autocomplete" x-data="autocomplete()" @click.outside="close()">`
   - Form: `<form id="autocomplete-form" live-submit="submit" live-change="suggest">`

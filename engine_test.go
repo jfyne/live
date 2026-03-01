@@ -757,6 +757,158 @@ func TestEngineMultipleIslandsPerSession(t *testing.T) {
 // New feature tests (RED state — will fail until engine integration is added)
 // ---------------------------------------------------------------------------
 
+// TestBroadcastToIsland tests that BroadcastToIsland sends an event to all
+// sessions that contain an island with the given ID, and does not send to
+// sessions whose islands have a different ID.
+func TestBroadcastToIsland(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registry := NewIslandRegistry()
+	err := registry.Register("chat", func() (*Island, error) {
+		return NewIsland("chat",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return bytes.NewReader([]byte("<div>chat</div>")), nil
+			}),
+		)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	// session-1 hosts island "chat-1"
+	transport1 := newEngineMockTransport()
+	session1 := NewSession(ctx, "session-1", transport1)
+	engine.AddSession(session1)
+
+	// session-2 also hosts island "chat-1" (same island ID, different session)
+	transport2 := newEngineMockTransport()
+	session2 := NewSession(ctx, "session-2", transport2)
+	engine.AddSession(session2)
+
+	// session-3 hosts island "chat-2" (different island ID)
+	transport3 := newEngineMockTransport()
+	session3 := NewSession(ctx, "session-3", transport3)
+	engine.AddSession(session3)
+
+	time.Sleep(10 * time.Millisecond)
+
+	_, err = engine.MountIsland("session-1", "chat-1", "chat", Props{})
+	if err != nil {
+		t.Fatalf("failed to mount chat-1 in session-1: %v", err)
+	}
+	_, err = engine.MountIsland("session-2", "chat-1", "chat", Props{})
+	if err != nil {
+		t.Fatalf("failed to mount chat-1 in session-2: %v", err)
+	}
+	_, err = engine.MountIsland("session-3", "chat-2", "chat", Props{})
+	if err != nil {
+		t.Fatalf("failed to mount chat-2 in session-3: %v", err)
+	}
+
+	// Clear sent events from mounting
+	for _, tr := range []*engineMockTransport{transport1, transport2, transport3} {
+		tr.mu.Lock()
+		tr.sent = []Event{}
+		tr.mu.Unlock()
+	}
+
+	// Broadcast to island ID "chat-1"
+	event := Event{
+		T:    "message",
+		Data: []byte(`{"text":"hello chat-1"}`),
+	}
+	engine.BroadcastToIsland("chat-1", event)
+
+	time.Sleep(10 * time.Millisecond)
+
+	// session-1 (has "chat-1") should receive the event
+	sent1 := transport1.GetSent()
+	if len(sent1) == 0 {
+		t.Error("expected session-1 (chat-1) to receive the broadcast")
+	} else if sent1[0].T != "message" {
+		t.Errorf("expected message event in session-1, got %q", sent1[0].T)
+	}
+
+	// session-2 (has "chat-1") should receive the event
+	sent2 := transport2.GetSent()
+	if len(sent2) == 0 {
+		t.Error("expected session-2 (chat-1) to receive the broadcast")
+	} else if sent2[0].T != "message" {
+		t.Errorf("expected message event in session-2, got %q", sent2[0].T)
+	}
+
+	// session-3 (has "chat-2") should NOT receive the event
+	sent3 := transport3.GetSent()
+	if len(sent3) != 0 {
+		t.Errorf("expected session-3 (chat-2) NOT to receive the broadcast, but got %d events", len(sent3))
+	}
+}
+
+// TestSetStateTTL verifies that SetStateTTL updates the engine's internal TTL
+// configuration so subsequent state saves use the new duration.
+func TestSetStateTTL(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registry := NewIslandRegistry()
+	err := registry.Register("counter", func() (*Island, error) {
+		return NewIsland("counter",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{"count": 0}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return bytes.NewReader([]byte("<div>test</div>")), nil
+			}),
+		)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	// Apply a custom TTL
+	customTTL := 5 * time.Minute
+	engine.SetStateTTL(customTTL)
+
+	// Verify the TTL is reflected in the engine (read the internal field under lock)
+	engine.mu.RLock()
+	got := engine.stateTTL
+	engine.mu.RUnlock()
+
+	if got != customTTL {
+		t.Errorf("expected stateTTL %v, got %v", customTTL, got)
+	}
+
+	// Verify the TTL is used when mounting: mount an island after setting TTL and
+	// confirm the state store accepted the state (no error).
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+	time.Sleep(10 * time.Millisecond)
+
+	_, err = engine.MountIsland("session-1", "counter-1", "counter", Props{})
+	if err != nil {
+		t.Fatalf("MountIsland failed after SetStateTTL: %v", err)
+	}
+
+	// State should be saved in the store
+	_, ok := stateStore.Get("session-1", "counter-1")
+	if !ok {
+		t.Error("expected state to be saved in the store after MountIsland with custom TTL")
+	}
+}
+
 // TestEngineSendSelfFromHandler tests that when an event handler calls SendSelf,
 // the queued self-event is dispatched by the engine after the primary event completes.
 // This test will FAIL until the engine creates an enriched context with the self-event
@@ -1148,5 +1300,313 @@ func TestEngineSendSelfFromMount(t *testing.T) {
 	}
 	if patchCount < 2 {
 		t.Errorf("expected at least 2 patch events (mount + 'init' self-event), got %d", patchCount)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// RED tests for PatchURL, Redirect, and EventParams session routing.
+// These tests reference APIs that do not yet exist and will fail to compile.
+// ---------------------------------------------------------------------------
+
+// buildParamCtx builds a context enriched with session ID and engine so that
+// PatchURL and Redirect can extract the session to send via the transport.
+// This helper mirrors what the engine creates during RouteEvent.
+func buildParamCtx(ctx context.Context, engine *IslandEngine, sessionID SessionID, islandID IslandID) context.Context {
+	ctx = contextWithSessionID(ctx, sessionID)
+	ctx = contextWithIslandID(ctx, islandID)
+	ctx = contextWithEngine(ctx, engine)
+	return ctx
+}
+
+// setupParamTestEngine creates a minimal engine + session + island ready to receive events.
+// Returns (engine, session, transport, cleanup).
+func setupParamTestEngine(t *testing.T) (*IslandEngine, *Session, *engineMockTransport, func()) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	registry := NewIslandRegistry()
+	_ = registry.Register("widget", func() (*Island, error) {
+		return NewIsland("widget",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return strings.NewReader("<div>widget</div>"), nil
+			}),
+		)
+	})
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+	time.Sleep(10 * time.Millisecond)
+
+	_, err := engine.MountIsland("session-1", "widget-1", "widget", Props{})
+	if err != nil {
+		cancel()
+		t.Fatalf("MountIsland failed: %v", err)
+	}
+
+	// Clear mount events
+	transport.mu.Lock()
+	transport.sent = []Event{}
+	transport.mu.Unlock()
+
+	cleanup := func() {
+		engine.Close()
+		cancel()
+	}
+	return engine, session, transport, cleanup
+}
+
+// TestPatchURL verifies that PatchURL sends an EventParams event via the
+// session transport with the URL-encoded values.
+//
+// Scenario: PatchURL sends an EventParams event via the session transport
+// Scenario: The event data contains the URL-encoded values
+func TestPatchURL(t *testing.T) {
+	engine, _, transport, cleanup := setupParamTestEngine(t)
+	defer cleanup()
+
+	ctx := buildParamCtx(context.Background(), engine, "session-1", "widget-1")
+
+	values := map[string]string{
+		"page":   "2",
+		"filter": "active",
+	}
+	err := PatchURL(ctx, values)
+	if err != nil {
+		t.Fatalf("PatchURL() error = %v", err)
+	}
+
+	// The transport should have received an EventParams event.
+	sent := transport.GetSent()
+	if len(sent) == 0 {
+		t.Fatal("PatchURL() sent no events; expected an EventParams event on the transport")
+	}
+
+	var paramsEvent *Event
+	for i := range sent {
+		if sent[i].T == EventParams {
+			paramsEvent = &sent[i]
+			break
+		}
+	}
+	if paramsEvent == nil {
+		t.Fatalf("PatchURL() did not send an EventParams event; got events: %v", sent)
+	}
+
+	// The Data should be non-empty (URL-encoded or JSON-encoded values).
+	if len(paramsEvent.Data) == 0 {
+		t.Error("PatchURL() EventParams event has empty Data, want URL-encoded values")
+	}
+}
+
+// TestPatchURLMissingContext verifies that PatchURL returns an error when
+// the context is missing required values (session ID / engine).
+//
+// Scenario: PatchURL with missing context values returns error
+func TestPatchURLMissingContext(t *testing.T) {
+	t.Run("missing session ID returns error", func(t *testing.T) {
+		// Plain context with no session/engine embedded.
+		err := PatchURL(context.Background(), map[string]string{"page": "1"})
+		if err == nil {
+			t.Error("PatchURL() with plain context returned nil error, want non-nil")
+		}
+	})
+}
+
+// TestRedirect verifies that Redirect sends an EventRedirect event via the
+// session transport with the URL string as data.
+//
+// Scenario: Redirect sends an EventRedirect event via the session transport
+// Scenario: The event data contains the URL string
+func TestRedirect(t *testing.T) {
+	engine, _, transport, cleanup := setupParamTestEngine(t)
+	defer cleanup()
+
+	ctx := buildParamCtx(context.Background(), engine, "session-1", "widget-1")
+
+	targetURL := "/dashboard?tab=overview"
+	err := Redirect(ctx, targetURL)
+	if err != nil {
+		t.Fatalf("Redirect() error = %v", err)
+	}
+
+	// The transport should have received an EventRedirect event.
+	sent := transport.GetSent()
+	if len(sent) == 0 {
+		t.Fatal("Redirect() sent no events; expected an EventRedirect event on the transport")
+	}
+
+	var redirectEvent *Event
+	for i := range sent {
+		if sent[i].T == EventRedirect {
+			redirectEvent = &sent[i]
+			break
+		}
+	}
+	if redirectEvent == nil {
+		t.Fatalf("Redirect() did not send an EventRedirect event; got events: %v", sent)
+	}
+
+	// The Data should contain the target URL.
+	if len(redirectEvent.Data) == 0 {
+		t.Error("Redirect() EventRedirect event has empty Data, want URL string")
+	}
+
+	// Verify the URL is in the data.
+	dataStr := string(redirectEvent.Data)
+	if !strings.Contains(dataStr, "/dashboard") {
+		t.Errorf("Redirect() event Data = %q, expected to contain %q", dataStr, targetURL)
+	}
+}
+
+// TestRedirectMissingContext verifies that Redirect returns an error when
+// the context is missing required values (session ID / engine).
+//
+// Scenario: Redirect with missing context values returns error
+func TestRedirectMissingContext(t *testing.T) {
+	t.Run("missing session ID returns error", func(t *testing.T) {
+		err := Redirect(context.Background(), "/some-page")
+		if err == nil {
+			t.Error("Redirect() with plain context returned nil error, want non-nil")
+		}
+	})
+}
+
+// TestSessionRouteEventParams verifies that when an EventParams event arrives
+// at the session, it is routed to instance.CallParams rather than CallEvent.
+//
+// Scenario: When EventParams arrives, it's routed to instance.CallParams not CallEvent
+func TestSessionRouteEventParams(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	paramsCalled := false
+	eventCalled := false
+
+	registry := NewIslandRegistry()
+	_ = registry.Register("tracked-params", func() (*Island, error) {
+		island, _ := NewIsland("tracked-params",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{"params": Params{}}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return strings.NewReader("<div>tracked</div>"), nil
+			}),
+		)
+		// Register a regular event handler — should NOT be called for EventParams.
+		_ = island.HandleEvent("params", func(ctx context.Context, state any, p Params) (any, error) {
+			eventCalled = true
+			return state, nil
+		})
+		// Register a params handler — SHOULD be called for EventParams.
+		_ = island.HandleParams(func(ctx context.Context, state any, p Params) (any, error) {
+			paramsCalled = true
+			stateMap := state.(map[string]any)
+			stateMap["params"] = p
+			return stateMap, nil
+		})
+		return island, nil
+	})
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+	time.Sleep(10 * time.Millisecond)
+
+	instance, err := engine.MountIsland("session-1", "tracked-1", "tracked-params", Props{})
+	if err != nil {
+		t.Fatalf("MountIsland failed: %v", err)
+	}
+
+	// Clear mount events
+	transport.mu.Lock()
+	transport.sent = []Event{}
+	transport.mu.Unlock()
+
+	// Route an EventParams event with page=3.
+	paramsData, _ := json.Marshal(Params{"page": "3"})
+	err = engine.RouteEvent("session-1", Event{
+		T:      EventParams,
+		Island: "tracked-1",
+		Data:   paramsData,
+	})
+	if err != nil {
+		t.Fatalf("RouteEvent(EventParams) error = %v", err)
+	}
+
+	// The params handler should have been called.
+	if !paramsCalled {
+		t.Error("EventParams routing: params handler was NOT called; expected it to be called via CallParams")
+	}
+
+	// The event handler for "params" should NOT have been called.
+	if eventCalled {
+		t.Error("EventParams routing: event handler was called; expected only params handler to be called")
+	}
+
+	// Verify the state was updated by the params handler.
+	state := instance.State().(map[string]any)
+	params, ok := state["params"].(Params)
+	if !ok {
+		t.Fatalf("state[params] is not Params, got %T", state["params"])
+	}
+	if params.String("page") != "3" {
+		t.Errorf("state[params][page] = %q, want %q", params.String("page"), "3")
+	}
+}
+
+// TestSessionRouteEventParamsNoHandler verifies that EventParams with no
+// registered params handler is silently ignored (no error).
+//
+// Scenario: EventParams with no handler is silently ignored
+func TestSessionRouteEventParamsNoHandler(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	registry := NewIslandRegistry()
+	_ = registry.Register("no-params-handler", func() (*Island, error) {
+		return NewIsland("no-params-handler",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return map[string]any{}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				return strings.NewReader("<div>no params</div>"), nil
+			}),
+		)
+	})
+
+	stateStore := NewMemoryIslandStateStore(ctx, 1*time.Minute)
+	engine := NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
+
+	transport := newEngineMockTransport()
+	session := NewSession(ctx, "session-1", transport)
+	engine.AddSession(session)
+	time.Sleep(10 * time.Millisecond)
+
+	_, err := engine.MountIsland("session-1", "no-params-1", "no-params-handler", Props{})
+	if err != nil {
+		t.Fatalf("MountIsland failed: %v", err)
+	}
+
+	// Route EventParams to an island with no params handler — should be a no-op (no error).
+	paramsData, _ := json.Marshal(Params{"page": "1"})
+	err = engine.RouteEvent("session-1", Event{
+		T:      EventParams,
+		Island: "no-params-1",
+		Data:   paramsData,
+	})
+	if err != nil {
+		t.Errorf("RouteEvent(EventParams) with no handler error = %v, want nil (silently ignored)", err)
 	}
 }

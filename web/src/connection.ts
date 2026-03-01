@@ -2,6 +2,7 @@ import { Transport, ConnectionState } from "./transport/transport";
 import { TransportNegotiator, NegotiatorConfig } from "./transport/negotiator";
 import { TransportMessage, IslandPatch, MessageType } from "./transport/message";
 import { HookRegistry } from "./hooks";
+import { EventDispatch } from "./event";
 
 /**
  * IslandHandler is called when a patch is received for a specific island.
@@ -121,8 +122,11 @@ export class ConnectionManager {
                 console.debug(`ConnectionManager: state changed to ${state}`);
 
                 if (state === ConnectionState.Connected) {
+                    EventDispatch.reconnected();
                     // Re-subscribe all islands after reconnection
                     this.resubscribeAllIslands();
+                } else if (state === ConnectionState.Closed || state === ConnectionState.Reconnecting) {
+                    EventDispatch.disconnected();
                 }
             });
 
@@ -162,6 +166,35 @@ export class ConnectionManager {
      * @param message - Incoming transport message
      */
     private routeMessage(message: TransportMessage): void {
+        // Handle redirect messages: navigate and return immediately
+        // Only allow same-origin redirects to prevent open redirect attacks
+        if (message.t === MessageType.Redirect) {
+            try {
+                const url = new URL(message.d, window.location.origin);
+                if (url.origin === window.location.origin) {
+                    window.location.replace(message.d);
+                }
+            } catch {
+                // Malformed URL - ignore
+            }
+            return;
+        }
+
+        // Handle params messages: update browser URL and return immediately
+        if (message.t === MessageType.Params) {
+            history.pushState({}, "", window.location.pathname + "?" + message.d);
+            return;
+        }
+
+        // Handle error messages: update CSS class, then optionally route to island
+        if (message.t === MessageType.Error) {
+            EventDispatch.error();
+            if (message.island) {
+                HookRegistry.handleServerEvent(message.island, message.t, message.d);
+            }
+            return;
+        }
+
         // Route patch messages to island handlers
         if (message.t === MessageType.Patch) {
             const islandId = message.island;

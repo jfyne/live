@@ -869,3 +869,108 @@ func TestDefaultErrorHandler(t *testing.T) {
 		}
 	})
 }
+
+// ---------------------------------------------------------------------------
+// RED tests for HandleParams / WithHandleParams / GetParamsHandler
+// These tests reference APIs that do not yet exist and will fail to compile.
+// ---------------------------------------------------------------------------
+
+// TestIslandHandleParams verifies that HandleParams registers a params handler
+// and GetParamsHandler retrieves it.
+//
+// Scenario: HandleParams registers a params handler on the island
+// Scenario: GetParamsHandler returns the registered handler
+func TestIslandHandleParams(t *testing.T) {
+	t.Run("register and retrieve params handler", func(t *testing.T) {
+		island, _ := NewIsland("params-island")
+		handlerCalled := false
+
+		err := island.HandleParams(func(ctx context.Context, state any, params Params) (any, error) {
+			handlerCalled = true
+			return state, nil
+		})
+		if err != nil {
+			t.Fatalf("HandleParams() error = %v", err)
+		}
+
+		handler := island.GetParamsHandler()
+		if handler == nil {
+			t.Fatal("GetParamsHandler() = nil, want non-nil handler")
+		}
+
+		_, _ = handler(context.Background(), nil, Params{})
+		if !handlerCalled {
+			t.Error("retrieved params handler was not callable")
+		}
+	})
+
+	t.Run("GetParamsHandler returns nil when no handler registered", func(t *testing.T) {
+		island, _ := NewIsland("params-island")
+
+		handler := island.GetParamsHandler()
+		if handler != nil {
+			t.Error("GetParamsHandler() = non-nil, want nil when no handler registered")
+		}
+	})
+}
+
+// TestWithHandleParams verifies that WithHandleParams works as an IslandConfig.
+//
+// Scenario: WithHandleParams works as IslandConfig
+func TestWithHandleParams(t *testing.T) {
+	t.Run("WithHandleParams sets the params handler via IslandConfig", func(t *testing.T) {
+		handlerCalled := false
+
+		island, err := NewIsland("params-island",
+			WithHandleParams(func(ctx context.Context, state any, params Params) (any, error) {
+				handlerCalled = true
+				return state, nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewIsland() with WithHandleParams error = %v", err)
+		}
+
+		handler := island.GetParamsHandler()
+		if handler == nil {
+			t.Fatal("GetParamsHandler() = nil after WithHandleParams, want non-nil")
+		}
+
+		_, _ = handler(context.Background(), nil, Params{})
+		if !handlerCalled {
+			t.Error("params handler set via WithHandleParams was not called")
+		}
+	})
+
+	t.Run("WithHandleParams params handler receives correct params", func(t *testing.T) {
+		var receivedParams Params
+
+		island, err := NewIsland("params-island",
+			WithHandleParams(func(ctx context.Context, state any, params Params) (any, error) {
+				receivedParams = params
+				return state, nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewIsland() error = %v", err)
+		}
+
+		handler := island.GetParamsHandler()
+		if handler == nil {
+			t.Fatal("GetParamsHandler() = nil, want non-nil")
+		}
+
+		expectedParams := Params{"page": "2", "filter": "active"}
+		_, _ = handler(context.Background(), nil, expectedParams)
+
+		if receivedParams == nil {
+			t.Fatal("params handler received nil params")
+		}
+		if receivedParams.String("page") != "2" {
+			t.Errorf("params[page] = %q, want %q", receivedParams.String("page"), "2")
+		}
+		if receivedParams.String("filter") != "active" {
+			t.Errorf("params[filter] = %q, want %q", receivedParams.String("filter"), "active")
+		}
+	})
+}

@@ -149,14 +149,14 @@ Implement all features documented in the master branch README that are missing f
 
 All events.ts changes are consolidated into single test + implementation tasks to avoid write-write conflicts.
 
-- [ ] T1: Write tests for throttle, window events, and live-patch [Stage 1]
+- [x] T1: Write tests for throttle, window events, and live-patch [Stage 1]
   - Files: `web/src/events.spec.ts` (modifies)
   - **Throttle tests**: immediate first fire, rate-limiting subsequent fires, trailing fire after interval, throttle precedence over debounce, throttle with click/key/change events, cleanup of throttle timers.
   - **Window event tests**: window-focus/blur fires on window events, window-keydown/keyup with key data, live-key filter on window events, cleanup removes window listeners, loading classes, multiple islands receive same window event, events scoped to declaring island.
   - **Live-patch tests**: click prevents default, updates URL via pushState, sends params event with extracted URL params, handles elements without href.
   - Tests are written RED before implementation.
 
-- [ ] T3: Implement Throttler, window events, and live-patch in events.ts [Stage 1, depends: T1]
+- [x] T3: Implement Throttler, window events, and live-patch in events.ts [Stage 1, depends: T1]
   - Files: `web/src/events.ts` (modifies)
   - **Throttler class**: Add alongside existing Debouncer. Uses `WeakMap<Element, number>` for per-element `lastFire` timestamps. Methods: `hasThrottle(element)`, `throttle(element, e, fn)`, `cleanup(element)`. Fires immediately on first call, rate-limits subsequent at interval. Stores pending trailing timer. Note: throttle state is per-element-reference via WeakMap, which resets on DOM replacement during patches -- this is acceptable behavior matching debounce.
   - **Throttle integration**: Add `private throttler: Throttler` to EventWiring. Modify `wireStandardEvent`, `wireKeyEvent`, `wireChangeEvents` to check throttle before debounce. Throttle takes precedence.
@@ -169,14 +169,14 @@ All events.ts changes are consolidated into single test + implementation tasks t
 
 All connection.ts changes are consolidated into single test + implementation tasks.
 
-- [ ] T5: Write tests for connection CSS, redirect, and params [Stage 2a]
+- [x] T5: Write tests for connection CSS, redirect, and params [Stage 2a]
   - Files: `web/src/connection.spec.ts` (modifies)
   - **Connection CSS tests**: live-connected on connect, live-disconnected on disconnect, class swap on reconnect, live-error on error message, error cleared on reconnect.
   - **Redirect tests**: redirect calls window.location.replace, redirect does not call island handlers.
   - **Params tests**: incoming params message updates browser URL via pushState.
   - Tests are written RED before implementation.
 
-- [ ] T6: Implement connection CSS, redirect, and params in connection.ts [Stage 2a, depends: T5]
+- [x] T6: Implement connection CSS, redirect, and params in connection.ts [Stage 2a, depends: T5]
   - Files: `web/src/connection.ts` (modifies)
   - **Connection CSS**: Call existing `EventDispatch.reconnected()` (adds ClassConnected, removes ClassDisconnected) when state is Connected. Call `EventDispatch.disconnected()` when Closed/Reconnecting. Do NOT duplicate CSS class logic -- `EventDispatch` in `event.ts` already manages these classes; ConnectionManager just needs to call the appropriate static methods at the right lifecycle points.
   - **Error CSS**: In `routeMessage()`, when `message.t === MessageType.Error`, call `EventDispatch.error()` to add ClassError. Still route to island handler if `message.island` set.
@@ -187,7 +187,7 @@ All connection.ts changes are consolidated into single test + implementation tas
 
 All island.go, instance.go, session.go, context.go changes consolidated.
 
-- [ ] T7: Write Go tests for HandleParams, PatchURL, Redirect [Stage 2b]
+- [x] T7: Write Go tests for HandleParams, PatchURL, Redirect [Stage 2b]
   - Files: `island_test.go` (modifies), `engine_test.go` (modifies), `instance_test.go` (modifies)
   - **HandleParams tests**: handler registration, GetParamsHandler, EventParams routing through engine, state update on params event.
   - **PatchURL tests**: handler calls PatchURL, transport receives EventParams with correct encoded values.
@@ -195,7 +195,7 @@ All island.go, instance.go, session.go, context.go changes consolidated.
   - **Edge case tests**: nil params handler is no-op (no error), PatchURL/Redirect with missing context values.
   - Tests are written RED before implementation.
 
-- [ ] T8: Implement HandleParams, PatchURL, Redirect in Go [Stage 2b, depends: T7]
+- [x] T8: Implement HandleParams, PatchURL, Redirect in Go [Stage 2b, depends: T7]
   - Files: `island.go` (modifies), `instance.go` (modifies), `session.go` (modifies), `context.go` (modifies)
   - **island.go**: Add `paramsHandler IslandEventHandler` field to Island struct. Add `HandleParams(handler IslandEventHandler)` method (mutex-guarded). Add `WithHandleParams(handler IslandEventHandler) IslandConfig`. Add `GetParamsHandler() IslandEventHandler` accessor. Add `PatchURL(ctx context.Context, values url.Values)` function -- extracts session via `sessionFromContext`, creates Event{T: EventParams}, sends. Add `Redirect(ctx context.Context, u *url.URL)` function -- creates Event{T: EventRedirect}, sends.
   - **instance.go**: Add `CallParams(ctx context.Context, params Params) error` method. Gets params handler, calls with state, updates state. Returns nil if no handler.
@@ -204,13 +204,13 @@ All island.go, instance.go, session.go, context.go changes consolidated.
 
 ### Server-Side: Upload System
 
-- [ ] T9: Write Go and client tests for upload system [Stage 3]
+- [x] T9: Write Go and client tests for upload system [Stage 3]
   - Files: `upload_test.go` (creates), `web/src/events.spec.ts` (modifies)
   - **Go tests**: ValidateUploads with valid/oversized/too-many/wrong-type files, ConsumeUploads handler called per file, UploadConfig on island, Upload.File() returns staged file, upload endpoint stages files correctly.
   - **Client tests**: upload progress event dispatched during XHR upload, file input change triggers validation event.
   - Tests are written RED before implementation.
 
-- [ ] T10: Implement upload system in Go and client [Stage 3, depends: T9]
+- [x] T10: Implement upload system in Go and client [Stage 3, depends: T9]
   - Files: `upload.go` (creates), `island.go` (modifies), `engine.go` (modifies), `transport_endpoints.go` (modifies), `web/src/events.ts` (modifies)
   - **upload.go**: Port and adapt from master: `UploadError` struct, error sentinels (`ErrUploadNotFound`, `ErrUploadTooLarge`, `ErrUploadNotAccepted`, `ErrUploadTooManyFiles`, `ErrUploadMalformed`), `UploadConfig` struct (Name, MaxFiles, MaxSize, Accept), `Upload` struct (Name, Size, Type, LastModified, Errors, Progress, internalLocation), `Upload.File()`, `UploadContext` type `map[string][]*Upload`, `ValidateUploads(params Params, configs []*UploadConfig) (UploadContext, error)`, `ConsumeUploads(uploads UploadContext, name string, handler ConsumeHandler) []error`, `ConsumeHandler func(u *Upload) error`.
   - **island.go**: Add `uploadConfigs []*UploadConfig` field. Add `WithUploadConfig(config *UploadConfig) IslandConfig`. Add `UploadConfigs()` accessor.
@@ -220,7 +220,7 @@ All island.go, instance.go, session.go, context.go changes consolidated.
 
 ### Server-Side: Test Coverage Improvements
 
-- [ ] T2: Write and implement Go coverage tests [Stage 1]
+- [x] T2: Write and implement Go coverage tests [Stage 1]
   - Files: `transport_endpoints_test.go` (creates), `javascript_test.go` (creates), `engine_test.go` (modifies), `instance_test.go` (modifies), `examples/counter/main_test.go` (creates)
   - **transport_endpoints_test.go**: WebSocketHandler returns valid handler that upgrades connections. SSEHandler returns valid handler. SSEHandlerWithFactory returns two handlers (SSE + POST). Use httptest.NewServer.
   - **javascript_test.go**: Javascript.ServeHTTP returns Content-Type text/javascript and non-empty body. JavascriptMap.ServeHTTP returns Content-Type application/json and non-empty body.
@@ -230,39 +230,39 @@ All island.go, instance.go, session.go, context.go changes consolidated.
 
 ### Examples
 
-- [ ] T11: Write tests for buttons example [Stage 4]
+- [x] T11: Write tests for buttons example [Stage 4]
   - Files: `examples/buttons/main_test.go` (creates)
   - Tests: NewButtonsIsland construction, mount handler, inc/dec event handlers.
 
-- [ ] T12: Write tests for clocks example [Stage 4]
+- [x] T12: Write tests for clocks example [Stage 4]
   - Files: `examples/clocks/main_test.go` (creates)
   - Tests: multiple clock islands with different timezones have independent state.
 
-- [ ] T13: Implement buttons example [Stage 4, depends: T11]
+- [x] T13: Implement buttons example [Stage 4, depends: T11]
   - Files: `examples/buttons/main.go` (creates), `examples/buttons/buttons.html` (creates), `examples/buttons/index.html` (creates)
   - Counter island with `live-click` for inc/dec and `live-window-keyup` with `live-key="ArrowUp"` / `live-key="ArrowDown"`.
 
-- [ ] T14: Implement clocks example [Stage 4, depends: T12]
+- [x] T14: Implement clocks example [Stage 4, depends: T12]
   - Files: `examples/clocks/main.go` (creates), `examples/clocks/index.html` (creates)
   - Reuse clock island type. Page with multiple `<live-island type="clock">` with different `data-timezone` props.
 
-- [ ] T15: Write tests for pagination example [Stage 5]
+- [x] T15: Write tests for pagination example [Stage 5]
   - Files: `examples/pagination/main_test.go` (creates)
   - Tests: mount initializes page 0, HandleParams with page=2 updates items, next-page event handler calls PatchURL.
 
-- [ ] T16: Write tests for uploads example [Stage 5]
+- [x] T16: Write tests for uploads example [Stage 5]
   - Files: `examples/uploads/main_test.go` (creates)
   - Tests: mount returns empty uploads, validate with valid/invalid files, save consumes uploads.
 
-- [ ] T17: Implement pagination example [Stage 5, depends: T15, T8]
+- [x] T17: Implement pagination example [Stage 5, depends: T15, T8]
   - Files: `examples/pagination/main.go` (creates), `examples/pagination/pagination.html` (creates), `examples/pagination/index.html` (creates)
   - ListState with Page/Items. HandleParams reads `page` param. Event handler calls PatchURL. Template uses `live-patch` and `live-click`.
 
-- [ ] T18: Implement uploads example [Stage 5, depends: T16, T10]
+- [x] T18: Implement uploads example [Stage 5, depends: T16, T10]
   - Files: `examples/uploads/main.go` (creates), `examples/uploads/uploads.html` (creates), `examples/uploads/index.html` (creates)
   - Upload island with WithUploadConfig for "photos" (max 3, 1MB, image/png). Validate event calls ValidateUploads. Save event calls ConsumeUploads.
 
-- [ ] T19: Rebuild auto.js with all client changes [Stage 6]
+- [x] T19: Rebuild auto.js with all client changes [Stage 6]
   - Files: `web/browser/auto.js` (modifies), `web/browser/auto.js.map` (modifies)
   - Run `cd web && npm run build`.
 

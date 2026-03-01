@@ -51,7 +51,9 @@ package live
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net/url"
 	"sync"
 	"time"
 )
@@ -157,11 +159,17 @@ type Island struct {
 	// selfHandlers maps self event names to their handlers.
 	selfHandlers map[string]IslandSelfHandler
 
+	// paramsHandler is called when a params event arrives for this island.
+	paramsHandler IslandEventHandler
+
 	// errorHandler is called when an event handler returns an error.
 	errorHandler func(ctx context.Context, err error) Event
 
 	// eventDelays maps self-event names to their re-delivery delay.
 	eventDelays map[string]time.Duration
+
+	// uploadConfigs holds the upload field configurations for this island.
+	uploadConfigs []*UploadConfig
 
 	// mu protects concurrent access to handler maps.
 	mu sync.RWMutex
@@ -249,6 +257,28 @@ func (i *Island) GetSelfHandler(event string) (IslandSelfHandler, error) {
 	return handler, nil
 }
 
+// HandleParams registers a params handler for the island.
+// The handler is called when an EventParams event arrives targeting this island.
+// Returns an error if a handler is already registered.
+func (i *Island) HandleParams(handler IslandEventHandler) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	if i.paramsHandler != nil {
+		return ErrDuplicateEventHandler
+	}
+
+	i.paramsHandler = handler
+	return nil
+}
+
+// GetParamsHandler returns the params handler, or nil if none is registered.
+func (i *Island) GetParamsHandler() IslandEventHandler {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.paramsHandler
+}
+
 // EventHandlers returns a copy of the event handler names.
 func (i *Island) EventHandlers() []string {
 	i.mu.RLock()
@@ -317,6 +347,14 @@ func WithEventDelay(event string, delay time.Duration) IslandConfig {
 	}
 }
 
+// WithHandleParams sets a params handler for the island via IslandConfig.
+// The handler is called when an EventParams event arrives targeting this island.
+func WithHandleParams(handler IslandEventHandler) IslandConfig {
+	return func(i *Island) error {
+		return i.HandleParams(handler)
+	}
+}
+
 // GetEventDelay returns the configured delay for the given self-event name.
 // Returns (0, false) if no delay is configured for the event.
 func (i *Island) GetEventDelay(event string) (time.Duration, bool) {
@@ -333,6 +371,25 @@ func (i *Island) GetErrorHandler() func(ctx context.Context, err error) Event {
 	return i.errorHandler
 }
 
+// WithUploadConfig registers an UploadConfig with the island.
+// Multiple upload configs can be registered by calling WithUploadConfig
+// multiple times, one per named file input.
+func WithUploadConfig(config *UploadConfig) IslandConfig {
+	return func(i *Island) error {
+		i.mu.Lock()
+		defer i.mu.Unlock()
+		i.uploadConfigs = append(i.uploadConfigs, config)
+		return nil
+	}
+}
+
+// UploadConfigs returns the upload configurations registered with this island.
+func (i *Island) UploadConfigs() []*UploadConfig {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.uploadConfigs
+}
+
 // defaultErrorHandler is the built-in error handler used when no custom
 // handler is configured. It marshals the error message into a JSON payload
 // and returns an EventError event.
@@ -345,6 +402,52 @@ func defaultErrorHandler(ctx context.Context, err error) Event {
 // It distinguishes self-events (which always have non-nil SelfData) from client
 // events (which always have nil SelfData) when the caller passes nil.
 var selfEventSentinel = struct{}{}
+
+// PatchURL sends an EventParams event to the client instructing it to update
+// the browser URL query parameters. The values map is URL-encoded as a query
+// string (e.g. "page=3&sort=name") and sent as a JSON string in the event data.
+//
+// PatchURL extracts the session from ctx using the embedded engine and session
+// ID. Returns an error if the context does not contain the required values or
+// if the session cannot be found.
+func PatchURL(ctx context.Context, values map[string]string) error {
+	session, err := sessionFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Encode as URL query string so the client can append directly to pathname.
+	urlValues := make(url.Values)
+	for k, v := range values {
+		urlValues.Set(k, v)
+	}
+	data, err := json.Marshal(urlValues.Encode())
+	if err != nil {
+		return fmt.Errorf("PatchURL: failed to marshal values: %w", err)
+	}
+
+	return session.Send(Event{T: EventParams, Data: json.RawMessage(data)})
+}
+
+// Redirect sends an EventRedirect event to the client instructing the browser
+// to navigate to the given URL string.
+//
+// Redirect extracts the session from ctx using the embedded engine and session
+// ID. Returns an error if the context does not contain the required values or
+// if the session cannot be found.
+func Redirect(ctx context.Context, u string) error {
+	session, err := sessionFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(u)
+	if err != nil {
+		return fmt.Errorf("Redirect: failed to marshal URL: %w", err)
+	}
+
+	return session.Send(Event{T: EventRedirect, Data: json.RawMessage(data)})
+}
 
 // SendSelf enqueues a self-directed event onto the island's self-event queue
 // stored in ctx. This is a no-op if the queue is not present in the context.

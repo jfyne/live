@@ -212,6 +212,29 @@ func (i *IslandInstance) CallEvent(ctx context.Context, event string, params Par
 	return nil
 }
 
+// CallParams handles a params event from the client.
+// It calls the params handler (if registered) with the current state and params,
+// and updates the state with the returned value.
+// Returns nil without updating state if no params handler is registered (no-op).
+func (i *IslandInstance) CallParams(ctx context.Context, params Params) error {
+	handler := i.island.GetParamsHandler()
+	if handler == nil {
+		// No params handler registered — silently ignore.
+		return nil
+	}
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	newState, err := handler(ctx, i.state, params)
+	if err != nil {
+		return err
+	}
+
+	i.state = newState
+	return nil
+}
+
 // CallSelf handles a self-directed event from the server.
 // It looks up the self handler, calls it with the current state and data,
 // and updates the state with the returned value.

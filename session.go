@@ -90,6 +90,11 @@ func (s *Session) routeToIsland(ctx context.Context, event Event) error {
 		return instance.CallSelf(ctx, event.T, event.SelfData)
 	}
 
+	// EventParams events are routed to the params handler, not the event handler.
+	if event.T == EventParams {
+		return instance.CallParams(ctx, params)
+	}
+
 	// Client event
 	return instance.CallEvent(ctx, event.T, params)
 }

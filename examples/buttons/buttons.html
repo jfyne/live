@@ -1,0 +1,12 @@
+<div>
+    <div class="count">{{ .Count }}</div>
+    <div style="text-align: center;">
+        <button live-click="dec">- Decrement</button>
+        <button live-click="inc">+ Increment</button>
+    </div>
+    <div class="keyboard-hints">
+        <span>Keyboard shortcuts: ArrowUp to increment, ArrowDown to decrement</span>
+    </div>
+    <span live-window-keyup="up" live-key="ArrowUp" style="display:none;"></span>
+    <span live-window-keyup="down" live-key="ArrowDown" style="display:none;"></span>
+</div>

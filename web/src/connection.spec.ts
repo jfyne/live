@@ -2,6 +2,7 @@ import { ConnectionManager } from "./connection";
 import { Transport, ConnectionState } from "./transport/transport";
 import { TransportMessage, IslandPatch, MessageType } from "./transport/message";
 import { TransportNegotiator, NegotiationResult, TransportType } from "./transport/negotiator";
+import { ClassConnected, ClassDisconnected, ClassError } from "./event";
 
 // Mock Transport implementation
 class MockTransport implements Transport {
@@ -518,6 +519,221 @@ describe("ConnectionManager", () => {
             );
 
             consoleSpy.mockRestore();
+        });
+    });
+
+    // ---------------------------------------------------------------------------
+    // Connection CSS Classes
+    // Tests for document.body CSS class management on connect/disconnect/error.
+    // These test EventDispatch integration that does NOT exist yet in
+    // ConnectionManager — they are expected to be RED until implemented.
+    // ---------------------------------------------------------------------------
+    describe("Connection CSS Classes", () => {
+        beforeEach(() => {
+            // Ensure body starts clean for every test in this group
+            document.body.className = "";
+        });
+
+        afterEach(() => {
+            document.body.className = "";
+        });
+
+        test("when transport connects body should have live-connected and not live-disconnected", async () => {
+            await manager.connect();
+
+            // Simulate the transport reporting a Connected state change (initial connection)
+            mockTransport.simulateStateChange(ConnectionState.Connected);
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(document.body.classList.contains(ClassConnected)).toBe(true);
+            expect(document.body.classList.contains(ClassDisconnected)).toBe(false);
+        });
+
+        test("when transport disconnects body should have live-disconnected and not live-connected", async () => {
+            // Start connected so we can then disconnect
+            document.body.classList.add(ClassConnected);
+
+            await manager.connect();
+
+            mockTransport.simulateStateChange(ConnectionState.Closed);
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(document.body.classList.contains(ClassDisconnected)).toBe(true);
+            expect(document.body.classList.contains(ClassConnected)).toBe(false);
+        });
+
+        test("on reconnect classes should swap correctly from disconnected to connected", async () => {
+            await manager.connect();
+
+            // First go to disconnected state
+            mockTransport.simulateStateChange(ConnectionState.Closed);
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            // Verify disconnected state before reconnect
+            expect(document.body.classList.contains(ClassDisconnected)).toBe(true);
+            expect(document.body.classList.contains(ClassConnected)).toBe(false);
+
+            // Now reconnect
+            mockTransport.simulateStateChange(ConnectionState.Connected);
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(document.body.classList.contains(ClassConnected)).toBe(true);
+            expect(document.body.classList.contains(ClassDisconnected)).toBe(false);
+        });
+
+        test("when error message received body should have live-error class", async () => {
+            const handler = jest.fn();
+            manager.registerIsland("island-1", "test", handler);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const errorMessage: TransportMessage = {
+                t: MessageType.Error,
+                d: "an error occurred",
+            };
+
+            mockTransport.simulateMessage(errorMessage);
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(document.body.classList.contains(ClassError)).toBe(true);
+        });
+
+        test("error class should be cleared on reconnect", async () => {
+            // Pre-set body to error state
+            document.body.classList.add(ClassError);
+            document.body.classList.add(ClassDisconnected);
+
+            await manager.connect();
+
+            // Simulate reconnection
+            mockTransport.simulateStateChange(ConnectionState.Connected);
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(document.body.classList.contains(ClassError)).toBe(false);
+            expect(document.body.classList.contains(ClassConnected)).toBe(true);
+        });
+    });
+
+    // ---------------------------------------------------------------------------
+    // Redirect Message Handling
+    // Tests that a MessageType.Redirect message triggers window.location.replace.
+    // These are RED tests — redirect routing does not exist in ConnectionManager yet.
+    // ---------------------------------------------------------------------------
+    describe("Redirect Message Handling", () => {
+        let locationReplaceSpy: jest.Mock;
+
+        beforeEach(() => {
+            // jsdom does not allow direct reassignment of window.location, so we
+            // use Object.defineProperty to install a spy on the replace method.
+            locationReplaceSpy = jest.fn();
+            Object.defineProperty(window, "location", {
+                value: { ...window.location, replace: locationReplaceSpy },
+                writable: true,
+                configurable: true,
+            });
+        });
+
+        afterEach(() => {
+            jest.restoreAllMocks();
+        });
+
+        test("redirect message should call window.location.replace with message data", async () => {
+            const handler = jest.fn();
+            manager.registerIsland("island-1", "test", handler);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const redirectMessage: TransportMessage = {
+                t: MessageType.Redirect,
+                d: "/new-path",
+            };
+
+            mockTransport.simulateMessage(redirectMessage);
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(locationReplaceSpy).toHaveBeenCalledWith("/new-path");
+        });
+
+        test("redirect message should not call island handlers", async () => {
+            const handler = jest.fn();
+            manager.registerIsland("island-1", "test", handler);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const redirectMessage: TransportMessage = {
+                t: MessageType.Redirect,
+                d: "/somewhere-else",
+            };
+
+            mockTransport.simulateMessage(redirectMessage);
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            // Island patch handler must not have been called
+            expect(handler).not.toHaveBeenCalled();
+        });
+    });
+
+    // ---------------------------------------------------------------------------
+    // Params Message Handling
+    // Tests that a MessageType.Params message updates the browser URL via
+    // history.pushState. These are RED tests — params routing does not exist yet.
+    // ---------------------------------------------------------------------------
+    describe("Params Message Handling", () => {
+        let pushStateSpy: jest.SpyInstance;
+
+        beforeEach(() => {
+            pushStateSpy = jest.spyOn(history, "pushState").mockImplementation(() => {});
+        });
+
+        afterEach(() => {
+            pushStateSpy.mockRestore();
+        });
+
+        test("params message should update browser URL via history.pushState", async () => {
+            const handler = jest.fn();
+            manager.registerIsland("island-1", "test", handler);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const paramsMessage: TransportMessage = {
+                t: MessageType.Params,
+                d: "foo=bar&baz=qux",
+            };
+
+            mockTransport.simulateMessage(paramsMessage);
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(pushStateSpy).toHaveBeenCalledWith(
+                {},
+                "",
+                expect.stringContaining("foo=bar&baz=qux")
+            );
+        });
+
+        test("params message should build URL from current pathname and query string", async () => {
+            const handler = jest.fn();
+            manager.registerIsland("island-1", "test", handler);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const paramsMessage: TransportMessage = {
+                t: MessageType.Params,
+                d: "page=2",
+            };
+
+            mockTransport.simulateMessage(paramsMessage);
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            // The first argument to pushState should use current pathname + "?" + params
+            const callArgs = pushStateSpy.mock.calls[0];
+            expect(callArgs[2]).toBe(window.location.pathname + "?" + "page=2");
         });
     });
 });

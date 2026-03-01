@@ -593,4 +593,615 @@ describe("Island-Scoped Event Wiring", () => {
             });
         });
     });
+
+    // ---------------------------------------------------------------------------
+    // Throttle Functionality
+    // ---------------------------------------------------------------------------
+    // These tests are RED: Throttler class and live-throttle support do not exist yet.
+    // ---------------------------------------------------------------------------
+
+    describe("Throttle Functionality", () => {
+        beforeEach(() => {
+            jest.useFakeTimers();
+        });
+
+        afterEach(() => {
+            jest.useRealTimers();
+        });
+
+        it("should fire immediately on the first click with live-throttle", () => {
+            // Scenario: Throttle fires immediately then rate-limits
+            // Given an element with live-click="test" and live-throttle="500"
+            // When the user clicks the element
+            // Then the first click fires immediately
+            islandElement.innerHTML = '<button live-click="throttle-event" live-throttle="500">Click Me</button>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const button = islandElement.querySelector("button");
+            button?.click();
+
+            // First click should fire immediately (no timer needed)
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+            expect(mockSendEvent).toHaveBeenCalledWith(islandId, "throttle-event", {});
+        });
+
+        it("should rate-limit subsequent clicks within the throttle interval", () => {
+            // Scenario: Throttle fires immediately then rate-limits
+            // Given an element with live-click="test" and live-throttle="500"
+            // When the user clicks the element 5 times rapidly
+            // Then the first click fires immediately
+            // And no further clicks fire until 500ms have elapsed
+            islandElement.innerHTML = '<button live-click="throttle-event" live-throttle="500">Click Me</button>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const button = islandElement.querySelector("button");
+
+            // Click 5 times rapidly
+            button?.click();
+            button?.click();
+            button?.click();
+            button?.click();
+            button?.click();
+
+            // Only the first click should have fired immediately
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+
+            // Advance time partway -- still within throttle window, no additional fires
+            jest.advanceTimersByTime(400);
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+        });
+
+        it("should fire a trailing event after the throttle interval elapses", () => {
+            // Scenario: Throttle fires immediately then rate-limits
+            // And a trailing fire occurs after the throttle interval
+            islandElement.innerHTML = '<button live-click="throttle-event" live-throttle="500">Click Me</button>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const button = islandElement.querySelector("button");
+
+            // Click multiple times
+            button?.click();
+            button?.click();
+            button?.click();
+
+            // First click fired immediately
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+
+            // After 500ms, the trailing fire should happen
+            jest.advanceTimersByTime(500);
+            expect(mockSendEvent).toHaveBeenCalledTimes(2);
+        });
+
+        it("should apply throttle over debounce when both attributes are present", () => {
+            // Scenario: Throttle takes precedence over debounce
+            // Given an element with live-throttle="500" and live-debounce="200"
+            // When the user clicks the element
+            // Then throttle behavior is applied, not debounce
+            islandElement.innerHTML = '<button live-click="throttle-event" live-throttle="500" live-debounce="200">Click Me</button>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const button = islandElement.querySelector("button");
+            button?.click();
+
+            // With throttle precedence: first click fires immediately (throttle behavior)
+            // If debounce took precedence: first click would NOT fire immediately
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+
+            // Advance past debounce but not throttle -- should still only be 1 call
+            jest.advanceTimersByTime(200);
+            // debounce would have fired here if it had won; throttle prevents it
+            // (the trailing fire is at 500ms, not 200ms)
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+        });
+
+        it("should not fire trailing throttle events after island cleanup", () => {
+            // Scenario: Throttle cleanup on island unmount
+            // Given an element with live-throttle="500" in an island
+            // When the island is unmounted
+            // Then no trailing throttle fires occur
+            islandElement.innerHTML = '<button live-click="throttle-event" live-throttle="500">Click Me</button>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const button = islandElement.querySelector("button");
+
+            // Click multiple times to arm a trailing fire
+            button?.click();
+            button?.click();
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+
+            // Clean up before trailing timer fires
+            cleanupFn();
+            cleanupFn = null;
+
+            // Advance past the throttle interval
+            jest.advanceTimersByTime(500);
+
+            // No trailing fire should occur after cleanup
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+        });
+
+        it("should throttle keydown events with live-throttle", () => {
+            // Scenario: Throttle with different event types (keydown)
+            islandElement.innerHTML = '<input live-keydown="keydown-throttle" live-throttle="300" />';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const input = islandElement.querySelector("input");
+
+            // Fire keydown events rapidly
+            input?.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
+            input?.dispatchEvent(new KeyboardEvent("keydown", { key: "b" }));
+            input?.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }));
+
+            // First fires immediately
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+            expect(mockSendEvent).toHaveBeenCalledWith(islandId, "keydown-throttle", expect.objectContaining({ key: "a" }));
+        });
+
+        it("should throttle form change events with live-throttle", () => {
+            // Scenario: Throttle with different event types (change)
+            islandElement.innerHTML = `
+                <form live-change="change-throttle">
+                    <input name="search" live-throttle="400" />
+                </form>
+            `;
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const input = islandElement.querySelector("input") as HTMLInputElement;
+
+            // Fire input events rapidly
+            input.value = "a";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.value = "ab";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.value = "abc";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+
+            // First fires immediately
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    // ---------------------------------------------------------------------------
+    // Window Event Tests
+    // ---------------------------------------------------------------------------
+    // These tests are RED: wireWindowFocusEvents, wireWindowBlurEvents,
+    // wireWindowKeydownEvents, wireWindowKeyupEvents do not exist yet.
+    // ---------------------------------------------------------------------------
+
+    describe("Window Events", () => {
+        it("should handle live-window-focus events fired on the window", () => {
+            // Scenario: live-window-focus fires on window focus events
+            // Given an element with live-window-focus="focused" inside an island
+            // When a focus event fires on the window
+            // Then the island receives the "focused" event
+            islandElement.innerHTML = '<div live-window-focus="focused">Focus Listener</div>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            window.dispatchEvent(new Event("focus"));
+
+            expect(mockSendEvent).toHaveBeenCalledWith(islandId, "focused", {});
+        });
+
+        it("should handle live-window-blur events fired on the window", () => {
+            // Scenario: live-window-blur fires on window blur events
+            islandElement.innerHTML = '<div live-window-blur="blurred">Blur Listener</div>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            window.dispatchEvent(new Event("blur"));
+
+            expect(mockSendEvent).toHaveBeenCalledWith(islandId, "blurred", {});
+        });
+
+        it("should handle live-window-keydown events with key metadata", () => {
+            // Scenario: live-window-keydown fires on window keydown with key metadata
+            islandElement.innerHTML = '<div live-window-keydown="shortcut-down">Key Listener</div>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            window.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true }));
+
+            expect(mockSendEvent).toHaveBeenCalledWith(islandId, "shortcut-down", {
+                key: "s",
+                altKey: false,
+                ctrlKey: true,
+                shiftKey: false,
+                metaKey: false,
+            });
+        });
+
+        it("should handle live-window-keyup events with key metadata", () => {
+            // Scenario: live-window-keyup fires on window keyup with key metadata
+            // Given an element with live-window-keyup="shortcut" inside an island
+            // When a keyup event fires on the window
+            // Then the island receives the "shortcut" event with key data
+            islandElement.innerHTML = '<div live-window-keyup="shortcut">Key Up Listener</div>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            window.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter" }));
+
+            expect(mockSendEvent).toHaveBeenCalledWith(islandId, "shortcut", {
+                key: "Enter",
+                altKey: false,
+                ctrlKey: false,
+                shiftKey: false,
+                metaKey: false,
+            });
+        });
+
+        it("should filter window keyup events with live-key attribute (matching key fires)", () => {
+            // Scenario: live-key filters window key events
+            // Given an element with live-window-keyup="up" live-key="ArrowUp" inside an island
+            // When ArrowUp is pressed on the window
+            // Then the "up" event fires
+            islandElement.innerHTML = '<div live-window-keyup="up" live-key="ArrowUp">Arrow Listener</div>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            window.dispatchEvent(new KeyboardEvent("keyup", { key: "ArrowUp" }));
+
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+            expect(mockSendEvent).toHaveBeenCalledWith(islandId, "up", expect.objectContaining({ key: "ArrowUp" }));
+        });
+
+        it("should filter window keyup events with live-key attribute (non-matching key does not fire)", () => {
+            // Scenario: live-key filters window key events
+            // When "a" is pressed on the window
+            // Then no event fires
+            islandElement.innerHTML = '<div live-window-keyup="up" live-key="ArrowUp">Arrow Listener</div>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            window.dispatchEvent(new KeyboardEvent("keyup", { key: "a" }));
+
+            expect(mockSendEvent).not.toHaveBeenCalled();
+        });
+
+        it("should filter window keydown events with live-key attribute", () => {
+            islandElement.innerHTML = '<div live-window-keydown="save" live-key="s">Save Listener</div>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            // Non-matching key should not fire
+            window.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
+            expect(mockSendEvent).not.toHaveBeenCalled();
+
+            // Matching key should fire
+            window.dispatchEvent(new KeyboardEvent("keydown", { key: "s" }));
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+            expect(mockSendEvent).toHaveBeenCalledWith(islandId, "save", expect.objectContaining({ key: "s" }));
+        });
+
+        it("should add loading class on window events", () => {
+            islandElement.innerHTML = '<div live-window-keyup="shortcut">Key Up Listener</div>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const div = islandElement.querySelector("div") as HTMLElement;
+            window.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter" }));
+
+            expect(div.classList.contains("live-window-keyup-loading")).toBe(true);
+        });
+
+        it("should remove window event listeners on cleanup", () => {
+            // Scenario: Cleanup removes window listeners (no events after cleanup)
+            islandElement.innerHTML = '<div live-window-keyup="shortcut">Key Up Listener</div>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            // Verify it fires before cleanup
+            window.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter" }));
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+
+            // Clean up
+            cleanupFn();
+            cleanupFn = null;
+
+            // After cleanup, window events should NOT fire
+            mockSendEvent.mockClear();
+            window.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter" }));
+            expect(mockSendEvent).not.toHaveBeenCalled();
+        });
+
+        it("should remove window focus/blur listeners on cleanup", () => {
+            islandElement.innerHTML = '<div live-window-focus="focused">Focus Listener</div>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            // Verify it fires before cleanup
+            window.dispatchEvent(new Event("focus"));
+            expect(mockSendEvent).toHaveBeenCalledTimes(1);
+
+            // Clean up
+            cleanupFn();
+            cleanupFn = null;
+
+            // After cleanup, window events should NOT fire
+            mockSendEvent.mockClear();
+            window.dispatchEvent(new Event("focus"));
+            expect(mockSendEvent).not.toHaveBeenCalled();
+        });
+
+        it("should route window events to the declaring island only", () => {
+            // Scenario: Multiple islands receive window events independently
+            // Given island-A has live-window-keyup="action-a"
+            // And island-B has live-window-keyup="action-b"
+            // When a keyup event fires on the window
+            // Then island-A receives "action-a"
+            // And island-B receives "action-b"
+            const islandAElement = document.createElement("div");
+            islandAElement.setAttribute("data-island-id", "island-a");
+            islandAElement.innerHTML = '<div live-window-keyup="action-a">Island A Listener</div>';
+            document.body.appendChild(islandAElement);
+
+            const islandBElement = document.createElement("div");
+            islandBElement.setAttribute("data-island-id", "island-b");
+            islandBElement.innerHTML = '<div live-window-keyup="action-b">Island B Listener</div>';
+            document.body.appendChild(islandBElement);
+
+            const cleanupA = wireIslandEvents(islandAElement, "island-a");
+            const cleanupB = wireIslandEvents(islandBElement, "island-b");
+
+            window.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter" }));
+
+            // Both islands should receive the event independently
+            expect(mockSendEvent).toHaveBeenCalledWith("island-a", "action-a", expect.any(Object));
+            expect(mockSendEvent).toHaveBeenCalledWith("island-b", "action-b", expect.any(Object));
+            expect(mockSendEvent).toHaveBeenCalledTimes(2);
+
+            // Cleanup
+            cleanupA();
+            cleanupB();
+            document.body.removeChild(islandAElement);
+            document.body.removeChild(islandBElement);
+        });
+    });
+
+    // ---------------------------------------------------------------------------
+    // Live-Patch Tests
+    // ---------------------------------------------------------------------------
+    // These tests are RED: wirePatchEvents does not exist yet.
+    // ---------------------------------------------------------------------------
+
+    describe("Live-Patch Navigation", () => {
+        let originalPushState: typeof history.pushState;
+
+        beforeEach(() => {
+            originalPushState = history.pushState;
+            history.pushState = jest.fn();
+        });
+
+        afterEach(() => {
+            history.pushState = originalPushState;
+        });
+
+        it("should prevent default navigation when clicking a live-patch anchor", () => {
+            // Scenario: Clicking live-patch updates URL and sends params
+            // Given an anchor with live-patch and href="?page=2" inside an island
+            // When the user clicks the anchor
+            // Then the browser URL is updated
+            islandElement.innerHTML = '<a href="?page=2" live-patch>Go to page 2</a>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const anchor = islandElement.querySelector("a") as HTMLAnchorElement;
+            const clickEvent = new MouseEvent("click", { bubbles: true, cancelable: true });
+            const preventDefaultSpy = jest.spyOn(clickEvent, "preventDefault");
+            anchor.dispatchEvent(clickEvent);
+
+            expect(preventDefaultSpy).toHaveBeenCalled();
+        });
+
+        it("should update URL via history.pushState when clicking a live-patch anchor", () => {
+            // Scenario: Clicking live-patch updates URL and sends params
+            // Then the browser URL is updated to include page=2
+            islandElement.innerHTML = '<a href="?page=2" live-patch>Go to page 2</a>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const anchor = islandElement.querySelector("a");
+            anchor?.click();
+
+            expect(history.pushState).toHaveBeenCalled();
+            const callArgs = (history.pushState as jest.Mock).mock.calls[0];
+            // The new URL should contain "page=2"
+            expect(callArgs[2]).toContain("page=2");
+        });
+
+        it("should send a params event with URL search params when clicking a live-patch anchor", () => {
+            // Scenario: Clicking live-patch updates URL and sends params
+            // And a params event is sent to the server with page=2
+            islandElement.innerHTML = '<a href="?page=2" live-patch>Go to page 2</a>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const anchor = islandElement.querySelector("a");
+            anchor?.click();
+
+            expect(mockSendEvent).toHaveBeenCalledWith(islandId, "params", expect.objectContaining({ page: "2" }));
+        });
+
+        it("should send a params event with multiple search params", () => {
+            islandElement.innerHTML = '<a href="?page=3&sort=asc" live-patch>Go to page 3</a>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const anchor = islandElement.querySelector("a");
+            anchor?.click();
+
+            expect(mockSendEvent).toHaveBeenCalledWith(islandId, "params", expect.objectContaining({
+                page: "3",
+                sort: "asc",
+            }));
+        });
+
+        it("should handle live-patch anchor without href gracefully (no error)", () => {
+            // Scenario: Handles elements without href gracefully
+            islandElement.innerHTML = '<a live-patch>No href</a>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const anchor = islandElement.querySelector("a");
+
+            // Should not throw
+            expect(() => anchor?.click()).not.toThrow();
+        });
+
+        it("should not fire events after cleanup for live-patch anchors", () => {
+            islandElement.innerHTML = '<a href="?page=2" live-patch>Go to page 2</a>';
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const anchor = islandElement.querySelector("a");
+
+            // Clean up
+            cleanupFn();
+            cleanupFn = null;
+
+            anchor?.click();
+
+            // No event and no pushState after cleanup
+            expect(mockSendEvent).not.toHaveBeenCalled();
+            expect(history.pushState).not.toHaveBeenCalled();
+        });
+    });
+
+    // ---------------------------------------------------------------------------
+    // Upload Tests (RED)
+    // ---------------------------------------------------------------------------
+    // These tests reference upload progress and file-input validation behaviour
+    // that does NOT yet exist in wireIslandEvents.
+    //
+    // Scenario: Upload progress event dispatched during XHR upload
+    //   Given a form with live-submit and a file input inside an island
+    //   When the form is submitted with a file attached
+    //   Then a "live-upload-progress" CustomEvent is dispatched on the form
+    //   And the event detail contains { loaded, total } reflecting XHR progress
+    //
+    // Scenario: File input change triggers validation event
+    //   Given a file input with live-upload="<config-name>" inside an island
+    //   When the user selects a file using the file input
+    //   Then a "validate" event is sent to the server
+    //   And the event payload contains the upload metadata (name, size, type)
+    // ---------------------------------------------------------------------------
+
+    describe("Upload Events (RED)", () => {
+        let xhrMock: {
+            open: jest.Mock;
+            send: jest.Mock;
+            addEventListener: jest.Mock;
+            upload: {
+                addEventListener: jest.Mock;
+            };
+        };
+
+        beforeEach(() => {
+            // Build a minimal XHR mock that captures upload.onprogress listener.
+            xhrMock = {
+                open: jest.fn(),
+                send: jest.fn(),
+                addEventListener: jest.fn(),
+                upload: {
+                    addEventListener: jest.fn(),
+                },
+            };
+
+            // Replace global XMLHttpRequest with the mock.
+            (global as any).XMLHttpRequest = jest.fn(() => xhrMock);
+        });
+
+        afterEach(() => {
+            // Restore the real XMLHttpRequest after each test.
+            delete (global as any).XMLHttpRequest;
+        });
+
+        it("should dispatch a live-upload-progress event on the form during XHR upload", () => {
+            // Scenario: Upload progress event dispatched during XHR upload
+            // Given a form with live-submit and a file input
+            islandElement.innerHTML = `
+                <form live-submit="submit-event" id="upload-form">
+                    <input name="avatar" type="file" />
+                </form>
+            `;
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const form = islandElement.querySelector("form") as HTMLFormElement;
+
+            // Listen for the progress custom event on the form.
+            const progressEvents: CustomEvent[] = [];
+            form.addEventListener("live-upload-progress", (e: Event) => {
+                progressEvents.push(e as CustomEvent);
+            });
+
+            // Submit the form.
+            form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+            // The XHR should have been created and upload.addEventListener called with "progress".
+            expect(xhrMock.upload.addEventListener).toHaveBeenCalledWith(
+                "progress",
+                expect.any(Function)
+            );
+
+            // Retrieve the progress handler and invoke it with synthetic progress data.
+            const [, progressHandler] = (xhrMock.upload.addEventListener as jest.Mock).mock.calls.find(
+                ([event]: [string]) => event === "progress"
+            ) ?? [];
+
+            if (!progressHandler) {
+                throw new Error("progress handler was not registered on xhr.upload");
+            }
+
+            const progressEvent = { loaded: 512, total: 1024 };
+            progressHandler(progressEvent);
+
+            // The form should have dispatched a live-upload-progress CustomEvent.
+            expect(progressEvents).toHaveLength(1);
+            expect(progressEvents[0].detail).toMatchObject({ loaded: 512, total: 1024 });
+        });
+
+        it("should send a validate event when a file input changes", () => {
+            // Scenario: File input change triggers validation event
+            // Given a file input with live-upload="avatar" inside an island
+            islandElement.innerHTML = `
+                <input type="file" live-upload="avatar" name="avatar" />
+            `;
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const input = islandElement.querySelector("input[type='file']") as HTMLInputElement;
+
+            // Simulate the user selecting a file by defining the files property.
+            const mockFile = new File(["hello"], "photo.png", {
+                type: "image/png",
+                lastModified: 1700000000000,
+            });
+
+            Object.defineProperty(input, "files", {
+                value: [mockFile],
+                writable: false,
+                configurable: true,
+            });
+
+            // Dispatch the change event on the file input.
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+
+            // The island should have sent a "validate" event containing upload metadata.
+            expect(mockSendEvent).toHaveBeenCalledWith(
+                islandId,
+                "validate",
+                expect.objectContaining({
+                    uploads: expect.objectContaining({
+                        avatar: expect.arrayContaining([
+                            expect.objectContaining({
+                                name: "photo.png",
+                                size: mockFile.size,
+                                type: "image/png",
+                            }),
+                        ]),
+                    }),
+                })
+            );
+        });
+
+        it("should not dispatch live-upload-progress when form has no file input", () => {
+            // Regression guard: plain text-only forms should not set up an XHR progress listener.
+            islandElement.innerHTML = `
+                <form live-submit="submit-event">
+                    <input name="username" value="john" />
+                </form>
+            `;
+            cleanupFn = wireIslandEvents(islandElement, islandId);
+
+            const form = islandElement.querySelector("form") as HTMLFormElement;
+            form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+            // XHR should not have been created for a form without files.
+            expect(xhrMock.upload.addEventListener).not.toHaveBeenCalled();
+        });
+    });
 });

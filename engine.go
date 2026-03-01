@@ -3,6 +3,7 @@ package live
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -153,10 +154,12 @@ func (e *IslandEngine) MountIsland(sessionID SessionID, islandID IslandID, islan
 
 	// Render the island and send the initial patch to the client
 	if err := e.renderAndSendIsland(session, instance); err != nil {
-		// Non-fatal - the island is mounted but the client won't see the initial render
-		slog.Error("failed to render and send island on mount",
-			"island", instance.ID,
-			"err", err)
+		if !errors.Is(err, ErrNoRenderer) {
+			// Non-fatal - the island is mounted but the client won't see the initial render
+			slog.Error("failed to render and send island on mount",
+				"island", instance.ID,
+				"err", err)
+		}
 	}
 
 	// Drain self-event queue from mount handler
@@ -279,9 +282,13 @@ func (e *IslandEngine) routeEventWithDepth(sessionID SessionID, event Event, dep
 	e.mu.RUnlock()
 	e.stateStore.Set(sessionID, islandID, instance.State(), ttl)
 
-	// Re-render the island and send the patch to the client
+	// Re-render the island and send the patch to the client.
+	// If no renderer is registered (ErrNoRenderer), skip silently — the island
+	// has no visual representation to update (e.g. a params-only island).
 	if err := e.renderAndSendIsland(session, instance); err != nil {
-		return fmt.Errorf("failed to render island: %w", err)
+		if !errors.Is(err, ErrNoRenderer) {
+			return fmt.Errorf("failed to render island: %w", err)
+		}
 	}
 
 	// If the primary event was a self-event, check for a configured event delay

@@ -39,6 +39,80 @@ function GetParams(element?: HTMLElement): Params {
 }
 
 /**
+ * Throttler for rate-limiting events on a per-element basis.
+ * Fires immediately on the first call, then rate-limits subsequent calls.
+ * A trailing call is fired after the interval elapses if there were suppressed calls.
+ */
+class Throttler {
+    private throttleAttr = "live-throttle";
+    private lastFire: WeakMap<Element, number> = new WeakMap();
+    private pendingTimers: WeakMap<Element, ReturnType<typeof setTimeout>> = new WeakMap();
+
+    public hasThrottle(element: Element): boolean {
+        return element.hasAttribute(this.throttleAttr);
+    }
+
+    public throttle(element: Element, e: Event, fn: EventListener): void {
+        if (!this.hasThrottle(element)) {
+            fn(e);
+            return;
+        }
+
+        const intervalStr = element.getAttribute(this.throttleAttr);
+        if (intervalStr === null) {
+            fn(e);
+            return;
+        }
+
+        const interval = parseInt(intervalStr);
+        const now = Date.now();
+        const last = this.lastFire.get(element);
+
+        if (last === undefined) {
+            // First call: fire immediately
+            this.lastFire.set(element, now);
+            fn(e);
+
+            // No pending timer yet -- set one to allow a trailing fire if needed
+            return;
+        }
+
+        // Subsequent call within throttle window: arm a trailing fire timer
+        // Cancel any existing pending trailing timer
+        const existing = this.pendingTimers.get(element);
+        if (existing !== undefined) {
+            clearTimeout(existing);
+        }
+
+        const elapsed = now - last;
+        const remaining = interval - elapsed;
+
+        if (remaining <= 0) {
+            // Outside the throttle window: fire immediately
+            this.lastFire.set(element, now);
+            fn(e);
+        } else {
+            // Within the throttle window: schedule a trailing fire
+            const timer = setTimeout(() => {
+                this.lastFire.set(element, Date.now());
+                this.pendingTimers.delete(element);
+                fn(e);
+            }, remaining);
+            this.pendingTimers.set(element, timer);
+        }
+    }
+
+    public cleanup(element: Element): void {
+        const timer = this.pendingTimers.get(element);
+        if (timer !== undefined) {
+            clearTimeout(timer);
+            this.pendingTimers.delete(element);
+        }
+        this.lastFire.delete(element);
+    }
+}
+
+/**
  * Debouncer for rate-limiting events on a per-element basis.
  */
 class Debouncer {
@@ -102,6 +176,7 @@ export class EventWiring {
     private islandElement: HTMLElement;
     private islandId: string;
     private debouncer: Debouncer = new Debouncer();
+    private throttler: Throttler = new Throttler();
     private cleanupFunctions: Array<() => void> = [];
     private connectionManager: ConnectionManager;
 
@@ -126,6 +201,12 @@ export class EventWiring {
         this.wireKeyupEvents();
         this.wireChangeEvents();
         this.wireSubmitEvents();
+        this.wireFileInputEvents();
+        this.wireWindowFocusEvents();
+        this.wireWindowBlurEvents();
+        this.wireWindowKeydownEvents();
+        this.wireWindowKeyupEvents();
+        this.wirePatchEvents();
     }
 
     /**
@@ -138,9 +219,15 @@ export class EventWiring {
         this.cleanupFunctions = [];
 
         // Clean up any pending debounce timers
-        const elements = this.islandElement.querySelectorAll("[live-debounce]");
-        elements.forEach(element => {
+        const debouncedElements = this.islandElement.querySelectorAll("[live-debounce]");
+        debouncedElements.forEach(element => {
             this.debouncer.cleanup(element);
+        });
+
+        // Clean up any pending throttle timers
+        const throttledElements = this.islandElement.querySelectorAll("[live-throttle]");
+        throttledElements.forEach(element => {
+            this.throttler.cleanup(element);
         });
     }
 
@@ -221,7 +308,11 @@ export class EventWiring {
             const inputs = form.querySelectorAll("input, select, textarea");
             inputs.forEach((input: Element) => {
                 const inputHandler = (e: Event) => {
-                    if (this.debouncer.hasDebounce(input)) {
+                    if (this.throttler.hasThrottle(input)) {
+                        this.throttler.throttle(input, e, () => {
+                            this.handleChangeEvent(form as HTMLFormElement, attribute);
+                        });
+                    } else if (this.debouncer.hasDebounce(input)) {
                         this.debouncer.debounce(input, e, () => {
                             this.handleChangeEvent(form as HTMLFormElement, attribute);
                         });
@@ -244,7 +335,11 @@ export class EventWiring {
                 );
                 associatedInputs.forEach((input: Element) => {
                     const inputHandler = (e: Event) => {
-                        if (this.debouncer.hasDebounce(input)) {
+                        if (this.throttler.hasThrottle(input)) {
+                            this.throttler.throttle(input, e, () => {
+                                this.handleChangeEvent(form as HTMLFormElement, attribute);
+                            });
+                        } else if (this.debouncer.hasDebounce(input)) {
                             this.debouncer.debounce(input, e, () => {
                                 this.handleChangeEvent(form as HTMLFormElement, attribute);
                             });
@@ -280,9 +375,28 @@ export class EventWiring {
                     // Handle file upload before sending event
                     const request = new XMLHttpRequest();
                     request.open("POST", "");
+
+                    // Track upload progress and dispatch a custom event on the form.
+                    request.upload.addEventListener("progress", (progressEvent: ProgressEvent) => {
+                        (form as HTMLFormElement).dispatchEvent(
+                            new CustomEvent("live-upload-progress", {
+                                bubbles: true,
+                                detail: {
+                                    loaded: progressEvent.loaded,
+                                    total: progressEvent.total,
+                                },
+                            })
+                        );
+                    });
+
                     request.addEventListener("load", () => {
                         this.handleSubmitEvent(form as HTMLFormElement, params, attribute);
                     });
+
+                    request.addEventListener("error", () => {
+                        form.classList.remove(`${attribute}-loading`);
+                    });
+
                     request.send(new FormData(form as HTMLFormElement));
                 } else {
                     this.handleSubmitEvent(form as HTMLFormElement, params, attribute);
@@ -308,6 +422,220 @@ export class EventWiring {
     }
 
     /**
+     * Wire file input change events within the island.
+     * When a file input with the attribute live-upload="<config-name>" changes,
+     * a "validate" event is sent to the server with the upload metadata so the
+     * server can validate the selected files against the UploadConfig.
+     */
+    private wireFileInputEvents(): void {
+        const fileInputs = this.islandElement.querySelectorAll(`input[type="file"][live-upload]`);
+
+        fileInputs.forEach((input: Element) => {
+            const changeHandler = () => {
+                const configName = input.getAttribute("live-upload");
+                if (configName === null) {
+                    return;
+                }
+
+                const fileInput = input as HTMLInputElement;
+                const files = fileInput.files;
+                if (!files || files.length === 0) {
+                    return;
+                }
+
+                const fileList: Array<{ name: string; size: number; type: string; lastModified: number }> = [];
+                for (let i = 0; i < files.length; i++) {
+                    const f = files[i];
+                    fileList.push({
+                        name: f.name,
+                        size: f.size,
+                        type: f.type,
+                        lastModified: f.lastModified,
+                    });
+                }
+
+                const params = {
+                    uploads: {
+                        [configName]: fileList,
+                    },
+                };
+
+                this.connectionManager.sendEvent(this.islandId, "validate", params);
+            };
+
+            input.addEventListener("change", changeHandler);
+            this.cleanupFunctions.push(() => {
+                input.removeEventListener("change", changeHandler);
+            });
+        });
+    }
+
+    /**
+     * Wire window focus event handlers for elements with live-window-focus within the island.
+     */
+    private wireWindowFocusEvents(): void {
+        this.wireWindowStandardEvent("focus", "live-window-focus");
+    }
+
+    /**
+     * Wire window blur event handlers for elements with live-window-blur within the island.
+     */
+    private wireWindowBlurEvents(): void {
+        this.wireWindowStandardEvent("blur", "live-window-blur");
+    }
+
+    /**
+     * Wire window keydown event handlers for elements with live-window-keydown within the island.
+     */
+    private wireWindowKeydownEvents(): void {
+        this.wireWindowKeyEvent("keydown", "live-window-keydown");
+    }
+
+    /**
+     * Wire window keyup event handlers for elements with live-window-keyup within the island.
+     */
+    private wireWindowKeyupEvents(): void {
+        this.wireWindowKeyEvent("keyup", "live-window-keyup");
+    }
+
+    /**
+     * Wire patch navigation event handlers for [live-patch] anchors within the island.
+     */
+    private wirePatchEvents(): void {
+        const elements = this.islandElement.querySelectorAll("[live-patch]");
+
+        elements.forEach((element: Element) => {
+            const handler = (e: Event) => {
+                e.preventDefault();
+
+                const href = element.getAttribute("href");
+                if (href === null || href === "") {
+                    return;
+                }
+
+                history.pushState({}, "", href);
+
+                // Extract search params from the href
+                const params: Params = {};
+                // Parse the href to extract search params
+                const questionMark = href.indexOf("?");
+                if (questionMark !== -1) {
+                    const searchString = href.substring(questionMark);
+                    const urlParams = new URLSearchParams(searchString);
+                    urlParams.forEach((value, key) => {
+                        params[key] = value;
+                    });
+                }
+
+                // Use attribute value as event name, or default to "params"
+                const eventName = element.getAttribute("live-patch") || "params";
+
+                this.connectionManager.sendEvent(this.islandId, eventName, params);
+            };
+
+            element.addEventListener("click", handler);
+            this.cleanupFunctions.push(() => {
+                element.removeEventListener("click", handler);
+            });
+        });
+    }
+
+    /**
+     * Generic handler for standard events bound to window (focus, blur).
+     * Queries elements with the given attribute within the island and attaches
+     * the listener to the window.
+     */
+    private wireWindowStandardEvent(eventType: string, attribute: string): void {
+        const elements = this.islandElement.querySelectorAll(`[${attribute}]`);
+
+        elements.forEach((element: Element) => {
+            const params = GetParams(element as HTMLElement);
+
+            const handler = (_e: Event) => {
+                this.handleWindowStandardEvent(element as HTMLElement, params, attribute);
+            };
+
+            window.addEventListener(eventType, handler);
+            this.cleanupFunctions.push(() => {
+                window.removeEventListener(eventType, handler);
+            });
+        });
+    }
+
+    /**
+     * Generic handler for keyboard events bound to window (keydown, keyup).
+     * Queries elements with the given attribute within the island and attaches
+     * the listener to the window.
+     */
+    private wireWindowKeyEvent(eventType: string, attribute: string): void {
+        const elements = this.islandElement.querySelectorAll(`[${attribute}]`);
+
+        elements.forEach((element: Element) => {
+            const params = GetParams(element as HTMLElement);
+
+            const handler = (e: Event) => {
+                const ke = e as KeyboardEvent;
+
+                // Check for key filter
+                const filter = element.getAttribute("live-key");
+                if (filter !== null && ke.key !== filter) {
+                    return;
+                }
+
+                this.handleWindowKeyEvent(element as HTMLElement, params, attribute, ke);
+            };
+
+            window.addEventListener(eventType, handler);
+            this.cleanupFunctions.push(() => {
+                window.removeEventListener(eventType, handler);
+            });
+        });
+    }
+
+    /**
+     * Handle a window standard event by sending it to the server.
+     */
+    private handleWindowStandardEvent(element: HTMLElement, params: Params, attribute: string): void {
+        const eventName = element.getAttribute(attribute);
+        if (eventName === null) {
+            return;
+        }
+
+        element.classList.add(`${attribute}-loading`);
+
+        this.connectionManager.sendEvent(this.islandId, eventName, params);
+    }
+
+    /**
+     * Handle a window keyboard event by sending it to the server.
+     */
+    private handleWindowKeyEvent(
+        element: HTMLElement,
+        params: Params,
+        attribute: string,
+        keyEvent: KeyboardEvent
+    ): void {
+        const eventName = element.getAttribute(attribute);
+        if (eventName === null) {
+            return;
+        }
+
+        element.classList.add(`${attribute}-loading`);
+
+        const keyData = {
+            key: keyEvent.key,
+            altKey: keyEvent.altKey,
+            ctrlKey: keyEvent.ctrlKey,
+            shiftKey: keyEvent.shiftKey,
+            metaKey: keyEvent.metaKey,
+        };
+
+        const eventData = { ...params, ...keyData };
+
+        this.connectionManager.sendEvent(this.islandId, eventName, eventData);
+    }
+
+    /**
      * Generic handler for standard events (click, focus, blur, etc.)
      */
     private wireStandardEvent(eventType: string, attribute: string): void {
@@ -317,7 +645,11 @@ export class EventWiring {
             const params = GetParams(element as HTMLElement);
 
             const handler = (e: Event) => {
-                if (this.debouncer.hasDebounce(element)) {
+                if (this.throttler.hasThrottle(element)) {
+                    this.throttler.throttle(element, e, () => {
+                        this.handleStandardEvent(element as HTMLElement, params, attribute);
+                    });
+                } else if (this.debouncer.hasDebounce(element)) {
                     this.debouncer.debounce(element, e, () => {
                         this.handleStandardEvent(element as HTMLElement, params, attribute);
                     });
@@ -360,7 +692,11 @@ export class EventWiring {
                     return;
                 }
 
-                if (this.debouncer.hasDebounce(element)) {
+                if (this.throttler.hasThrottle(element)) {
+                    this.throttler.throttle(element, e, () => {
+                        this.handleKeyEvent(element as HTMLElement, params, attribute, ke);
+                    });
+                } else if (this.debouncer.hasDebounce(element)) {
                     this.debouncer.debounce(element, e, () => {
                         this.handleKeyEvent(element as HTMLElement, params, attribute, ke);
                     });

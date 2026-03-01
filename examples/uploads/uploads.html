@@ -1,0 +1,54 @@
+<div>
+    <form live-submit="validate">
+        <div>
+            <label for="photos">Upload Photos (PNG only, max 1 MB each, up to 3 files):</label>
+            <input type="file" id="photos" name="photos" accept="image/png" multiple live-upload="photos" />
+        </div>
+        <div>
+            <button type="submit">Validate</button>
+            <button type="button" live-click="save">Save</button>
+        </div>
+    </form>
+
+    {{if .Errors}}
+    <div class="errors">
+        <h3>Validation Errors:</h3>
+        <ul>
+            {{range .Errors}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
+
+    {{if .SavedFiles}}
+    <div class="saved-files">
+        <h3>Saved Files:</h3>
+        <ul>
+            {{range .SavedFiles}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
+
+    {{if .Uploads}}
+    <div class="staged-files">
+        <h3>Staged Files:</h3>
+        {{range $name, $uploads := .Uploads}}
+        <div>
+            <strong>{{$name}}:</strong>
+            <ul>
+                {{range $uploads}}
+                <li>{{.Name}} ({{.Size}} bytes, {{.Type}})
+                    {{if .Errors}}
+                    - Errors: {{range .Errors}}{{.}} {{end}}
+                    {{end}}
+                </li>
+                {{end}}
+            </ul>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+</div>

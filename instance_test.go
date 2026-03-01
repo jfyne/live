@@ -151,6 +151,100 @@ func TestNewIslandInstanceWithChildren(t *testing.T) {
 	})
 }
 
+// TestNewIslandInstanceWithChildren_Constructor verifies that
+// NewIslandInstanceWithChildren stores the provided children string so that
+// Children() returns it and the mount handler receives it.
+func TestNewIslandInstanceWithChildren_Constructor(t *testing.T) {
+	t.Run("children stored and accessible via Children()", func(t *testing.T) {
+		// NewIslandInstanceWithChildren uses the global defaultRegistry, so we
+		// must register the island there. Use a unique name to avoid collisions
+		// with other tests.
+		const islandType = "test-children-wrapper-unique"
+		_ = RegisterIsland(islandType, func() (*Island, error) {
+			return NewIsland(islandType,
+				WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+					return map[string]string{"children": children}, nil
+				}),
+				WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+					return strings.NewReader("<div>" + rc.Children + "</div>"), nil
+				}),
+			)
+		})
+
+		const childContent = "<span>hello world</span>"
+		instance, err := NewIslandInstanceWithChildren("wrapper-1", islandType, Props{}, childContent)
+		if err != nil {
+			t.Fatalf("NewIslandInstanceWithChildren() error = %v", err)
+		}
+
+		// Children() should return the value set at creation.
+		if instance.Children() != childContent {
+			t.Errorf("Children() = %q, want %q", instance.Children(), childContent)
+		}
+	})
+
+	t.Run("mount handler receives children from constructor", func(t *testing.T) {
+		childrenRegistry := NewIslandRegistry()
+		_ = childrenRegistry.Register("container", func() (*Island, error) {
+			return NewIsland("container",
+				WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+					// Store children in state so we can assert it later.
+					return map[string]string{"received": children}, nil
+				}),
+			)
+		})
+
+		const childContent = "<p>nested content</p>"
+		instance, err := NewIslandInstanceFromRegistry("container-1", "container", Props{}, childrenRegistry)
+		if err != nil {
+			t.Fatalf("NewIslandInstanceFromRegistry() error = %v", err)
+		}
+		instance.children = childContent
+
+		if err := instance.Mount(context.Background()); err != nil {
+			t.Fatalf("Mount() error = %v", err)
+		}
+
+		state := instance.State().(map[string]string)
+		if state["received"] != childContent {
+			t.Errorf("mount handler received children %q, want %q", state["received"], childContent)
+		}
+	})
+
+	t.Run("NewIslandInstanceWithChildren preserves props alongside children", func(t *testing.T) {
+		childrenRegistry := NewIslandRegistry()
+		_ = childrenRegistry.Register("widget", func() (*Island, error) {
+			return NewIsland("widget",
+				WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+					return map[string]any{
+						"label":    props.String("label"),
+						"children": children,
+					}, nil
+				}),
+			)
+		})
+
+		const childContent = "<em>inner</em>"
+		instance, err := NewIslandInstanceFromRegistry("widget-1", "widget", Props{"label": "test"}, childrenRegistry)
+		if err != nil {
+			t.Fatalf("NewIslandInstanceFromRegistry() error = %v", err)
+		}
+		instance.children = childContent
+
+		if err := instance.Mount(context.Background()); err != nil {
+			t.Fatalf("Mount() error = %v", err)
+		}
+
+		state := instance.State().(map[string]any)
+		if state["label"] != "test" {
+			t.Errorf("state[label] = %q, want %q", state["label"], "test")
+		}
+		if state["children"] != childContent {
+			t.Errorf("state[children] = %q, want %q", state["children"], childContent)
+		}
+	})
+}
+
 func TestIslandInstanceMount(t *testing.T) {
 	registry := createTestRegistry()
 
@@ -849,6 +943,133 @@ func TestIslandInstance_UnmountCancelsTimers(t *testing.T) {
 			t.Error("timer callback fired after CancelTimers(); expected it to be stopped")
 		case <-time.After(150 * time.Millisecond):
 			// Correct: the timer did not fire.
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// RED tests for IslandInstance.CallParams
+// These tests reference APIs that do not yet exist and will fail to compile.
+// ---------------------------------------------------------------------------
+
+// createParamsTestRegistry creates a registry with a "params-counter" island
+// that has a params handler registered.
+func createParamsTestRegistry() *IslandRegistry {
+	registry := NewIslandRegistry()
+	_ = registry.Register("params-counter", func() (*Island, error) {
+		island, _ := NewIsland("params-counter",
+			WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+				return &counterState{Count: 0}, nil
+			}),
+			WithRender(func(ctx context.Context, rc *IslandRenderContext) (io.Reader, error) {
+				state := rc.State.(*counterState)
+				return strings.NewReader("<div>" + string(rune('0'+state.Count)) + "</div>"), nil
+			}),
+		)
+		// Register a params handler that updates count from "page" param.
+		_ = island.HandleParams(func(ctx context.Context, state any, params Params) (any, error) {
+			page := params.Int("page")
+			return &counterState{Count: page}, nil
+		})
+		return island, nil
+	})
+	return registry
+}
+
+// TestIslandInstanceCallParams verifies that CallParams calls the registered
+// params handler and updates the island state.
+//
+// Scenario: CallParams calls the params handler with the params
+// Scenario: CallParams updates island state after handler execution
+func TestIslandInstanceCallParams(t *testing.T) {
+	registry := createParamsTestRegistry()
+
+	t.Run("calls params handler and updates state", func(t *testing.T) {
+		instance, _ := NewIslandInstanceFromRegistry("params-counter-1", "params-counter", Props{}, registry)
+		_ = instance.Mount(context.Background())
+
+		err := instance.CallParams(context.Background(), Params{"page": 5})
+		if err != nil {
+			t.Fatalf("CallParams() error = %v", err)
+		}
+
+		state := instance.State().(*counterState)
+		if state.Count != 5 {
+			t.Errorf("state.Count = %d after CallParams, want 5", state.Count)
+		}
+	})
+
+	t.Run("CallParams with no registered handler returns nil (no-op)", func(t *testing.T) {
+		// Use a registry with an island that has NO params handler.
+		noParamsRegistry := NewIslandRegistry()
+		_ = noParamsRegistry.Register("no-params", func() (*Island, error) {
+			return NewIsland("no-params",
+				WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+					return &counterState{Count: 42}, nil
+				}),
+			)
+		})
+
+		instance, _ := NewIslandInstanceFromRegistry("no-params-1", "no-params", Props{}, noParamsRegistry)
+		_ = instance.Mount(context.Background())
+
+		// CallParams with no handler should be a no-op (return nil, keep state).
+		err := instance.CallParams(context.Background(), Params{"page": 99})
+		if err != nil {
+			t.Errorf("CallParams() with no handler error = %v, want nil", err)
+		}
+
+		// State should be unchanged.
+		state := instance.State().(*counterState)
+		if state.Count != 42 {
+			t.Errorf("state.Count = %d after CallParams with no handler, want 42 (unchanged)", state.Count)
+		}
+	})
+
+	t.Run("CallParams propagates handler error", func(t *testing.T) {
+		errorRegistry := NewIslandRegistry()
+		expectedErr := errors.New("params handler failed")
+		_ = errorRegistry.Register("failing-params", func() (*Island, error) {
+			island, _ := NewIsland("failing-params",
+				WithMount(func(ctx context.Context, props Props, children string) (any, error) {
+					return &counterState{Count: 0}, nil
+				}),
+			)
+			_ = island.HandleParams(func(ctx context.Context, state any, params Params) (any, error) {
+				return nil, expectedErr
+			})
+			return island, nil
+		})
+
+		instance, _ := NewIslandInstanceFromRegistry("failing-params-1", "failing-params", Props{}, errorRegistry)
+		_ = instance.Mount(context.Background())
+
+		err := instance.CallParams(context.Background(), Params{})
+		if !errors.Is(err, expectedErr) {
+			t.Errorf("CallParams() error = %v, want %v", err, expectedErr)
+		}
+	})
+
+	t.Run("CallParams updates state with handler return value", func(t *testing.T) {
+		registry := createParamsTestRegistry()
+		instance, _ := NewIslandInstanceFromRegistry("params-counter-1", "params-counter", Props{}, registry)
+		_ = instance.Mount(context.Background())
+
+		// Initial state should be zero.
+		initial := instance.State().(*counterState)
+		if initial.Count != 0 {
+			t.Fatalf("initial state.Count = %d, want 0", initial.Count)
+		}
+
+		// CallParams should update the count to the page param value.
+		err := instance.CallParams(context.Background(), Params{"page": 7})
+		if err != nil {
+			t.Fatalf("CallParams() error = %v", err)
+		}
+
+		updated := instance.State().(*counterState)
+		if updated.Count != 7 {
+			t.Errorf("state.Count = %d after CallParams, want 7", updated.Count)
 		}
 	})
 }

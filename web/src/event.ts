@@ -180,6 +180,7 @@ export class EventDispatch {
             element.dispatchEvent(event);
         });
         document.body.classList.remove(ClassDisconnected);
+        document.body.classList.remove(ClassError);
         document.body.classList.add(ClassConnected);
     }
 

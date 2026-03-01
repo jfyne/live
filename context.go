@@ -2,6 +2,7 @@ package live
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
 
@@ -115,4 +116,26 @@ func selfEventQueueFromContext(ctx context.Context) *[]Event {
 		return nil
 	}
 	return queue
+}
+
+// sessionFromContext extracts the Session from a context by looking up the
+// engine and session ID, then calling engine.GetSession.
+// Returns an error if the engine, session ID, or session is not found.
+func sessionFromContext(ctx context.Context) (*Session, error) {
+	engine := engineFromContext(ctx)
+	if engine == nil {
+		return nil, fmt.Errorf("sessionFromContext: no engine in context")
+	}
+
+	sessionID := sessionIDFromContext(ctx)
+	if sessionID == "" {
+		return nil, fmt.Errorf("sessionFromContext: no session ID in context")
+	}
+
+	session, ok := engine.GetSession(sessionID)
+	if !ok {
+		return nil, fmt.Errorf("sessionFromContext: session %q not found", sessionID)
+	}
+
+	return session, nil
 }

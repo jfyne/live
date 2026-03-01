@@ -1,0 +1,20 @@
+<div class="autocomplete" x-data="autocomplete()" @click.outside="close()">
+    <form id="autocomplete-form" live-submit="submit" live-change="suggest">
+        <input type="text" name="search" x-on:focus="open" placeholder="Search programming languages..." autocomplete="off">
+    </form>
+    <ul class="suggestions" x-show="isOpen">
+        {{ range .Suggestions }}
+        <li live-click="selected" live-value-id="{{ .ID }}">{{ .Name }}</li>
+        {{ end }}
+    </ul>
+</div>
+{{ if .Selected }}
+<div class="selected">
+    <h3>Selected:</h3>
+    <ul>
+        {{ range .Selected }}
+        <li>{{ .Name }}</li>
+        {{ end }}
+    </ul>
+</div>
+{{ end }}

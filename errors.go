@@ -16,3 +16,28 @@ var ErrNoSocket = errors.New("no socket")
 
 // ErrNotImplemented returned when an interface has not been implemented correctly.
 var ErrNotImplemented = errors.New("not implemented")
+
+// ErrDuplicateEventHandler returned when attempting to register an event handler
+// for an event that already has a handler.
+var ErrDuplicateEventHandler = errors.New("duplicate event handler")
+
+// ErrDuplicateSelfHandler returned when attempting to register a self handler
+// for an event that already has a handler.
+var ErrDuplicateSelfHandler = errors.New("duplicate self handler")
+
+// ErrNoSelfHandler returned when a handler has no self handler for that event.
+var ErrNoSelfHandler = errors.New("island missing self handler")
+
+// ErrIslandNotFound returned when an island type is not found in the registry.
+var ErrIslandNotFound = errors.New("island not found")
+
+// ErrIslandAlreadyRegistered returned when attempting to register an island
+// with a name that is already registered.
+var ErrIslandAlreadyRegistered = errors.New("island already registered")
+
+// ErrAlreadyMounted returned when attempting to mount an island instance
+// that has already been mounted.
+var ErrAlreadyMounted = errors.New("island instance already mounted")
+
+// ErrTransportClosed returned when attempting to use a transport that has been closed.
+var ErrTransportClosed = errors.New("transport closed")

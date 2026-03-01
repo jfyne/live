@@ -1,15 +1,22 @@
 package live
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"log/slog"
+	"io"
 	"os"
 )
 
-const upKey = "uploads"
+// Error sentinels for upload validation failures.
+var (
+	ErrUploadNotFound     = errors.New("uploads not found")
+	ErrUploadTooLarge     = errors.New("upload too large")
+	ErrUploadNotAccepted  = errors.New("upload not accepted")
+	ErrUploadTooManyFiles = errors.New("upload too many files")
+	ErrUploadMalformed    = errors.New("upload malformed")
+)
 
+// UploadError wraps an upload sentinel error with optional additional context.
 type UploadError struct {
 	additional string
 	err        error
@@ -26,162 +33,165 @@ func (u *UploadError) Unwrap() error {
 	return u.err
 }
 
-var (
-	ErrUploadNotFound     = errors.New("uploads not found")
-	ErrUploadTooLarge     = errors.New("upload too large")
-	ErrUploadNotAccepted  = errors.New("upload not accepted")
-	ErrUploadTooManyFiles = errors.New("upload too many files")
-	ErrUploadMalformed    = errors.New("upload malformed")
-)
-
-// UploadConfig describes an upload to accept on the socket.
+// UploadConfig describes the constraints for a named file upload field.
 type UploadConfig struct {
-	// The form input name to accept from.
+	// Name is the form input name to accept uploads from.
 	Name string
-	// The max number of files to allow to be uploaded.
+	// MaxFiles is the maximum number of files allowed in a single upload.
 	MaxFiles int
-	// The maximum size of all files to accept.
+	// MaxSize is the maximum size in bytes for a single uploaded file.
 	MaxSize int64
-	// Which type of files to accept.
+	// Accept is a list of accepted MIME types (e.g. "image/png").
 	Accept []string
 }
 
-// Upload describes an upload from the client.
+// Upload describes a single file upload from the client.
 type Upload struct {
-	Name         string
-	Size         int64
-	Type         string
-	LastModified string
-	Errors       []error
-	Progress     float32
+	// Name is the original filename reported by the client.
+	Name string
+	// Size is the file size in bytes reported by the client.
+	Size int64
+	// Type is the MIME type reported by the client.
+	Type string
+	// LastModified is the last-modified timestamp reported by the client.
+	LastModified int64
+	// Errors contains any validation errors for this upload.
+	Errors []error
 
-	internalLocation string `json:"-"`
-	bytesRead        int64  `json:"-"`
+	// internalLocation is the path to the staged file on the server.
+	// It is unexported so that callers must use File() to access content.
+	internalLocation string
 }
 
-// File gets an open file reader.
-func (u Upload) File() (*os.File, error) {
-	return os.Open(u.internalLocation)
+// File opens and returns an io.ReadCloser for the staged file content.
+// The caller is responsible for closing the returned reader.
+// Returns an error if internalLocation is empty or the file cannot be opened.
+func (u *Upload) File() (io.ReadCloser, error) {
+	if u.internalLocation == "" {
+		return nil, fmt.Errorf("upload: no staged file location")
+	}
+	f, err := os.Open(u.internalLocation)
+	if err != nil {
+		return nil, fmt.Errorf("upload: open staged file: %w", err)
+	}
+	return f, nil
 }
 
-// UploadContext the context which we render to templates.
+// UploadContext maps upload config names to their list of validated uploads.
 type UploadContext map[string][]*Upload
 
-// HasErrors does the upload context have any errors.
-func (u UploadContext) HasErrors() bool {
-	for _, uploads := range u {
-		for _, u := range uploads {
-			if len(u.Errors) > 0 {
-				return true
-			}
-		}
-	}
-	return false
-}
+const upKey = "uploads"
 
-// UploadProgress tracks uploads and updates an upload
-// object with progress.
-type UploadProgress struct {
-	Upload *Upload
-	Engine *Engine
-	Socket *Socket
-}
+// ValidateUploads reads upload metadata from params and validates each file
+// against the supplied configs. Validation errors are attached to individual
+// Upload entries rather than returned as a function error, so callers receive
+// the full context regardless of validation outcome.
+//
+// params is expected to contain:
+//
+//	{ "uploads": { "<name>": [ { "name": "...", "size": <int>, "type": "..." }, ... ] } }
+func ValidateUploads(params Params, configs []*UploadConfig) (UploadContext, error) {
+	ctx := make(UploadContext)
 
-// Write interface to track progress of an upload.
-func (u *UploadProgress) Write(p []byte) (n int, err error) {
-	n = len(p)
-	u.Upload.bytesRead += int64(n)
-	u.Upload.Progress = float32(u.Upload.bytesRead) / float32(u.Upload.Size)
-	if rerr := u.Socket.Render(context.Background()); rerr != nil {
-		slog.Error("error in upload progress", "err", rerr)
-	}
-	return
-}
-
-// ValidateUploads checks proposed uploads for errors, should be called
-// in a validation check function.
-func ValidateUploads(s *Socket, p Params) {
-	s.ClearUploads()
-
-	input, ok := p[upKey].(map[string]any)
+	input, ok := params[upKey].(map[string]any)
 	if !ok {
-		slog.Warn("validate uploads", "err", ErrUploadNotFound)
-		return
+		// No uploads key in params: return empty context without error.
+		return ctx, nil
 	}
 
-	for _, c := range s.UploadConfigs() {
-		uploads, ok := input[c.Name].([]any)
+	for _, c := range configs {
+		rawList, ok := input[c.Name].([]any)
 		if !ok {
-			s.AssignUpload(c.Name, &Upload{Errors: []error{ErrUploadNotFound}})
+			ctx[c.Name] = []*Upload{{Errors: []error{&UploadError{err: ErrUploadNotFound}}}}
 			continue
 		}
-		if len(uploads) > c.MaxFiles {
-			s.AssignUpload(c.Name, &Upload{Errors: []error{&UploadError{err: ErrUploadTooManyFiles}}})
+
+		var uploads []*Upload
+
+		if c.MaxFiles > 0 && len(rawList) > c.MaxFiles {
+			// Tag every entry with the too-many-files error.
+			for _, raw := range rawList {
+				f, _ := raw.(map[string]any)
+				u := buildUpload(f)
+				u.Errors = append(u.Errors, &UploadError{err: ErrUploadTooManyFiles})
+				uploads = append(uploads, u)
+			}
+			ctx[c.Name] = uploads
+			continue
 		}
-		for _, u := range uploads {
-			f, ok := u.(map[string]any)
+
+		for _, raw := range rawList {
+			f, ok := raw.(map[string]any)
 			if !ok {
-				s.AssignUpload(c.Name, &Upload{Errors: []error{&UploadError{err: ErrUploadNotFound}}})
+				uploads = append(uploads, &Upload{Errors: []error{&UploadError{err: ErrUploadMalformed}}})
 				continue
 			}
-			u := &Upload{
-				Name: mapString(f, "name"),
-				Size: int64(mapInt(f, "size")),
-				Type: mapString(f, "type"),
-			}
+			u := buildUpload(f)
 
-			// Check size.
-			if u.Size > c.MaxSize {
+			if c.MaxSize > 0 && u.Size > c.MaxSize {
 				u.Errors = append(u.Errors, &UploadError{err: ErrUploadTooLarge})
 			}
 
-			// Check Accept.
-			accepted := false
-			for _, a := range c.Accept {
-				if u.Type == a {
-					accepted = true
+			if len(c.Accept) > 0 {
+				accepted := false
+				for _, a := range c.Accept {
+					if u.Type == a {
+						accepted = true
+						break
+					}
+				}
+				if !accepted {
+					u.Errors = append(u.Errors, &UploadError{err: ErrUploadNotAccepted})
 				}
 			}
-			if !accepted {
-				u.Errors = append(u.Errors, &UploadError{err: ErrUploadNotAccepted})
-			}
-			s.AssignUpload(c.Name, u)
+
+			uploads = append(uploads, u)
 		}
+
+		ctx[c.Name] = uploads
 	}
+
+	return ctx, nil
 }
 
-// ConsumeHandler callback type when uploads are consumed.
-type ConsumeHandler func(u *Upload) error
+// buildUpload constructs an Upload from a raw JSON map entry.
+func buildUpload(f map[string]any) *Upload {
+	if f == nil {
+		return &Upload{}
+	}
+	u := &Upload{
+		Name: mapString(f, "name"),
+		Type: mapString(f, "type"),
+		Size: int64(mapInt(f, "size")),
+	}
+	// lastModified may arrive as a float64 from JSON decoding.
+	if lm, ok := f["lastModified"]; ok {
+		switch v := lm.(type) {
+		case float64:
+			u.LastModified = int64(v)
+		case int64:
+			u.LastModified = v
+		case int:
+			u.LastModified = int64(v)
+		}
+	}
+	return u
+}
 
-// ConsumeUploads helper function to consume the staged uploads.
-func ConsumeUploads(s *Socket, name string, ch ConsumeHandler) []error {
-	errs := []error{}
-	all := s.Uploads()
-	uploads, ok := all[name]
+// ConsumeUploads iterates over all uploads registered under name in the
+// UploadContext and calls handler for each one. Any errors returned by
+// handler are collected and returned. The handler is responsible for
+// processing (e.g. moving) the staged file.
+func ConsumeUploads(uploads UploadContext, name string, handler func(*Upload) error) []error {
+	var errs []error
+	list, ok := uploads[name]
 	if !ok {
 		return errs
 	}
-	for _, u := range uploads {
-		if err := ch(u); err != nil {
+	for _, u := range list {
+		if err := handler(u); err != nil {
 			errs = append(errs, err)
 		}
-		s.ClearUpload(name, u)
 	}
 	return errs
-}
-
-// WithMaxUploadSize set the handler engine to have a maximum upload size.
-func WithMaxUploadSize(size int64) EngineConfig {
-	return func(e *Engine) error {
-		e.MaxUploadSize = size
-		return nil
-	}
-}
-
-// WithUploadStagingLocation set the handler engine with a specific upload staging location.
-func WithUploadStagingLocation(stagingLocation string) EngineConfig {
-	return func(e *Engine) error {
-		e.UploadStagingLocation = stagingLocation
-		return nil
-	}
 }

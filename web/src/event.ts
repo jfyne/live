@@ -1,4 +1,3 @@
-import { Socket } from "./socket";
 import { LiveElement } from "./element";
 import { Hook, Hooks, DOM } from "./interop";
 
@@ -17,6 +16,9 @@ export const ClassError = "live-error";
 /**
  * LiveEvent an event that is being passed back and forth
  * between the frontend and server.
+ *
+ * NOTE: This is kept for backward compatibility with tests and internal use.
+ * In v2, events are handled via TransportMessage types.
  */
 export class LiveEvent {
     public typ: string;
@@ -62,14 +64,13 @@ export class LiveEvent {
 }
 
 /**
- * EventDispatch allows the code base to send events
- * to hooked elements. Also handles events coming from
- * the server.
+ * EventDispatch provides lifecycle event dispatching for elements.
+ * In v2, this is primarily used for backward compatibility with existing hooks
+ * and for dispatching DOM lifecycle events during patching.
  */
 export class EventDispatch {
-    private static hooks: Hooks;
+    private static hooks: Hooks = {};
     private static dom?: DOM;
-    private static eventHandlers: { [e: string]: ((d: any) => void)[] };
 
     constructor() {}
 
@@ -79,19 +80,6 @@ export class EventDispatch {
     static init(hooks: Hooks, dom?: DOM) {
         this.hooks = hooks;
         this.dom = dom;
-        this.eventHandlers = {};
-    }
-
-    /**
-     * Handle an event pushed from the server.
-     */
-    static handleEvent(ev: LiveEvent) {
-        if (!(ev.typ in this.eventHandlers)) {
-            return;
-        }
-        this.eventHandlers[ev.typ].map((h) => {
-            h(ev.data);
-        });
     }
 
     /**
@@ -100,10 +88,10 @@ export class EventDispatch {
     static mounted(element: Element) {
         const event = new CustomEvent(EventMounted, {});
         const h = this.getElementHooks(element);
-        if (h === null) {
-            return;
+        if (h !== null && h.mounted) {
+            h.mounted.bind({ el: element })();
         }
-        this.callHook(event, element, h.mounted);
+        element.dispatchEvent(event);
     }
 
     /**
@@ -113,8 +101,8 @@ export class EventDispatch {
         const event = new CustomEvent(EventBeforeUpdate, {});
 
         const h = this.getElementHooks(fromEl);
-        if (h !== null) {
-            this.callHook(event, fromEl, h.beforeUpdate);
+        if (h !== null && h.beforeUpdate) {
+            h.beforeUpdate.bind({ el: fromEl })();
         }
 
         if (
@@ -123,18 +111,20 @@ export class EventDispatch {
         ) {
             this.dom.onBeforeElUpdated(fromEl, toEl);
         }
+
+        fromEl.dispatchEvent(event);
     }
 
     /**
-     * After and element has been updated.
+     * After an element has been updated.
      */
     static updated(element: Element) {
         const event = new CustomEvent(EventUpdated, {});
         const h = this.getElementHooks(element);
-        if (h === null) {
-            return;
+        if (h !== null && h.updated) {
+            h.updated.bind({ el: element })();
         }
-        this.callHook(event, element, h.updated);
+        element.dispatchEvent(event);
     }
 
     /**
@@ -143,10 +133,10 @@ export class EventDispatch {
     static beforeDestroy(element: Element) {
         const event = new CustomEvent(EventBeforeDestroy, {});
         const h = this.getElementHooks(element);
-        if (h === null) {
-            return;
+        if (h !== null && h.beforeDestroy) {
+            h.beforeDestroy.bind({ el: element })();
         }
-        this.callHook(event, element, h.beforeDestroy);
+        element.dispatchEvent(event);
     }
 
     /**
@@ -155,10 +145,10 @@ export class EventDispatch {
     static destroyed(element: Element) {
         const event = new CustomEvent(EventDestroyed, {});
         const h = this.getElementHooks(element);
-        if (h === null) {
-            return;
+        if (h !== null && h.destroyed) {
+            h.destroyed.bind({ el: element })();
         }
-        this.callHook(event, element, h.destroyed);
+        element.dispatchEvent(event);
     }
 
     /**
@@ -168,10 +158,10 @@ export class EventDispatch {
         const event = new CustomEvent(EventDisconnected, {});
         document.querySelectorAll(`[live-hook]`).forEach((element: Element) => {
             const h = this.getElementHooks(element);
-            if (h === null) {
-                return;
+            if (h !== null && h.disconnected) {
+                h.disconnected.bind({ el: element })();
             }
-            this.callHook(event, element, h.disconnected);
+            element.dispatchEvent(event);
         });
         document.body.classList.add(ClassDisconnected);
         document.body.classList.remove(ClassConnected);
@@ -184,12 +174,13 @@ export class EventDispatch {
         const event = new CustomEvent(EventReconnected, {});
         document.querySelectorAll(`[live-hook]`).forEach((element: Element) => {
             const h = this.getElementHooks(element);
-            if (h === null) {
-                return;
+            if (h !== null && h.reconnected) {
+                h.reconnected.bind({ el: element })();
             }
-            this.callHook(event, element, h.reconnected);
+            element.dispatchEvent(event);
         });
         document.body.classList.remove(ClassDisconnected);
+        document.body.classList.remove(ClassError);
         document.body.classList.add(ClassConnected);
     }
 
@@ -203,29 +194,8 @@ export class EventDispatch {
     private static getElementHooks(element: Element): Hook | null {
         const val = LiveElement.hook(element as HTMLElement);
         if (val === null) {
-            return val;
+            return null;
         }
-        return this.hooks[val];
-    }
-
-    private static callHook(
-        event: CustomEvent,
-        el: Element,
-        f: (() => void) | undefined
-    ) {
-        if (f === undefined) {
-            return;
-        }
-        const pushEvent = (e: LiveEvent) => {
-            Socket.send(e);
-        };
-        const handleEvent = (e: string, cb: (d: any) => void) => {
-            if (!(e in this.eventHandlers)) {
-                this.eventHandlers[e] = [];
-            }
-            this.eventHandlers[e].push(cb);
-        };
-        f.bind({ el, pushEvent, handleEvent })();
-        el.dispatchEvent(event);
+        return this.hooks[val] || null;
     }
 }

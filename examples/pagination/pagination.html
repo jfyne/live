@@ -1,0 +1,12 @@
+<div>
+    <p>Page {{ .Page }} of {{ .TotalPages }}</p>
+    <ul>
+        {{- range .Items }}
+        <li>{{ . }}</li>
+        {{- end }}
+    </ul>
+    <div>
+        <button live-click="prev-page">Previous</button>
+        <button live-click="next-page">Next</button>
+    </div>
+</div>

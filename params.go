@@ -5,16 +5,22 @@ import (
 	"strconv"
 )
 
-// Params event params.
+// Params represents event parameters as a flexible key-value map.
+// Params are typically extracted from client events and contain form data,
+// event metadata, or other structured information.
+//
+// The type provides helper methods for safe type conversion of common types.
 type Params map[string]any
 
-// String helper to get a string from the params.
+// String retrieves a string value from the params.
+// Returns an empty string if the key is not found or the value is not a string.
 func (p Params) String(key string) string {
 	return mapString(p, key)
 }
 
-// Checkbox helper to return a boolean from params referring to
-// a checkbox input.
+// Checkbox retrieves a boolean value from params for checkbox inputs.
+// Returns true if the value is the string "on" (the default for checked checkboxes).
+// Returns false if the key is not found or the value is not "on".
 func (p Params) Checkbox(key string) bool {
 	v, ok := p[key]
 	if !ok {
@@ -42,7 +48,9 @@ func mapString(p map[string]any, key string) string {
 	return out
 }
 
-// Int helper to return and int from the params.
+// Int retrieves an integer value from the params.
+// Handles conversion from int, string, float32, and float64 types.
+// Returns 0 if the key is not found or the value cannot be converted to int.
 func (p Params) Int(key string) int {
 	return mapInt(p, key)
 }
@@ -69,7 +77,9 @@ func mapInt(p map[string]any, key string) int {
 	return 0
 }
 
-// Float32 helper to return a float32 from the params.
+// Float32 retrieves a float32 value from the params.
+// Handles conversion from float32, float64, and string types.
+// Returns 0.0 if the key is not found or the value cannot be converted to float32.
 func (p Params) Float32(key string) float32 {
 	return mapFloat32(p, key)
 }
@@ -94,7 +104,9 @@ func mapFloat32(p map[string]any, key string) float32 {
 	return 0.0
 }
 
-// NewParamsFromRequest helper to generate Params from an http request.
+// NewParamsFromRequest creates a Params map from URL query parameters.
+// If a parameter appears multiple times, the value will be a []string slice.
+// If a parameter appears once, the value will be a string.
 func NewParamsFromRequest(r *http.Request) Params {
 	out := Params{}
 	values := r.URL.Query()

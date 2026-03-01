@@ -1,153 +1,265 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"errors"
+	"embed"
+	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
+	"time"
 
 	"github.com/jfyne/live"
 )
 
-const (
-	validate = "validate"
-	save     = "save"
-)
+//go:embed *.html
+var content embed.FS
 
-type model struct {
-	Uploads []string
+// UploadsState holds the state for an uploads island instance.
+type UploadsState struct {
+	Uploads    live.UploadContext
+	Errors     []error
+	SavedFiles []string
 }
 
-func newModel(s *live.Socket) *model {
-	m, ok := s.Assigns().(*model)
-	if !ok {
-		return &model{
-			Uploads: []string{},
+// NewUploadsIsland creates a new uploads island definition.
+func NewUploadsIsland() (*live.Island, error) {
+	island, err := live.NewIsland(
+		"uploads",
+		live.WithMount(func(ctx context.Context, props live.Props, children string) (any, error) {
+			return &UploadsState{
+				Uploads:    live.UploadContext{},
+				Errors:     []error{},
+				SavedFiles: []string{},
+			}, nil
+		}),
+		live.WithUploadConfig(&live.UploadConfig{
+			Name:     "photos",
+			MaxFiles: 3,
+			MaxSize:  1 * 1024 * 1024,
+			Accept:   []string{"image/png"},
+		}),
+		live.WithRender(func(ctx context.Context, rc *live.IslandRenderContext) (io.Reader, error) {
+			state := rc.State.(*UploadsState)
+
+			tmpl, err := template.ParseFS(content, "uploads.html")
+			if err != nil {
+				return nil, err
+			}
+
+			var buf bytes.Buffer
+			if err := tmpl.Execute(&buf, state); err != nil {
+				return nil, err
+			}
+
+			return &buf, nil
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// validate: validate upload metadata from the client and store the result.
+	err = island.HandleEvent("validate", func(ctx context.Context, state any, params live.Params) (any, error) {
+		s := state.(*UploadsState)
+
+		uploadCtx, err := live.ValidateUploads(params, island.UploadConfigs())
+		if err != nil {
+			return nil, err
 		}
-	}
-	return m
-}
 
-// customError formats upload validation errors.
-func customError(u *live.Upload, err error) string {
-	msg := []string{}
-	if u.Name != "" {
-		msg = append(msg, u.Name)
+		s.Uploads = uploadCtx
+		s.Errors = []error{}
+
+		// Collect any per-upload validation errors into state.Errors.
+		for _, uploads := range uploadCtx {
+			for _, u := range uploads {
+				s.Errors = append(s.Errors, u.Errors...)
+			}
+		}
+
+		return s, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	switch {
-	case errors.Is(err, live.ErrUploadTooLarge):
-		msg = append(msg, "This is a custom too large message: "+err.Error())
-	case errors.Is(err, live.ErrUploadTooManyFiles):
-		msg = append(msg, "This is a custom too many files message: "+err.Error())
-	default:
-		msg = append(msg, err.Error())
+
+	// save: consume the staged uploads and record file names in SavedFiles.
+	err = island.HandleEvent("save", func(ctx context.Context, state any, params live.Params) (any, error) {
+		s := state.(*UploadsState)
+
+		errs := live.ConsumeUploads(s.Uploads, "photos", func(u *live.Upload) error {
+			s.SavedFiles = append(s.SavedFiles, u.Name)
+			return nil
+		})
+
+		if len(errs) > 0 {
+			s.Errors = append(s.Errors, errs...)
+		}
+
+		// Clear the uploads context after consuming.
+		s.Uploads = live.UploadContext{}
+
+		return s, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	return strings.Join(msg, " - ")
+
+	return island, nil
 }
 
 func main() {
-
-	// Setup the template with some funcs to provide custom error messages.
-	t, err := template.New("root.html").Funcs(template.FuncMap{
-		"customError": customError,
-	}).ParseFiles("root.html", "uploads/view.html")
+	// Register the uploads island with the global registry.
+	err := live.RegisterIsland("uploads", NewUploadsIsland)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Failed to register uploads island:", err)
 	}
 
-	// Create a temporary directory to store uploads
-	staticPath, err := os.MkdirTemp("", "static-")
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Create context for engine lifecycle.
+	ctx := context.Background()
 
-	h := live.NewHandler(live.WithTemplateRenderer(t))
+	// Create state store with 1-minute cleanup interval.
+	stateStore := live.NewMemoryIslandStateStore(ctx, 1*time.Minute)
 
-	// In the mount function we call `AllowUploads` on the socket which configures
-	// what is allowed to be uploaded.
-	h.MountHandler = func(ctx context.Context, s *live.Socket) (any, error) {
-		s.AllowUploads(&live.UploadConfig{
-			// Name refers to the name of the file input field.
-			Name: "photos",
-			// We are accepting a maximum of 3 files.
-			MaxFiles: 3,
-			// For each of those files we are only allowing them to be 1MB.
-			MaxSize: 1 * 1024 * 1024,
-			// We are only accepting .png.
-			Accept: []string{"image/png"},
-		})
-		return newModel(s), nil
-	}
+	// Create island engine.
+	registry := live.DefaultRegistry()
+	engine := live.NewIslandEngine(ctx, registry, stateStore)
+	defer engine.Close()
 
-	// On form change we perform validation.
-	h.HandleEvent(validate, func(ctx context.Context, s *live.Socket, p live.Params) (any, error) {
-		m := newModel(s)
-		// This helper function populates the socket `Uploads` with errors.
-		live.ValidateUploads(s, p)
-		return m, nil
-	})
-
-	// On form save, the client first posts the files then this event handler is called.
-	// Here we can to consume the files from our staging area.
-	h.HandleEvent(save, func(ctx context.Context, s *live.Socket, p live.Params) (any, error) {
-		m := newModel(s)
-
-		// `ConsumeUploads` helper function is used to iterate over the "photos" input files
-		// that have been uploaded.
-		errs := live.ConsumeUploads(s, "photos", func(u *live.Upload) error {
-			// First we get the staged file.
-			file, err := u.File()
-			if err != nil {
-				return err
-			}
-			// When we are done close the file, and remove it from staging.
-			defer func() {
-				file.Close()
-				os.Remove(file.Name())
-			}()
-
-			// Create a new file in our static directory to copy the staged file into.
-			dst, err := os.Create(filepath.Join(staticPath, u.Name))
-			if err != nil {
-				return err
-			}
-			defer dst.Close()
-
-			// Do the copy
-			if _, err := io.Copy(dst, file); err != nil {
-				return err
-			}
-
-			// Record the name of the file so we can show the link to it.
-			m.Uploads = append(m.Uploads, u.Name)
-
-			return nil
-		})
-		if len(errs) > 0 {
-			return nil, errors.Join(errs...)
+	// Set up WebSocket transport endpoint.
+	wsConfig := live.DefaultTransportConfig()
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		transport, err := live.UpgradeWebSocket(r.Context(), w, r, wsConfig)
+		if err != nil {
+			http.Error(w, "WebSocket upgrade failed", http.StatusBadRequest)
+			return
 		}
 
-		return m, nil
+		sessionID := live.SessionID(fmt.Sprintf("session-%d", time.Now().UnixNano()))
+		session := live.NewSession(r.Context(), sessionID, transport)
+		engine.AddSession(session)
+
+		defer func() {
+			engine.DeleteSession(sessionID)
+		}()
+
+		go func() {
+			for event := range transport.Events() {
+				log.Printf("Received event: type=%s, island=%s", event.T, event.Island)
+
+				if event.T == "subscribe" && event.Island != "" {
+					islandID := live.IslandID(event.Island)
+					params, _ := event.Params()
+					islandType := params.String("type")
+
+					if islandType == "" {
+						log.Printf("Warning: subscribe event for %s missing type, cannot mount", islandID)
+						continue
+					}
+
+					_, err := engine.MountIsland(sessionID, islandID, islandType, live.Props{})
+					if err != nil {
+						log.Printf("Failed to mount island %s: %v", islandID, err)
+					}
+					continue
+				}
+
+				if err := engine.RouteEvent(sessionID, event); err != nil {
+					log.Printf("Event routing error: %v", err)
+				}
+			}
+		}()
+
+		<-r.Context().Done()
 	})
 
-	http.Handle("/", live.NewHttpHandler(
-		context.Background(),
-		h,
-		// Only allow a total of 10MBs to be uploaded.
-		live.WithMaxUploadSize(10*1024*1024)))
+	// Set up SSE transport endpoints.
+	sseConfig := live.DefaultTransportConfig()
+	sseFactory := live.NewSSETransportFactory(sseConfig)
 
-	// Set up the static file handling for the uploads we have consumed.
-	fs := http.FileServer(http.Dir(staticPath))
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
+	http.HandleFunc("/live/sse", func(w http.ResponseWriter, r *http.Request) {
+		transport, err := sseFactory.Upgrade(r.Context(), w, r)
+		if err != nil {
+			http.Error(w, "SSE upgrade failed", http.StatusBadRequest)
+			return
+		}
 
+		sessionID := live.SessionID(live.GetSessionIDFromRequest(r))
+		if sessionID == "" {
+			sessionID = live.SessionID(fmt.Sprintf("session-%d", time.Now().UnixNano()))
+		}
+		session := live.NewSession(r.Context(), sessionID, transport)
+		engine.AddSession(session)
+
+		defer func() {
+			engine.DeleteSession(sessionID)
+		}()
+
+		go func() {
+			for event := range transport.Events() {
+				log.Printf("SSE received event: type=%s, island=%s", event.T, event.Island)
+
+				if event.T == "subscribe" && event.Island != "" {
+					islandID := live.IslandID(event.Island)
+					params, _ := event.Params()
+					islandType := params.String("type")
+
+					if islandType == "" {
+						log.Printf("Warning: subscribe event for %s missing type, cannot mount", islandID)
+						continue
+					}
+
+					_, err := engine.MountIsland(sessionID, islandID, islandType, live.Props{})
+					if err != nil {
+						log.Printf("Failed to mount island %s: %v", islandID, err)
+					}
+					continue
+				}
+
+				if err := engine.RouteEvent(sessionID, event); err != nil {
+					log.Printf("Event routing error: %v", err)
+				}
+			}
+		}()
+
+		<-r.Context().Done()
+	})
+
+	// SSE POST handler for client-to-server events.
+	http.HandleFunc("/live/post", func(w http.ResponseWriter, r *http.Request) {
+		sseFactory.HandlePost(w, r)
+	})
+
+	// Serve the main HTML page.
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		tmpl, err := template.ParseFS(content, "index.html")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := tmpl.Execute(w, nil); err != nil {
+			slog.Error("failed to execute template", "err", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	})
+
+	// Serve the v2 client library.
 	http.Handle("/live.js", live.Javascript{})
-	http.Handle("/auto.js.map", live.JavascriptMap{})
-	slog.Info("server", "link", "http://localhost:8080")
-	http.ListenAndServe(":8080", nil)
+
+	// Start server.
+	addr := ":8080"
+	log.Printf("Uploads example server starting on http://localhost%s", addr)
+	log.Printf("Visit http://localhost%s to see the example", addr)
+	if err := http.ListenAndServe(addr, nil); err != nil {
+		log.Fatal(err)
+	}
 }

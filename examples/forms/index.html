@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live v2 Forms Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #555;
+            font-size: 18px;
+        }
+        live-island {
+            display: block;
+        }
+        input[type="text"],
+        input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-right: 8px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .error {
+            color: red;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        .task {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+        }
+        .done {
+            text-decoration: line-through;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <h1>Live v2 Forms Example</h1>
+
+    <div class="section">
+        <h2>Todo List</h2>
+        <live-island type="todo" id="todo-list">
+            <form>
+                <input type="text" name="task" placeholder="Enter a task...">
+                <button type="submit">Add Task</button>
+            </form>
+            <div>Loading tasks...</div>
+        </live-island>
+    </div>
+
+    <div class="section">
+        <h2>Prefill Form</h2>
+        <live-island type="prefill" id="prefill-form">
+            <form>
+                <div><label>Name: <input type="text" name="name"></label></div>
+                <div><label>Age: <input type="number" name="age"></label></div>
+                <button type="submit">Save</button>
+            </form>
+            <div>Loading form...</div>
+        </live-island>
+    </div>
+
+    <!-- Load the v2 client library -->
+    <script src="/live.js"></script>
+</body>
+</html>

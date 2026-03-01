@@ -1,0 +1,9 @@
+<div>
+    <form id="prefill-form" live-change="validate" live-submit="save">
+        {{ if .Validation }}<div class="error">{{ .Validation }}</div>{{ end }}
+        <div><label>Name: <input type="text" name="name" value="{{ .Name }}"></label></div>
+        <div><label>Age: <input type="number" name="age" value="{{ .Age }}"></label></div>
+        <button type="submit">Save</button>
+    </form>
+    <div>Current: {{ .Name }}, age {{ .Age }}</div>
+</div>

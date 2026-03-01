@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live v2 Uploads Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .description {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .upload-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        live-island {
+            display: block;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .errors {
+            color: red;
+        }
+        .saved-files {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>Live v2 Uploads Example</h1>
+
+    <div class="description">
+        <p>This example demonstrates file upload validation using the v2 islands architecture.</p>
+        <p>Select PNG files to validate them client-side before uploading.</p>
+    </div>
+
+    <div class="upload-container">
+        <live-island type="uploads" id="uploads-1">
+            <div>
+                <p>Loading uploads island...</p>
+            </div>
+        </live-island>
+    </div>
+
+    <!-- Load the v2 client library -->
+    <script src="/live.js"></script>
+</body>
+</html>

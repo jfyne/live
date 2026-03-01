@@ -1,6 +1,7 @@
 {
     "compilerOptions": {
         "target": "ES6",
+        "lib": ["ES6", "DOM", "DOM.Iterable", "WebWorker"],
         "module": "ES6",
         "outDir": "./dist",
         "declaration": true,

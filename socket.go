@@ -172,6 +172,8 @@ func (s *Socket) Self(ctx context.Context, event string, data any) error {
 		return nil
 	case err := <-op.err:
 		return err
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
